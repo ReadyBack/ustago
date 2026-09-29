@@ -1,0 +1,18 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+.next/
+out/
+.expo/
+web-build/
+*.tsbuildinfo
+generated/
+
+# env: only .env.example is committed
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log

@@ -1,0 +1,14 @@
+// UstaGO database schema. Phase 0 only sets up the connection; domain
+// models arrive with their phases (PROJECT.md §17, §29).
+// Conventions: table names snake_case via @@map, money as Int/BigInt minor
+// units, timestamps stored in UTC.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}

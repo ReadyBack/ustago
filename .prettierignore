@@ -1,0 +1,10 @@
+node_modules
+dist
+.next
+.expo
+.turbo
+coverage
+generated
+pnpm-lock.yaml
+PROJECT.md
+next-env.d.ts

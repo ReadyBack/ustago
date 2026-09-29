@@ -1,0 +1,8 @@
+{
+  "extends": "@ustago/tsconfig/library.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": ["src", "*.config.ts"]
+}

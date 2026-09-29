@@ -1,0 +1,35 @@
+{
+  "name": "@ustago/config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Environment variable schemas and parsing.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@ustago/eslint-config": "workspace:*",
+    "@ustago/tsconfig": "workspace:*",
+    "eslint": "^9.39.0",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.2"
+  }
+}
