@@ -13,8 +13,12 @@ import { ApiExcludeController } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 
 import { Public } from '../common/auth/decorators.js';
-import { badRequest, forbidden, httpError, notFound } from '../common/http/errors.js';
-import { LocalObjectStorage, UploadTooLargeError } from './local-object-storage.js';
+import { badRequest, conflict, forbidden, httpError, notFound } from '../common/http/errors.js';
+import {
+  LocalObjectStorage,
+  ObjectAlreadyExistsError,
+  UploadTooLargeError,
+} from './local-object-storage.js';
 import { OBJECT_STORAGE, type ObjectStorage } from './object-storage.js';
 
 const LINK_INVALID = () =>
@@ -49,6 +53,9 @@ export class LocalStorageController {
       await local.write(claims.key, req, claims.ct, claims.max);
     } catch (error) {
       if (error instanceof UploadTooLargeError) throw tooLarge();
+      if (error instanceof ObjectAlreadyExistsError) {
+        throw conflict('STORAGE_OBJECT_EXISTS', 'Bu bağlantıyla zaten dosya yüklendi.');
+      }
       throw error;
     }
   }

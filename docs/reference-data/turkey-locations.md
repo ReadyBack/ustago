@@ -7,10 +7,10 @@ ayarları (`province_categories`) admin tarafından yönetilir.
 
 ## Kapsam
 
-| Veri | Adet | Dosya |
-| --- | --- | --- |
-| İl (plaka kodu 1–81) | 81 | `apps/api/src/seed/reference-data.ts` (`PROVINCES`) |
-| İlçe | 973 | `apps/api/src/seed/data/turkey-districts.ts` (üretilmiş) |
+| Veri                 | Adet | Dosya                                                    |
+| -------------------- | ---- | -------------------------------------------------------- |
+| İl (plaka kodu 1–81) | 81   | `apps/api/src/seed/reference-data.ts` (`PROVINCES`)      |
+| İlçe                 | 973  | `apps/api/src/seed/data/turkey-districts.ts` (üretilmiş) |
 
 - İsimler Türkçe karakterleriyle saklanır (`Şereflikoçhisar`, `Eyüpsultan`).
 - `slug` ayrı alandır, seed sırasında `slugify()` ile üretilir
@@ -21,10 +21,10 @@ ayarları (`province_categories`) admin tarafından yönetilir.
 
 ## Kaynak
 
-| | Kaynak | Sürüm / tarih |
-| --- | --- | --- |
-| Birincil | PTT posta kodu listesi (`https://postakodu.ptt.gov.tr/Dosyalar/pk_list.zip`), npm paketi [`turkey-neighbourhoods`](https://www.npmjs.com/package/turkey-neighbourhoods) aracılığıyla (`src/data/districtsByCityCode.json`) | 4.0.3, yayın 2024-03-31 |
-| Çapraz kontrol | [`snrylmz/il-ilce-json`](https://github.com/snrylmz/il-ilce-json) (`js/il-ilce.json`, NVI ilçe kodlarıyla) | `master`, erişim 2026-09-29 |
+|                | Kaynak                                                                                                                                                                                                                     | Sürüm / tarih               |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Birincil       | PTT posta kodu listesi (`https://postakodu.ptt.gov.tr/Dosyalar/pk_list.zip`), npm paketi [`turkey-neighbourhoods`](https://www.npmjs.com/package/turkey-neighbourhoods) aracılığıyla (`src/data/districtsByCityCode.json`) | 4.0.3, yayın 2024-03-31     |
+| Çapraz kontrol | [`snrylmz/il-ilce-json`](https://github.com/snrylmz/il-ilce-json) (`js/il-ilce.json`, NVI ilçe kodlarıyla)                                                                                                                 | `master`, erişim 2026-09-29 |
 
 İki kaynak il bazında, isim isim (Türkçe büyük harfe çevrilerek) karşılaştırıldı:
 **81 il, 973 ilçe, 0 fark.** Faz 1'de elle girilen İstanbul (39), Ankara (25) ve

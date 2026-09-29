@@ -1,4 +1,5 @@
 export type { ApiErrorResponse } from './api-error.js';
+export type { AuditEvent } from './audit.js';
 export type {
   AuthResponse,
   AuthTokens,

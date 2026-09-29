@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream, type ReadStream } from 'node:fs';
-import { mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { link, mkdir, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import type { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -18,6 +18,17 @@ export class UploadTooLargeError extends Error {
     super('Upload exceeds the allowed size.');
     this.name = 'UploadTooLargeError';
   }
+}
+
+/** The key already holds an object; uploads never overwrite. */
+export class ObjectAlreadyExistsError extends Error {
+  constructor() {
+    super('Object already exists');
+  }
+}
+
+function isErrno(error: unknown, code: string): boolean {
+  return error instanceof Error && 'code' in error && error.code === code;
 }
 
 /**
@@ -39,7 +50,7 @@ export class LocalObjectStorage implements ObjectStorage {
     this.root = resolve(rootDir);
   }
 
-  createUploadUrl(key: string, options: UploadUrlOptions): Promise<SignedRequest> {
+  async createUploadUrl(key: string, options: UploadUrlOptions): Promise<SignedRequest> {
     this.pathFor(key);
     const expiresAt = new Date(Date.now() + options.expiresInSeconds * 1000);
     const token = signStorageToken(this.secret, {
@@ -49,15 +60,15 @@ export class LocalObjectStorage implements ObjectStorage {
       ct: options.contentType,
       max: options.maxBytes,
     });
-    return Promise.resolve({
+    return {
       url: this.urlFor(token),
       method: 'PUT',
       headers: { 'Content-Type': options.contentType },
       expiresAt,
-    });
+    };
   }
 
-  createDownloadUrl(key: string, expiresInSeconds: number): Promise<SignedRequest> {
+  async createDownloadUrl(key: string, expiresInSeconds: number): Promise<SignedRequest> {
     this.pathFor(key);
     const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
     const token = signStorageToken(this.secret, {
@@ -65,7 +76,7 @@ export class LocalObjectStorage implements ObjectStorage {
       op: 'get',
       exp: Math.floor(expiresAt.getTime() / 1000),
     });
-    return Promise.resolve({ url: this.urlFor(token), method: 'GET', headers: {}, expiresAt });
+    return { url: this.urlFor(token), method: 'GET', headers: {}, expiresAt };
   }
 
   async head(key: string): Promise<ObjectInfo | null> {
@@ -120,12 +131,18 @@ export class LocalObjectStorage implements ObjectStorage {
         },
         createWriteStream(temp, { flags: 'wx' }),
       );
+      // Write-once: link() fails if the object exists, so a still-valid
+      // upload URL cannot swap a file after the server has inspected it.
+      try {
+        await link(temp, path);
+      } catch (error) {
+        if (isErrno(error, 'EEXIST')) throw new ObjectAlreadyExistsError();
+        throw error;
+      }
       await writeFile(`${path}.meta.json`, JSON.stringify({ contentType }));
-      await rename(temp, path);
       return size;
-    } catch (error) {
+    } finally {
       await rm(temp, { force: true });
-      throw error;
     }
   }
 

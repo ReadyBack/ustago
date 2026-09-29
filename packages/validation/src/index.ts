@@ -125,3 +125,8 @@ export {
   type UpdateUserStatusRequest,
   updateUserStatusRequestSchema,
 } from './users.js';
+export {
+  auditEventSchema,
+  type ListAuditEventsQuery,
+  listAuditEventsQuerySchema,
+} from './audit.js';

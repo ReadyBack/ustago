@@ -213,22 +213,20 @@ export class OtpService {
     if (!challenge) throw otpInvalid();
 
     // Count the attempt before comparing, atomically, so parallel guesses
-    // cannot exceed maxAttempts.
-    const counted = await this.prisma.otpChallenge.updateMany({
-      where: {
-        id: challenge.id,
-        consumedAt: null,
-        invalidatedAt: null,
-        attempts: { lt: challenge.maxAttempts },
-      },
-      data: { attempts: { increment: 1 } },
-    });
-    if (counted.count === 0) {
+    // cannot exceed maxAttempts. RETURNING gives each request its own
+    // attempt number, so exactly the last allowed guess locks the code.
+    const counted = await this.prisma.$queryRaw<{ attempts: number }[]>`
+      UPDATE otp_challenges SET attempts = attempts + 1
+      WHERE id = ${challenge.id}::uuid
+        AND consumed_at IS NULL AND invalidated_at IS NULL
+        AND attempts < max_attempts
+      RETURNING attempts`;
+    const attemptsUsed = counted[0]?.attempts;
+    if (attemptsUsed === undefined) {
       const fresh = await this.prisma.otpChallenge.findUnique({ where: { id: challenge.id } });
       this.throwIfUnusable(checkChallenge(fresh, now));
       throw otpInvalid();
     }
-    const attemptsUsed = challenge.attempts + 1;
 
     const matches =
       input.code.length === this.env.OTP_CODE_LENGTH &&

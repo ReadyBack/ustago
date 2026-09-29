@@ -186,7 +186,9 @@ export class ProvidersService {
         }
       }
 
-      if (isAvailableNow && !current.isAvailableNow) {
+      // An explicit "make me available" is checked even when it would be a
+      // no-op, so the client learns why it did not happen.
+      if (input.isAvailableNow === true && !current.isAvailableNow) {
         if (!canBeAvailableNow(current.status)) {
           throw conflict(
             'PROVIDER_NOT_ACTIVE',
