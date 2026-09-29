@@ -14,6 +14,7 @@ PROJECT.md PostgreSQL + Prisma önerir. Prisma 7 driver adapter mimarisine geçm
 - Bağlantı ayarı `apps/api/prisma.config.ts` içindedir ve kök `.env`'i okur.
 - Faz 0'da model yoktur; tablolar kendi fazlarında migration ile eklenir. Migration'lar commit edilir.
 - **Para:** asla float değil; `amount_minor` (kuruş) tamsayı + `currency` (ör. `TRY`).
+  Ayrıntılar: [ADR-0006](0006-para-saklama-stratejisi.md) (veritabanında `BigInt`).
 - **Zaman:** veritabanında UTC; arayüz kullanıcının saat dilimine göre gösterir.
 - **İsimlendirme:** tablolar `snake_case` (`@@map`), kodda `camelCase`.
 

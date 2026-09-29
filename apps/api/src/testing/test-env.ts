@@ -8,6 +8,7 @@ export function testEnv(overrides: Record<string, string> = {}): ApiEnv {
     DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
     REDIS_URL: 'redis://localhost:6379',
     API_SWAGGER_ENABLED: 'false',
+    JWT_ACCESS_SECRET: 'unit-test-only-secret-0123456789abcdef',
     ...overrides,
   });
 }

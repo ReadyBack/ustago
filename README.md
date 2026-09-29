@@ -3,7 +3,8 @@
 Mobil öncelikli yerel hizmet pazaryeri ve usta işletme platformu.
 Ürün ve teknik tanım: [PROJECT.md](PROJECT.md). Mimari kararlar: [docs/adr](docs/adr/README.md).
 
-> **Durum:** Faz 0 (repository ve standartlar). Ürün özellikleri henüz yok.
+> **Durum:** Faz 1 tamamlandı: domain modeli, kimlik doğrulama/yetkilendirme ve veritabanı
+> çekirdeği. Talep, teklif ve iş akışları sonraki fazlarda gelecek.
 
 ## Yapı
 
@@ -29,41 +30,60 @@ docs/             ADR, mimari, ürün ve API dokümanları
 - Docker (PostgreSQL ve Redis için)
 - Mobil için: telefonda Expo Go veya Android/iOS emülatörü
 
-## Lokal kurulum
+## Lokal kurulum (yeni geliştirici)
 
 ```bash
-# 1. Bağımlılıklar (Prisma istemcisi de üretilir)
+# 1. Repository'yi klonla ve bağımlılıkları kur (Prisma istemcisi de üretilir)
+git clone <repo-url> ustago && cd ustago
 corepack enable
 pnpm install
 
-# 2. Ortam değişkenleri
+# 2. Ortam değişkenleri (tek .env kökte; git'e girmez)
 cp .env.example .env
+#    İsteğe bağlı: SEED_DEV_PASSWORD'e demo hesaplar için bir şifre yaz (en az 10 karakter).
 cp apps/admin/.env.example apps/admin/.env.local    # isteğe bağlı
 cp apps/mobile/.env.example apps/mobile/.env        # isteğe bağlı
 
-# 3. PostgreSQL + Redis
+# 3. PostgreSQL + Redis (Docker)
 pnpm db:up
 
-# 4. Paylaşılan paketleri derle ve uygulamaları başlat
+# 4. Migration'ları uygula
+pnpm db:deploy          # mevcut migration'ları uygular
+#    Şemayı değiştirdiysen yeni migration üret: pnpm db:migrate --name <degisiklik>
+
+# 5. Seed: 81 il, pilot ilçeler, kategoriler ve demo hesaplar
+pnpm db:seed
+
+# 6. Paylaşılan paketleri derle ve API'yi başlat
 pnpm build --filter "./packages/*"
-pnpm dev
+pnpm --filter @ustago/api dev       # veya hepsi birden: pnpm dev
+
+# 7. Testler
+pnpm test               # birim + smoke (Docker gerekmez)
+pnpm test:e2e           # gerçek PostgreSQL + Redis (adım 3-4 gerekli)
 ```
 
-`pnpm dev` API'yi (3000), admin'i (3001) ve Expo'yu birlikte başlatır. Tek tek çalıştırmak için:
+Sıfırdan başlamak için `pnpm db:reset` veritabanını siler, migration'ları yeniden uygular ve seed'i
+çalıştırır (yalnızca lokal).
 
-```bash
-pnpm --filter @ustago/api dev
-pnpm --filter @ustago/admin dev
-pnpm --filter @ustago/mobile dev
-```
+### Demo hesaplar (yalnızca geliştirme)
 
-Kontrol:
+`pnpm db:seed`, `NODE_ENV` `production` değilse üç demo hesap oluşturur. Adresler `.test` alan
+adındadır, gerçek bir kutuya gidemez:
 
-- API sağlığı: http://localhost:3000/api/v1/health (veya `infrastructure/scripts/check-services.sh`)
-- Swagger: http://localhost:3000/api/docs
-- Admin: http://localhost:3001 (API durumunu gösterir)
-- Mobil: terminaldeki QR kodu Expo Go ile okutun. Fiziksel cihazda `EXPO_PUBLIC_API_URL` için
-  bilgisayarın yerel IP'sini kullanın.
+| E-posta               | Roller                | Not                                                            |
+| --------------------- | --------------------- | -------------------------------------------------------------- |
+| `admin@ustago.test`   | CUSTOMER, SUPER_ADMIN | Tüm yönetim uç noktaları                                       |
+| `musteri@ustago.test` | CUSTOMER              |                                                                |
+| `usta@ustago.test`    | CUSTOMER, PROVIDER    | Onaylı usta; Elektrik, Su Tesisatı; Kadıköy, Üsküdar, Ataşehir |
+
+Şifre repository'de yoktur. `.env` içindeki `SEED_DEV_PASSWORD` doluysa o kullanılır (ve seed her
+çalıştığında bu hesapların şifresi ona eşitlenir). Boşsa seed rastgele bir şifre üretir ve **bir kez**
+terminale yazar. Şifreyi unutursan `SEED_DEV_PASSWORD`'ü doldurup `pnpm db:seed`'i tekrar çalıştır.
+Üretimde (`NODE_ENV=production`) seed yalnızca il/ilçe/kategori verisini yükler.
+
+Denemek için: Swagger'da (http://localhost:3000/api/docs) `POST /api/v1/auth/login` ile giriş yap,
+dönen `accessToken`'ı sağ üstteki **Authorize** düğmesine yapıştır.
 
 ## Komutlar
 
@@ -78,6 +98,10 @@ Kontrol:
 | `pnpm db:up` / `pnpm db:down`       | Docker servislerini başlatır / durdurur                               |
 | `pnpm db:generate`                  | Prisma istemcisini üretir                                             |
 | `pnpm db:migrate`                   | Prisma migration oluşturur ve uygular (geliştirme)                    |
+| `pnpm db:deploy`                    | Mevcut migration'ları uygular (CI / üretim)                           |
+| `pnpm db:seed`                      | Referans veri + (geliştirmede) demo hesaplar                          |
+| `pnpm db:reset`                     | Lokal veritabanını sıfırlar, migration + seed                         |
+| `pnpm db:validate`                  | Prisma şemasını doğrular                                              |
 
 ## Kurallar (özet)
 
@@ -89,7 +113,14 @@ Tam liste: PROJECT.md §31.
 - Secret koda yazılmaz; yeni değişken hem şemaya hem `.env.example`'a eklenir.
 - Her fazın sonunda `pnpm lint && pnpm typecheck && pnpm test`.
 
+## Dokümanlar
+
+- API, hata biçimi ve uç noktalar: [docs/api](docs/api/README.md)
+- Domain modeli: [docs/architecture/domain-model.md](docs/architecture/domain-model.md)
+- Kararlar: [docs/adr](docs/adr/README.md) (0005 rol modeli, 0006 para, 0007 auth, 0008 domain)
+
 ## CI
 
-`.github/workflows/ci.yml`: install → format check → lint → typecheck → test → API e2e
+`.github/workflows/ci.yml`: install → format check → lint → typecheck → test → Prisma validate +
+migrate deploy + şema/migration fark kontrolü → seed (iki kez, idempotent) → API e2e
 (GitHub Actions servis konteynerlerinde PostgreSQL + Redis).

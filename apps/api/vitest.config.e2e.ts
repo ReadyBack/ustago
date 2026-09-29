@@ -8,5 +8,7 @@ export default defineConfig({
     root: './',
     include: ['test/**/*.e2e-spec.ts'],
     testTimeout: 20000,
+    // Suites share one database and Redis; run them one after another.
+    fileParallelism: false,
   },
 });
