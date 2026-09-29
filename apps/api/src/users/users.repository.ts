@@ -69,6 +69,35 @@ export class UsersRepository {
     });
   }
 
+  /**
+   * Account created by phone sign-in (no e-mail or password yet). The
+   * phone is verified by the OTP that created it.
+   */
+  createWithVerifiedPhone(
+    input: { phone: string; firstName: string; lastName: string },
+    tx: Prisma.TransactionClient,
+  ): Promise<UserWithProfiles> {
+    return tx.user.create({
+      data: {
+        phone: input.phone,
+        phoneVerifiedAt: new Date(),
+        firstName: input.firstName,
+        lastName: input.lastName,
+        roles: { create: [{ role: 'CUSTOMER' }] },
+        customerProfile: { create: {} },
+      },
+      ...userWithProfiles,
+    });
+  }
+
+  /** Includes soft-deleted users: the phone column is unique across all rows. */
+  findPhoneOwner(phone: string, tx: Prisma.TransactionClient = this.prisma) {
+    return tx.user.findUnique({
+      where: { phone },
+      select: { id: true, status: true, deletedAt: true, phoneVerifiedAt: true },
+    });
+  }
+
   async touchLastLogin(id: string): Promise<void> {
     await this.prisma.user.update({ where: { id }, data: { lastLoginAt: new Date() } });
   }

@@ -224,8 +224,28 @@ export class AuthService {
     }
   }
 
+  /**
+   * Opens a new session for an already authenticated user (used by phone
+   * OTP sign-in) with the same refresh-rotation rules as password login.
+   */
+  async startSession(userId: string, client: ClientContext): Promise<AuthTokens> {
+    const refresh = this.tokens.generateRefreshToken();
+    const { refreshExpiresAt, sessionExpiresAt } = this.lifetimes();
+    const session = await this.sessions.create({
+      userId,
+      ...client,
+      expiresAt: sessionExpiresAt,
+      refreshTokenHash: refresh.hash,
+      refreshTokenExpiresAt: refreshExpiresAt,
+    });
+    await this.users.touchLastLogin(userId);
+    return this.buildTokens(userId, session.id, refresh.token, refreshExpiresAt);
+  }
+
   async logout(userId: string, sessionId: string, client: ClientContext): Promise<void> {
     await this.sessions.revoke(sessionId, 'LOGOUT');
+    // A signed-out install must stop receiving pushes for this account.
+    await this.sessions.releaseDeviceOf(sessionId);
     await this.audit.record({
       action: 'auth.logout',
       actorId: userId,
@@ -237,6 +257,7 @@ export class AuthService {
 
   async logoutAll(userId: string, client: ClientContext): Promise<void> {
     const count = await this.sessions.revokeAllForUser(userId, 'LOGOUT_ALL');
+    await this.sessions.releaseAllDevicesOf(userId);
     await this.audit.record({
       action: 'auth.logout_all',
       actorId: userId,
