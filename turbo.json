@@ -22,7 +22,17 @@
     },
     "test:e2e": {
       "dependsOn": ["^build"],
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "NODE_ENV",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "JWT_*",
+        "AUTH_*",
+        "API_*",
+        "APP_VERSION",
+        "LOG_LEVEL"
+      ]
     }
   }
 }
