@@ -10,7 +10,12 @@ import { unprocessable } from '../common/http/errors.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { requiresNonEmptyCatalog } from './domain/provider-lifecycle.js';
-import { catalogInclude, toServiceAreaGroups, toServiceItems } from './provider.mappers.js';
+import {
+  catalogInclude,
+  liveCategoryWhere,
+  toServiceAreaGroups,
+  toServiceItems,
+} from './provider.mappers.js';
 import { ProviderStore } from './provider.store.js';
 
 /** What the provider does (categories) and where (districts). */
@@ -50,8 +55,7 @@ export class ProviderCatalogService {
       const available = await tx.serviceCategory.findMany({
         where: {
           id: { in: input.categoryIds },
-          isActive: true,
-          OR: [{ parentId: null }, { parent: { isActive: true } }],
+          ...liveCategoryWhere,
         },
         select: { id: true },
       });

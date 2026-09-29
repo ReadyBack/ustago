@@ -96,6 +96,7 @@ export class ProvidersController {
   @ApiBearerAuth()
   @ApiZodBody(updateProviderProfileRequestSchema)
   @ApiZodResponse(200, providerProfileSchema)
+  @ApiZodResponse(422, apiErrorResponseSchema, 'PROVIDER_PROFILE_INCOMPLETE (onaylı usta)')
   @ApiZodResponse(409, apiErrorResponseSchema, STATE_ERRORS)
   updateMine(
     @CurrentUser() user: AuthUser,

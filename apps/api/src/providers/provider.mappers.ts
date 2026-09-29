@@ -27,6 +27,7 @@ export const catalogInclude = {
           supportsQuote: true,
           isActive: true,
           sortOrder: true,
+          parent: { select: { isActive: true } },
         },
       },
     },
@@ -66,10 +67,26 @@ export function toProviderProfile(p: ProviderProfileRow): ProviderProfile {
   };
 }
 
-/** Active categories only, in catalogue order. */
+/**
+ * Is the category live in the marketplace? A sub-category counts only while
+ * its parent is active too (same rule as `CategoriesService.getActiveBySlug`).
+ */
+export const liveCategoryWhere = {
+  isActive: true,
+  OR: [{ parentId: null }, { parent: { isActive: true } }],
+} satisfies Prisma.ServiceCategoryWhereInput;
+
+export function isCategoryLive(c: {
+  isActive: boolean;
+  parent: { isActive: boolean } | null;
+}): boolean {
+  return c.isActive && (c.parent?.isActive ?? true);
+}
+
+/** Live categories only, in catalogue order. */
 export function toServiceItems(services: WithCatalog['services']): ProviderServiceItem[] {
   return services
-    .filter((s) => s.category.isActive)
+    .filter((s) => isCategoryLive(s.category))
     .sort(
       (a, b) =>
         a.category.sortOrder - b.category.sortOrder ||

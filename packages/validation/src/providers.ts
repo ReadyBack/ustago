@@ -291,7 +291,8 @@ export const publicProviderProfileSchema = z
 // --- Admin review -----------------------------------------------------------
 
 export const listAdminProvidersQuerySchema = paginationQuerySchema.extend({
-  status: providerStatusSchema.optional(),
+  /** The review queue by default. */
+  status: providerStatusSchema.default('PENDING_REVIEW'),
 });
 export type ListAdminProvidersQuery = z.infer<typeof listAdminProvidersQuerySchema>;
 

@@ -15,6 +15,7 @@ import {
   phoneLogin,
   registerUser,
   resetRateLimits,
+  RUN_ID,
   type TestContext,
 } from './helpers.js';
 import {
@@ -340,6 +341,63 @@ describe('Admin review of providers (e2e)', () => {
     expect(text).not.toContain(user.phone ?? '<none>');
     expect(text).not.toContain(provider.userId);
     expect(text).not.toMatch(/documentKey|statusReason|reviewedBy|email|phone|verifications\//);
+  });
+
+  it('serves the pending review queue when no status is given', async () => {
+    await pendingProvider(ctx, c);
+    const res = await ctx
+      .http()
+      .get('/api/v1/admin/providers')
+      .query({ limit: 100 })
+      .set('Authorization', admin)
+      .expect(200);
+    const page = paginatedSchema(adminProviderListItemSchema).parse(res.body);
+    expect(page.items.length).toBeGreaterThan(0);
+    expect(page.items.every((p) => p.status === 'PENDING_REVIEW')).toBe(true);
+  });
+
+  it('does not let an active provider empty the profile approval required', async () => {
+    const provider = await pendingProvider(ctx, c);
+    await post(`/provider-verifications/${provider.verificationId}/approve`).expect(200);
+    await post(`/providers/${provider.providerId}/approve`).expect(200);
+    const patch = (body: Record<string, unknown>) =>
+      ctx.http().patch('/api/v1/providers/me').set('Authorization', bearer(provider)).send(body);
+
+    for (const body of [{ bio: null }, { bio: 'Kısa.' }, { yearsOfExperience: null }]) {
+      const res = await patch(body).expect(422);
+      expect(res.body.code).toBe('PROVIDER_PROFILE_INCOMPLETE');
+    }
+    const ok = await patch({ bio: 'Yirmi yıllık tecrübeyle her türlü tesisat işi.' }).expect(200);
+    expect(ok.body.status).toBe('ACTIVE');
+  });
+
+  it('hides a service on the public profile once its parent category is closed', async () => {
+    const parent = await ctx.prisma.serviceCategory.create({
+      data: { slug: `e2e-${RUN_ID}-parent`, name: `E2E Üst ${RUN_ID}` },
+    });
+    const child = await ctx.prisma.serviceCategory.create({
+      data: { slug: `e2e-${RUN_ID}-child`, name: `E2E Alt ${RUN_ID}`, parentId: parent.id },
+    });
+    const provider = await pendingProvider(ctx, c);
+    await post(`/provider-verifications/${provider.verificationId}/approve`).expect(200);
+    await post(`/providers/${provider.providerId}/approve`).expect(200);
+    await ctx
+      .http()
+      .put('/api/v1/providers/me/services')
+      .set('Authorization', bearer(provider))
+      .send({ categoryIds: [c.plainCategoryId, child.id] })
+      .expect(200);
+    const services = async () =>
+      publicProviderProfileSchema
+        .parse((await ctx.http().get(`/api/v1/providers/${provider.providerId}`).expect(200)).body)
+        .services.map((s) => s.categoryId);
+
+    expect(await services()).toContain(child.id);
+    await ctx.prisma.serviceCategory.update({
+      where: { id: parent.id },
+      data: { isActive: false },
+    });
+    expect(await services()).toEqual([c.plainCategoryId]);
   });
 
   it('keeps the database from ever making a non-active provider available', async () => {

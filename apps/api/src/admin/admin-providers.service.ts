@@ -82,7 +82,7 @@ export class AdminProvidersService {
         ? [{ submittedAt: 'asc' }, { id: 'asc' }]
         : [{ id: 'desc' }];
     const rows = await this.prisma.providerProfile.findMany({
-      where: { deletedAt: null, ...(query.status ? { status: query.status } : {}) },
+      where: { deletedAt: null, status: query.status },
       orderBy,
       take: query.limit + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),

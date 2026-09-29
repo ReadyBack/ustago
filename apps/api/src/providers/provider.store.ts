@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { isNowOpen } from './domain/now-availability.js';
 import type { OnboardingSnapshot } from './domain/onboarding.js';
 import { canEdit, type ProviderSection } from './domain/provider-lifecycle.js';
+import { isCategoryLive, liveCategoryWhere } from './provider.mappers.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -76,7 +77,7 @@ export class ProviderStore {
         select: { phone: true, phoneVerifiedAt: true },
       }),
       tx.providerService.count({
-        where: { providerId: profile.id, category: { isActive: true } },
+        where: { providerId: profile.id, category: liveCategoryWhere },
       }),
       tx.providerServiceArea.count({
         where: { providerId: profile.id, district: { isActive: true } },
@@ -102,7 +103,7 @@ export class ProviderStore {
   /** Does the provider have an active category that supports NOW? */
   async hasNowCapableService(providerId: string, tx: Tx = this.prisma): Promise<boolean> {
     const count = await tx.providerService.count({
-      where: { providerId, category: { isActive: true, supportsNow: true } },
+      where: { providerId, category: { ...liveCategoryWhere, supportsNow: true } },
     });
     return count > 0;
   }
@@ -116,7 +117,14 @@ export class ProviderStore {
       tx.providerService.findMany({
         where: { providerId },
         select: {
-          category: { select: { id: true, isActive: true, supportsNow: true } },
+          category: {
+            select: {
+              id: true,
+              isActive: true,
+              supportsNow: true,
+              parent: { select: { isActive: true } },
+            },
+          },
         },
       }),
       tx.providerServiceArea.findMany({
@@ -142,7 +150,7 @@ export class ProviderStore {
         if (
           isNowOpen({
             provinceActive: province.isActive,
-            categoryActive: category.isActive,
+            categoryActive: isCategoryLive(category),
             categorySupportsNow: category.supportsNow,
             override: overrideOf(province.id, category.id),
           })

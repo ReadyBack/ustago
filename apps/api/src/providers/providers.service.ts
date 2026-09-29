@@ -9,8 +9,13 @@ import type {
 import { AuditService } from '../audit/audit.service.js';
 import { conflict, unprocessable } from '../common/http/errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { computeOnboarding } from './domain/onboarding.js';
-import { canBeAvailableNow, canEdit, transitionFor } from './domain/provider-lifecycle.js';
+import { computeOnboarding, isProfileComplete, MIN_BIO_LENGTH } from './domain/onboarding.js';
+import {
+  canBeAvailableNow,
+  canEdit,
+  requiresNonEmptyCatalog,
+  transitionFor,
+} from './domain/provider-lifecycle.js';
 import { toProviderProfile } from './provider.mappers.js';
 import { invalidProviderState, ProviderStore } from './provider.store.js';
 
@@ -76,6 +81,24 @@ export class ProvidersService {
     const profile = await this.prisma.$transaction(async (tx) => {
       const current = await this.store.lockByUserId(tx, userId);
       this.store.assertEditable(current, 'PROFILE');
+      // An approved, publicly listed provider cannot drop the profile
+      // information approval required (same rule as services and areas).
+      if (
+        requiresNonEmptyCatalog(current.status) &&
+        !isProfileComplete({
+          displayName: input.displayName ?? current.displayName,
+          bio: input.bio === undefined ? current.bio : input.bio,
+          yearsOfExperience:
+            input.yearsOfExperience === undefined
+              ? current.yearsOfExperience
+              : input.yearsOfExperience,
+        })
+      ) {
+        throw unprocessable(
+          'PROVIDER_PROFILE_INCOMPLETE',
+          `Onaylı bir ustanın profili eksiksiz kalmalıdır (tanıtım en az ${MIN_BIO_LENGTH} karakter, deneyim yılı dolu).`,
+        );
+      }
       const updated = await tx.providerProfile.update({ where: { id: current.id }, data: input });
       await this.audit.recordIn(tx, {
         action: 'provider.profile_updated',
