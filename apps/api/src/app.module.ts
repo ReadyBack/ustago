@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { AddressesModule } from './addresses/addresses.module.js';
+import { AdminModule } from './admin/admin.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
@@ -10,6 +12,8 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ProvidersModule } from './providers/providers.module.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
 import { RedisModule } from './redis/redis.module.js';
+import { SmsModule } from './sms/sms.module.js';
+import { StorageModule } from './storage/storage.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -19,12 +23,16 @@ import { UsersModule } from './users/users.module.js';
     RedisModule,
     AuditModule,
     RateLimitModule,
+    SmsModule,
+    StorageModule,
     HealthModule,
     AuthModule,
     UsersModule,
     ProvidersModule,
     CategoriesModule,
     LocationsModule,
+    AddressesModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
