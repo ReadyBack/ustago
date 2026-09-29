@@ -1,4 +1,4 @@
-import type { District, Province, ServiceCategory } from '@ustago/types';
+import type { District, Province, ProvinceCategorySetting, ServiceCategory } from '@ustago/types';
 import { z } from 'zod';
 
 const slugSchema = z
@@ -72,3 +72,31 @@ export const listProvincesQuerySchema = z.object({
 
 export const updateProvinceRequestSchema = z.object({ isActive: z.boolean() }).strict();
 export type UpdateProvinceRequest = z.infer<typeof updateProvinceRequestSchema>;
+
+export const listDistrictsQuerySchema = z.object({
+  /** Admins can include districts that are switched off. */
+  includeInactive: z.enum(['true', 'false']).optional(),
+});
+
+export const provinceCategorySettingSchema = z.object({
+  provinceId: z.number().int(),
+  category: z.object({
+    id: z.uuid(),
+    slug: z.string(),
+    name: z.string(),
+    supportsNow: z.boolean(),
+  }),
+  isActive: z.boolean(),
+  nowEnabled: z.boolean(),
+  source: z.enum(['DEFAULT', 'OVERRIDE']),
+}) satisfies z.ZodType<ProvinceCategorySetting>;
+
+/** Admin switch for a category in one province ("Adana: Klima açık, NOW açık"). */
+export const updateProvinceCategoryRequestSchema = z
+  .object({ isActive: z.boolean(), nowEnabled: z.boolean() })
+  .strict()
+  .refine((value) => value.isActive || !value.nowEnabled, {
+    path: ['nowEnabled'],
+    message: 'Kapalı bir kategoride NOW açılamaz.',
+  });
+export type UpdateProvinceCategoryRequest = z.infer<typeof updateProvinceCategoryRequestSchema>;

@@ -53,9 +53,14 @@ export interface ProviderProfile {
   displayName: string;
   bio: string | null;
   yearsOfExperience: number | null;
+  /** Opted in to UstaGO NOW jobs (a preference; can be set before approval). */
   nowEnabled: boolean;
+  /** "Müsaitim": dispatchable right now. Only an ACTIVE provider can be. */
   isAvailableNow: boolean;
+  submittedAt: string | null;
   approvedAt: string | null;
+  /** Shown while REJECTED or SUSPENDED. */
+  statusReason: string | null;
   createdAt: string;
   updatedAt: string;
 }

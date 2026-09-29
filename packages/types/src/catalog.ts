@@ -30,3 +30,15 @@ export interface District {
   slug: string;
   isActive: boolean;
 }
+
+/**
+ * Effective setting of a category in a province. A province without its own
+ * row follows the category defaults (`source: 'DEFAULT'`).
+ */
+export interface ProvinceCategorySetting {
+  provinceId: number;
+  category: { id: string; slug: string; name: string; supportsNow: boolean };
+  isActive: boolean;
+  nowEnabled: boolean;
+  source: 'DEFAULT' | 'OVERRIDE';
+}

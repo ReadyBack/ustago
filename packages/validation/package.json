@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@ustago/types": "workspace:*",
+    "libphonenumber-js": "^1.13.14",
     "zod": "^4.1.0"
   },
   "devDependencies": {

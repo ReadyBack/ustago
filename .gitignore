@@ -16,3 +16,7 @@ generated/
 
 .DS_Store
 *.log
+
+# Local object storage (development uploads)
+.data/
+dump.rdb
