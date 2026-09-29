@@ -174,6 +174,15 @@ export const verificationMimeTypeSchema = z.enum(ALLOWED_VERIFICATION_MIME_TYPES
   message: 'Yalnızca JPEG, PNG veya PDF yükleyebilirsiniz.',
 });
 
+function isHiddenCharacter(code: number): boolean {
+  return (
+    code <= 0x1f ||
+    code === 0x7f ||
+    (code >= 0x202a && code <= 0x202e) || // LRE..RLO
+    (code >= 0x2066 && code <= 0x2069) // LRI..PDI
+  );
+}
+
 /**
  * Reduces a client file name to a display-safe basename: no directories,
  * control characters or path tricks. It is only ever shown to admins; the
@@ -184,7 +193,9 @@ export function sanitizeFileName(name: string): string {
   const cleaned = base
     .normalize('NFC')
     // Control and bidi-override characters can disguise extensions.
-    .replace(/[\u0000-\u001f\u007f‪-‮⁦-⁩]/g, '')
+    .split('')
+    .filter((ch) => !isHiddenCharacter(ch.codePointAt(0) ?? 0))
+    .join('')
     .replace(/[<>:"|?*]/g, '_')
     .replace(/^\.+/, '')
     .trim();

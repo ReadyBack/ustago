@@ -29,7 +29,7 @@ const addressFields = {
 function coordinatesPaired(value: { latitude?: number | null; longitude?: number | null }) {
   return (value.latitude ?? null) === null
     ? (value.longitude ?? null) === null
-    : value.longitude != null;
+    : value.longitude !== null && value.longitude !== undefined;
 }
 const PAIR_ERROR = { path: ['longitude'], message: 'Enlem ve boylam birlikte gönderilmeli.' };
 
