@@ -1,0 +1,128 @@
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { hash } from '@node-rs/argon2';
+import type { AuthResponse } from '@ustago/types';
+import { authResponseSchema } from '@ustago/validation';
+import request from 'supertest';
+
+import { AppModule } from '../src/app.module.js';
+import { setupApp } from '../src/app.setup.js';
+import { API_ENV, type ApiEnv, loadApiEnv } from '../src/config/env.js';
+import type { Role } from '../src/generated/prisma/client.js';
+import { PrismaService } from '../src/prisma/prisma.service.js';
+import { seedReferenceData } from '../src/seed/seed-reference.js';
+
+/**
+ * E2E helpers. Tests run against the real PostgreSQL and Redis from
+ * docker-compose (or CI service containers) after `prisma migrate deploy`.
+ * Every test user gets a unique `e2e-<run>-...@ustago.test` address and is
+ * deleted afterwards, so the suite never touches seeded development data.
+ */
+const rootEnv = resolve(import.meta.dirname, '../../../.env');
+if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
+
+export const RUN_ID = randomUUID().slice(0, 8);
+export const PASSWORD = 'e2e-test-password-123';
+
+export interface TestContext {
+  app: INestApplication;
+  prisma: PrismaService;
+  http: () => ReturnType<typeof request>;
+}
+
+export async function createTestApp(
+  envOverrides: Record<string, string> = {},
+): Promise<TestContext> {
+  const env = loadApiEnv({
+    ...process.env,
+    NODE_ENV: 'test',
+    // A generous limit so the suite is not throttled; one suite lowers it.
+    AUTH_RATE_LIMIT_MAX: '1000',
+    API_SWAGGER_ENABLED: 'false',
+    JWT_ACCESS_SECRET: process.env['JWT_ACCESS_SECRET'] ?? 'e2e-only-secret-0123456789abcdefghij',
+    ...envOverrides,
+  });
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(API_ENV)
+    .useValue(env)
+    .compile();
+  const app = moduleRef.createNestApplication({ logger: ['error'] });
+  setupApp(app, app.get<ApiEnv>(API_ENV));
+  await app.init();
+  const prisma = app.get(PrismaService);
+  await seedReferenceData(prisma);
+  return { app, prisma, http: () => request(app.getHttpServer()) };
+}
+
+let counter = 0;
+export function uniqueEmail(label: string): string {
+  counter += 1;
+  return `e2e-${RUN_ID}-${label}-${counter}@ustago.test`;
+}
+
+/** A random Turkish mobile number in E.164 form. */
+export function uniquePhone(): string {
+  return `+9055${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`;
+}
+
+export async function registerUser(
+  ctx: TestContext,
+  overrides: Record<string, unknown> = {},
+): Promise<AuthResponse> {
+  const res = await ctx
+    .http()
+    .post('/api/v1/auth/register')
+    .send({
+      email: uniqueEmail('user'),
+      password: PASSWORD,
+      firstName: 'Test',
+      lastName: 'Kullanıcı',
+      ...overrides,
+    })
+    .expect(201);
+  return authResponseSchema.parse(res.body);
+}
+
+/** Staff accounts cannot sign up; tests create them directly in the database. */
+export async function createStaffUser(ctx: TestContext, roles: Role[]): Promise<AuthResponse> {
+  const email = uniqueEmail(roles.join('-').toLowerCase());
+  await ctx.prisma.user.create({
+    data: {
+      email,
+      passwordHash: await hash(PASSWORD, { algorithm: 2 }),
+      firstName: 'Test',
+      lastName: 'Yönetici',
+      roles: { create: ['CUSTOMER' as Role, ...roles].map((role) => ({ role })) },
+      customerProfile: { create: {} },
+    },
+  });
+  return login(ctx, email);
+}
+
+export async function login(
+  ctx: TestContext,
+  email: string,
+  password = PASSWORD,
+): Promise<AuthResponse> {
+  const res = await ctx.http().post('/api/v1/auth/login').send({ email, password }).expect(200);
+  return authResponseSchema.parse(res.body);
+}
+
+export const bearer = (auth: AuthResponse) => `Bearer ${auth.tokens.accessToken}`;
+
+/** Removes every user this run created (sessions, roles, profiles cascade). */
+export async function cleanup(ctx: TestContext): Promise<void> {
+  const users = await ctx.prisma.user.findMany({
+    where: { email: { startsWith: `e2e-${RUN_ID}-` } },
+    select: { id: true },
+  });
+  const ids = users.map((u) => u.id);
+  await ctx.prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } });
+  await ctx.prisma.device.deleteMany({ where: { userId: { in: ids } } });
+  await ctx.prisma.user.deleteMany({ where: { id: { in: ids } } });
+  await ctx.prisma.serviceCategory.deleteMany({ where: { slug: { startsWith: `e2e-${RUN_ID}` } } });
+}

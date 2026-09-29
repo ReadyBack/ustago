@@ -40,6 +40,8 @@ jobs:
       # CI-only throwaway values for the service containers above.
       DATABASE_URL: postgresql://ustago:ci-only-password@localhost:5432/ustago?schema=public
       REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-only-jwt-secret-not-used-anywhere-else-0000
+      SEED_DEV_PASSWORD: ci-only-seed-password
       TURBO_TELEMETRY_DISABLED: 1
 
     steps:
@@ -66,6 +68,17 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Prisma validate and migrate
+        run: |
+          pnpm db:validate
+          pnpm db:deploy
+          pnpm --filter @ustago/api exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+
+      - name: Seed (twice, to prove it is idempotent)
+        run: |
+          pnpm db:seed
+          pnpm db:seed
 
       - name: API e2e (real PostgreSQL + Redis)
         run: pnpm test:e2e

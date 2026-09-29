@@ -17,7 +17,11 @@
     "db:up": "docker compose up -d postgres redis",
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter @ustago/api prisma:generate",
-    "db:migrate": "pnpm --filter @ustago/api prisma:migrate"
+    "db:migrate": "pnpm --filter @ustago/api prisma:migrate",
+    "db:deploy": "pnpm --filter @ustago/api prisma:deploy",
+    "db:seed": "pnpm --filter @ustago/api prisma:seed",
+    "db:reset": "pnpm --filter @ustago/api prisma:reset",
+    "db:validate": "pnpm --filter @ustago/api prisma:validate"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

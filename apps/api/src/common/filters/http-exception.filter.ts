@@ -9,7 +9,9 @@ import {
 import type { ApiErrorResponse } from '@ustago/types';
 import type { Request, Response } from 'express';
 
-/** Maps every thrown error to the standard error body (PROJECT.md §19). */
+import { Prisma } from '../../generated/prisma/client.js';
+
+/** Maps every thrown error to the standard error body (docs/api/README.md). */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -19,18 +21,25 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const response = ctx.getResponse<Response>();
 
-    const body = this.toBody(exception, request.originalUrl);
+    const body = this.toBody(exception, request.originalUrl, request.requestId);
     if (body.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        `${request.method} ${request.originalUrl} failed`,
+        `${request.method} ${request.originalUrl} failed${body.requestId ? ` [${body.requestId}]` : ''}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
     }
     response.status(body.statusCode).json(body);
   }
 
-  private toBody(exception: unknown, path: string): ApiErrorResponse {
-    const base = { path, timestamp: new Date().toISOString() };
+  private toBody(exception: unknown, path: string, requestId?: string): ApiErrorResponse {
+    const base = {
+      path,
+      timestamp: new Date().toISOString(),
+      ...(requestId ? { requestId } : {}),
+    };
+
+    const known = fromPrismaError(exception);
+    if (known) return { ...base, ...known };
 
     if (!(exception instanceof HttpException)) {
       return {
@@ -60,6 +69,30 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message,
       ...('details' in fields ? { details: fields.details } : {}),
     };
+  }
+}
+
+/**
+ * Database constraint errors that reach the filter become safe 4xx bodies
+ * without table or column names.
+ */
+function fromPrismaError(
+  exception: unknown,
+): Pick<ApiErrorResponse, 'statusCode' | 'code' | 'message'> | null {
+  if (!(exception instanceof Prisma.PrismaClientKnownRequestError)) return null;
+  switch (exception.code) {
+    case 'P2002':
+      return { statusCode: HttpStatus.CONFLICT, code: 'CONFLICT', message: 'Kayıt zaten mevcut.' };
+    case 'P2025':
+      return { statusCode: HttpStatus.NOT_FOUND, code: 'NOT_FOUND', message: 'Kayıt bulunamadı.' };
+    case 'P2003':
+      return {
+        statusCode: HttpStatus.CONFLICT,
+        code: 'CONFLICT',
+        message: 'İlişkili kayıt nedeniyle işlem yapılamadı.',
+      };
+    default:
+      return null;
   }
 }
 

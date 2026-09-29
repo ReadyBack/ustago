@@ -1,5 +1,6 @@
 import { type ArgumentsHost, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 
+import { Prisma } from '../../generated/prisma/client.js';
 import { HttpExceptionFilter } from './http-exception.filter.js';
 
 function hostFor(url: string) {
@@ -51,5 +52,33 @@ describe('HttpExceptionFilter', () => {
     expect(body.code).toBe('INTERNAL_ERROR');
     expect(body.message).not.toContain('secret');
     expect(logError).toHaveBeenCalled();
+  });
+
+  it('maps unique-constraint errors to 409 without leaking column names', () => {
+    const { host, status, json } = hostFor('/api/v1/x');
+    const error = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed on users_email_key',
+      {
+        code: 'P2002',
+        clientVersion: 'test',
+      },
+    );
+    filter.catch(error, host);
+    expect(status).toHaveBeenCalledWith(409);
+    const body = json.mock.calls[0]?.[0] as { code: string; message: string };
+    expect(body.code).toBe('CONFLICT');
+    expect(body.message).not.toContain('email');
+  });
+
+  it('echoes the request id', () => {
+    const json = vi.fn();
+    const host = {
+      switchToHttp: () => ({
+        getRequest: () => ({ originalUrl: '/x', method: 'GET', requestId: 'req-12345678' }),
+        getResponse: () => ({ status: () => ({ json }) }),
+      }),
+    } as unknown as ArgumentsHost;
+    filter.catch(new NotFoundException(), host);
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'req-12345678' }));
   });
 });

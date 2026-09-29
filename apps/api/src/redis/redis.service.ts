@@ -22,10 +22,15 @@ export class RedisService implements OnModuleDestroy {
   }
 
   async ping(): Promise<void> {
+    await (await this.connected()).ping();
+  }
+
+  /** Returns the client, opening the lazy connection on first use. */
+  async connected(): Promise<Redis> {
     if (this.client.status === 'wait' || this.client.status === 'end') {
       await this.client.connect();
     }
-    await this.client.ping();
+    return this.client;
   }
 
   async onModuleDestroy(): Promise<void> {

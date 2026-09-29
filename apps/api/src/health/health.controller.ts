@@ -3,9 +3,11 @@ import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/s
 import type { HealthResponse } from '@ustago/types';
 import type { Response } from 'express';
 
+import { Public } from '../common/auth/decorators.js';
 import { HealthService } from './health.service.js';
 
 @ApiTags('health')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly health: HealthService) {}
