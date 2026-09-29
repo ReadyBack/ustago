@@ -28,6 +28,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         exception instanceof Error ? exception.stack : String(exception),
       );
     }
+    const retryAfter = retryAfterSeconds(body);
+    if (retryAfter !== null) response.setHeader('Retry-After', String(retryAfter));
     response.status(body.statusCode).json(body);
   }
 
@@ -94,6 +96,17 @@ function fromPrismaError(
     default:
       return null;
   }
+}
+
+/** 429 bodies carry details.retryAfterSeconds; mirror it in the standard header. */
+function retryAfterSeconds(body: ApiErrorResponse): number | null {
+  if (body.statusCode !== HttpStatus.TOO_MANY_REQUESTS) return null;
+  const details = body.details;
+  if (typeof details !== 'object' || details === null || !('retryAfterSeconds' in details)) {
+    return null;
+  }
+  const value = details.retryAfterSeconds;
+  return typeof value === 'number' && value > 0 ? Math.ceil(value) : null;
 }
 
 function statusCodeName(status: number): string {

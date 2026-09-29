@@ -42,6 +42,10 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_SECRET: ci-only-jwt-secret-not-used-anywhere-else-0000
       SEED_DEV_PASSWORD: ci-only-seed-password
+      # Phase 2: e2e tests read OTP codes from the in-memory fake SMS
+      # provider and keep uploads in a temporary local directory.
+      SMS_PROVIDER: fake
+      STORAGE_DRIVER: local
       TURBO_TELEMETRY_DISABLED: 1
 
     steps:
@@ -68,6 +72,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Build
+        run: pnpm build
 
       - name: Prisma validate and migrate
         run: |

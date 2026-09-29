@@ -94,6 +94,26 @@ export class SessionsRepository {
     return count;
   }
 
+  /** Revokes the device linked to a session and drops its push token. */
+  async releaseDeviceOf(sessionId: string): Promise<void> {
+    const session = await this.prisma.authSession.findUnique({
+      where: { id: sessionId },
+      select: { deviceId: true },
+    });
+    if (!session?.deviceId) return;
+    await this.prisma.device.updateMany({
+      where: { id: session.deviceId, revokedAt: null },
+      data: { revokedAt: new Date(), pushToken: null },
+    });
+  }
+
+  async releaseAllDevicesOf(userId: string): Promise<void> {
+    await this.prisma.device.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date(), pushToken: null },
+    });
+  }
+
   async attachDevice(sessionId: string, deviceId: string): Promise<void> {
     await this.prisma.authSession.update({ where: { id: sessionId }, data: { deviceId } });
   }

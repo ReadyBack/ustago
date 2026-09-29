@@ -16,9 +16,12 @@
 //   payments).
 
 generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  moduleFormat = "esm"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  moduleFormat    = "esm"
+  /// Partial unique indexes back invariants such as "one default address"
+  /// and "one active OTP per phone" (ADR-0009, ADR-0011).
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -81,6 +84,9 @@ model User {
   addresses          Address[]
   sessions           AuthSession[]
   devices            Device[]
+  otpChallenges      OtpChallenge[]
+  uploadIntents      UploadIntent[]
+  providersReviewed  ProviderProfile[]      @relation("ProviderReviewedBy")
   notifications      Notification[]
   quoteRevisions     QuoteRevision[]
   jobStatusChanges   JobStatusHistory[]
@@ -160,6 +166,43 @@ model RefreshToken {
 
   @@index([sessionId])
   @@map("refresh_tokens")
+}
+
+/// Why a one-time code was sent. PASSWORD_RESET etc. can be added later.
+enum OtpPurpose {
+  /// Phone sign-in; creates a CUSTOMER account on first use.
+  REGISTER_OR_LOGIN
+  /// A signed-in user proving they own a phone number.
+  VERIFY_PHONE
+}
+
+/// One SMS one-time code (ADR-0009). Only an HMAC of the code is stored.
+/// A new request for the same phone and purpose invalidates the previous
+/// challenge, so at most one challenge per phone and purpose is open.
+model OtpChallenge {
+  id            String     @id @default(uuid(7)) @db.Uuid
+  /// E.164.
+  phone         String     @db.VarChar(20)
+  purpose       OtpPurpose
+  /// Set for VERIFY_PHONE: the signed-in user who asked for the code.
+  userId        String?    @map("user_id") @db.Uuid
+  /// HMAC-SHA256(secret, challengeId:code), hex.
+  codeHash      String     @map("code_hash") @db.Char(64)
+  attempts      Int        @default(0) @db.SmallInt
+  maxAttempts   Int        @map("max_attempts") @db.SmallInt
+  expiresAt     DateTime   @map("expires_at") @db.Timestamptz(3)
+  consumedAt    DateTime?  @map("consumed_at") @db.Timestamptz(3)
+  /// Replaced by a newer code or locked after too many wrong attempts.
+  invalidatedAt DateTime?  @map("invalidated_at") @db.Timestamptz(3)
+  ipAddress     String?    @map("ip_address") @db.VarChar(64)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([phone, purpose], map: "otp_challenges_open_phone_purpose_key", where: raw("consumed_at IS NULL AND invalidated_at IS NULL"))
+  @@index([phone, purpose, createdAt])
+  @@index([expiresAt])
+  @@map("otp_challenges")
 }
 
 enum DevicePlatform {
@@ -263,7 +306,9 @@ model Address {
   buildingNo   String?   @map("building_no") @db.VarChar(20)
   apartmentNo  String?   @map("apartment_no") @db.VarChar(20)
   postalCode   String?   @map("postal_code") @db.VarChar(10)
-  /// WGS84. PostGIS can replace these when geo queries need it.
+  /// Directions for the provider ("Kapı kodu 1234, arka giriş").
+  instructions String?   @db.VarChar(500)
+  /// WGS84. Both or neither (DB check). PostGIS can replace these later.
   latitude     Decimal?  @db.Decimal(9, 6)
   longitude    Decimal?  @db.Decimal(9, 6)
   isDefault    Boolean   @default(false) @map("is_default")
@@ -276,7 +321,9 @@ model Address {
   district        District         @relation(fields: [districtId], references: [id], onDelete: Restrict)
   serviceRequests ServiceRequest[]
 
-  @@index([userId])
+  /// At most one live default address per user.
+  @@unique([userId], map: "addresses_one_default_per_user_key", where: raw("is_default AND deleted_at IS NULL"))
+  @@index([userId, deletedAt])
   @@map("addresses")
 }
 
@@ -327,11 +374,19 @@ model ProviderProfile {
   lastLongitude     Decimal?       @map("last_longitude") @db.Decimal(9, 6)
   lastLocationAt    DateTime?      @map("last_location_at") @db.Timestamptz(3)
   approvedAt        DateTime?      @map("approved_at") @db.Timestamptz(3)
+  /// Last time the application went to PENDING_REVIEW.
+  submittedAt       DateTime?      @map("submitted_at") @db.Timestamptz(3)
+  /// Last admin decision (approve, reject, suspend, reinstate).
+  reviewedAt        DateTime?      @map("reviewed_at") @db.Timestamptz(3)
+  reviewedById      String?        @map("reviewed_by_id") @db.Uuid
+  /// Shown to the provider while REJECTED or SUSPENDED (DB check).
+  statusReason      String?        @map("status_reason") @db.VarChar(1000)
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt         DateTime?      @map("deleted_at") @db.Timestamptz(3)
 
   user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy     User?                    @relation("ProviderReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   services       ProviderService[]
   serviceAreas   ProviderServiceArea[]
   verifications  ProviderVerification[]
@@ -342,6 +397,7 @@ model ProviderProfile {
   ledgerAccounts LedgerAccount[]
 
   @@index([status, nowEnabled, isAvailableNow])
+  @@index([status, submittedAt])
   @@map("provider_profiles")
 }
 
@@ -387,25 +443,60 @@ enum VerificationStatus {
 }
 
 model ProviderVerification {
-  id              String             @id @default(uuid(7)) @db.Uuid
-  providerId      String             @map("provider_id") @db.Uuid
-  type            VerificationType
-  status          VerificationStatus @default(PENDING)
+  id               String             @id @default(uuid(7)) @db.Uuid
+  providerId       String             @map("provider_id") @db.Uuid
+  type             VerificationType
+  status           VerificationStatus @default(PENDING)
   /// Private object-storage key; files are served only via signed URLs.
-  documentKey     String?            @map("document_key") @db.VarChar(512)
-  reviewedById    String?            @map("reviewed_by_id") @db.Uuid
-  reviewedAt      DateTime?          @map("reviewed_at") @db.Timestamptz(3)
-  rejectionReason String?            @map("rejection_reason") @db.VarChar(500)
-  expiresAt       DateTime?          @map("expires_at") @db.Timestamptz(3)
-  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  documentKey      String?            @map("document_key") @db.VarChar(512)
+  /// Detected from the file's magic bytes, not the client's claim.
+  mimeType         String?            @map("mime_type") @db.VarChar(100)
+  sizeBytes        Int?               @map("size_bytes")
+  /// Display only (sanitised basename); never used as a storage path.
+  originalFileName String?            @map("original_file_name") @db.VarChar(255)
+  submittedAt      DateTime           @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  reviewedById     String?            @map("reviewed_by_id") @db.Uuid
+  reviewedAt       DateTime?          @map("reviewed_at") @db.Timestamptz(3)
+  rejectionReason  String?            @map("rejection_reason") @db.VarChar(500)
+  expiresAt        DateTime?          @map("expires_at") @db.Timestamptz(3)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   reviewedBy User?           @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
 
+  /// One open (PENDING) submission per provider and type.
+  @@unique([providerId, type], map: "provider_verifications_one_pending_key", where: raw("status = 'PENDING'"))
   @@index([providerId, type])
-  @@index([status])
+  @@index([status, submittedAt])
   @@map("provider_verifications")
+}
+
+enum UploadPurpose {
+  PROVIDER_VERIFICATION
+}
+
+/// A signed upload slot handed to a client (ADR-0010). The client uploads
+/// straight to object storage, then finalises by referencing the intent.
+/// Unconsumed intents expire; their objects are garbage.
+model UploadIntent {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  userId           String        @map("user_id") @db.Uuid
+  purpose          UploadPurpose
+  /// Server-generated random key; never derived from the file name.
+  storageKey       String        @unique @map("storage_key") @db.VarChar(512)
+  declaredMimeType String        @map("declared_mime_type") @db.VarChar(100)
+  declaredSize     Int           @map("declared_size")
+  maxSizeBytes     Int           @map("max_size_bytes")
+  originalFileName String?       @map("original_file_name") @db.VarChar(255)
+  expiresAt        DateTime      @map("expires_at") @db.Timestamptz(3)
+  consumedAt       DateTime?     @map("consumed_at") @db.Timestamptz(3)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("upload_intents")
 }
 
 /// Latest computed UstaScore. Inputs are TrustEvents and reviews; paid plans

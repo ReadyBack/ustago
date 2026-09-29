@@ -6,6 +6,13 @@ import { tooManyRequests } from '../common/http/errors.js';
 import { API_ENV, type ApiEnv } from '../config/env.js';
 import { RedisService } from '../redis/redis.service.js';
 
+export interface RateLimitCheck {
+  bucket: string;
+  subject: string;
+  limit?: number;
+  windowSeconds?: number;
+}
+
 export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
@@ -56,12 +63,22 @@ export class RateLimitService {
     }
   }
 
-  /** Throws 429 RATE_LIMITED when any of the buckets is exhausted. */
-  async enforce(...checks: { bucket: string; subject: string }[]): Promise<void> {
-    const results = await Promise.all(checks.map((c) => this.hit(c.bucket, c.subject)));
+  /**
+   * Throws 429 when any of the buckets is exhausted. Checks use the auth
+   * defaults unless they set their own `limit` / `windowSeconds`.
+   */
+  async enforce(...checks: RateLimitCheck[]): Promise<void> {
+    await this.enforceWithCode('RATE_LIMITED', ...checks);
+  }
+
+  /** Same as enforce() with a domain-specific error code (e.g. OTP_RATE_LIMITED). */
+  async enforceWithCode(code: string, ...checks: RateLimitCheck[]): Promise<void> {
+    const results = await Promise.all(
+      checks.map((c) => this.hit(c.bucket, c.subject, c.limit, c.windowSeconds)),
+    );
     const blocked = results.filter((r) => !r.allowed);
     if (blocked.length > 0) {
-      throw tooManyRequests(Math.max(...blocked.map((r) => r.retryAfterSeconds)));
+      throw tooManyRequests(Math.max(...blocked.map((r) => r.retryAfterSeconds)), code);
     }
   }
 }

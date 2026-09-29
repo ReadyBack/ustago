@@ -66,4 +66,47 @@ describe('apiEnvSchema', () => {
     const paths = result.error?.issues.map((issue) => issue.path.join('.'));
     expect(paths).toEqual(expect.arrayContaining(['JWT_ACCESS_SECRET', 'API_CORS_ORIGINS']));
   });
+
+  it('applies OTP and storage defaults', () => {
+    const env = parseEnv(apiEnvSchema, validEnv);
+    expect(env.OTP_TTL_SECONDS).toBe(180);
+    expect(env.OTP_MAX_ATTEMPTS).toBe(5);
+    expect(env.OTP_CODE_LENGTH).toBe(6);
+    expect(env.SMS_PROVIDER).toBe('console');
+    expect(env.STORAGE_DRIVER).toBe('local');
+    expect(env.VERIFICATION_MAX_FILE_BYTES).toBe(10 * 1024 * 1024);
+  });
+
+  it('never allows development SMS or storage adapters in production', () => {
+    const result = apiEnvSchema.safeParse({
+      ...validEnv,
+      NODE_ENV: 'production',
+      API_CORS_ORIGINS: 'https://admin.ustago.example',
+      SMS_PROVIDER: 'console',
+      STORAGE_DRIVER: 'local',
+    });
+    expect(result.success).toBe(false);
+    const paths = result.error?.issues.map((issue) => issue.path.join('.'));
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        'SMS_PROVIDER',
+        'STORAGE_DRIVER',
+        'OTP_HASH_SECRET',
+        'STORAGE_SIGNING_SECRET',
+      ]),
+    );
+  });
+
+  it('boots in production with adapters disabled and real secrets', () => {
+    const result = apiEnvSchema.safeParse({
+      ...validEnv,
+      NODE_ENV: 'production',
+      API_CORS_ORIGINS: 'https://admin.ustago.example',
+      SMS_PROVIDER: 'disabled',
+      STORAGE_DRIVER: 'disabled',
+      OTP_HASH_SECRET: 'x'.repeat(40),
+      STORAGE_SIGNING_SECRET: 'y'.repeat(40),
+    });
+    expect(result.success).toBe(true);
+  });
 });

@@ -2,7 +2,7 @@ import { type CanActivate, type ExecutionContext, Injectable } from '@nestjs/com
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
-import { IS_PUBLIC_KEY } from '../common/auth/decorators.js';
+import { IS_PUBLIC_KEY, OPTIONAL_AUTH_KEY } from '../common/auth/decorators.js';
 import { unauthorized } from '../common/http/errors.js';
 import { accountDisabledError } from './auth.service.js';
 import { SessionsRepository } from './sessions.repository.js';
@@ -29,6 +29,12 @@ export class JwtAuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest<Request>();
+    const optional = this.reflector.getAllAndOverride<boolean | undefined>(OPTIONAL_AUTH_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (optional && request.headers.authorization === undefined) return true;
+
     const token = extractBearer(request.headers.authorization);
     if (!token) throw unauthorized('AUTH_REQUIRED', 'Oturum açmanız gerekiyor.');
 

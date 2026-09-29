@@ -1,3 +1,12 @@
+export {
+  addressSchema,
+  type CreateAddressRequest,
+  createAddressRequestSchema,
+  latitudeSchema,
+  longitudeSchema,
+  type UpdateAddressRequest,
+  updateAddressRequestSchema,
+} from './address.js';
 export { apiErrorResponseSchema } from './api-error.js';
 export {
   authResponseSchema,
@@ -21,12 +30,16 @@ export {
   type CreateCategoryRequest,
   createCategoryRequestSchema,
   districtSchema,
+  listDistrictsQuerySchema,
   listProvincesQuerySchema,
+  provinceCategorySettingSchema,
   provinceIdParamSchema,
   provinceSchema,
   serviceCategorySchema,
   type UpdateCategoryRequest,
   updateCategoryRequestSchema,
+  type UpdateProvinceCategoryRequest,
+  updateProvinceCategoryRequestSchema,
   type UpdateProvinceRequest,
   updateProvinceRequestSchema,
 } from './catalog.js';
@@ -42,11 +55,62 @@ export {
 export { dependencyStatusSchema, healthResponseSchema } from './health.js';
 export { currencyCodeSchema, moneySchema } from './money.js';
 export {
+  otpCodeSchema,
+  otpPurposeSchema,
+  type OtpRequest,
+  otpRequestResponseSchema,
+  otpRequestSchema,
+  type OtpVerifyRequest,
+  otpVerifyResponseSchema,
+  otpVerifySchema,
+} from './otp.js';
+export {
+  maskPhone,
+  normalizePhone,
+  phoneSchema,
+  SUPPORTED_PHONE_COUNTRIES,
+  type SupportedPhoneCountry,
+} from './phone.js';
+export {
+  adminProviderDetailSchema,
+  adminProviderListItemSchema,
+  adminProviderVerificationSchema,
+  ALLOWED_VERIFICATION_MIME_TYPES,
   type CreateProviderProfileRequest,
   createProviderProfileRequestSchema,
+  type CreateUploadIntentRequest,
+  createUploadIntentRequestSchema,
+  type ListAdminProvidersQuery,
+  listAdminProvidersQuerySchema,
+  type ListAdminVerificationsQuery,
+  listAdminVerificationsQuerySchema,
+  MAX_PROVIDER_SERVICES,
+  MAX_SERVICE_AREA_DISTRICTS,
+  onboardingStepSchema,
+  providerOnboardingStatusSchema,
   providerProfileSchema,
+  providerServiceAreaGroupSchema,
+  providerServiceItemSchema,
+  providerVerificationSchema,
+  publicProviderProfileSchema,
+  type ReviewReasonRequest,
+  reviewReasonRequestSchema,
+  sanitizeFileName,
+  type SetProviderServiceAreasRequest,
+  setProviderServiceAreasRequestSchema,
+  type SetProviderServicesRequest,
+  setProviderServicesRequestSchema,
+  signedUrlSchema,
+  type SubmitVerificationRequest,
+  submitVerificationRequestSchema,
+  type UpdateProviderAvailabilityRequest,
+  updateProviderAvailabilityRequestSchema,
   type UpdateProviderProfileRequest,
   updateProviderProfileRequestSchema,
+  uploadIntentResponseSchema,
+  verificationMimeTypeSchema,
+  verificationStatusSchema,
+  verificationTypeSchema,
 } from './providers.js';
 export {
   deviceSchema,
@@ -61,3 +125,8 @@ export {
   type UpdateUserStatusRequest,
   updateUserStatusRequestSchema,
 } from './users.js';
+export {
+  auditEventSchema,
+  type ListAuditEventsQuery,
+  listAuditEventsQuerySchema,
+} from './audit.js';
