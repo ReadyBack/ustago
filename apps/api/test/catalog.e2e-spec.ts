@@ -99,4 +99,31 @@ describe('Categories and locations (e2e)', () => {
       .expect(200);
     await ctx.http().get(`/api/v1/categories/${slug}`).expect(404);
   });
+
+  it('hides a sub-category while its parent is disabled', async () => {
+    const admin = await createStaffUser(ctx, ['ADMIN']);
+    const parentSlug = `e2e-${RUN_ID}-ust`;
+    const childSlug = `e2e-${RUN_ID}-alt`;
+    const parent = await ctx
+      .http()
+      .post('/api/v1/categories')
+      .set('Authorization', bearer(admin))
+      .send({ slug: parentSlug, name: 'Üst' })
+      .expect(201);
+    await ctx
+      .http()
+      .post('/api/v1/categories')
+      .set('Authorization', bearer(admin))
+      .send({ slug: childSlug, name: 'Alt', parentId: parent.body.id })
+      .expect(201);
+    await ctx.http().get(`/api/v1/categories/${childSlug}`).expect(200);
+
+    await ctx
+      .http()
+      .patch(`/api/v1/categories/${parent.body.id}`)
+      .set('Authorization', bearer(admin))
+      .send({ isActive: false })
+      .expect(200);
+    await ctx.http().get(`/api/v1/categories/${childSlug}`).expect(404);
+  });
 });

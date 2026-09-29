@@ -124,5 +124,9 @@ export async function cleanup(ctx: TestContext): Promise<void> {
   await ctx.prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } });
   await ctx.prisma.device.deleteMany({ where: { userId: { in: ids } } });
   await ctx.prisma.user.deleteMany({ where: { id: { in: ids } } });
+  // Sub-categories first: parents are delete-restricted.
+  await ctx.prisma.serviceCategory.deleteMany({
+    where: { slug: { startsWith: `e2e-${RUN_ID}` }, parentId: { not: null } },
+  });
   await ctx.prisma.serviceCategory.deleteMany({ where: { slug: { startsWith: `e2e-${RUN_ID}` } } });
 }

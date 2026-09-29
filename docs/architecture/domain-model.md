@@ -65,7 +65,7 @@ Sistem
 - `reviews (job_id, direction)` benzersiz: çift yorum engellenir.
 - `payments.idempotency_key` ve `payment_transactions.idempotency_key` benzersiz: tekrar gelen
   istek veya webhook ikinci kez işlenmez.
-- `ledger_accounts (provider_id, type, currency)` benzersiz.
+- `ledger_accounts (owner_key, type, currency)` benzersiz. `owner_key` usta id'si veya `platform`'dur; PostgreSQL'de NULL değerler benzersiz anahtarda çakışmadığı için boş bırakılmaz.
 - Silme davranışı: kimlik alt kayıtları (oturum, rol, profil) kullanıcıyla `Cascade`; iş, ödeme,
   teklif ve yorum gibi iş kayıtları `Restrict` (geçmiş silinemez).
 

@@ -28,8 +28,13 @@ export class CategoriesService {
   }
 
   async getActiveBySlug(slug: string): Promise<ServiceCategoryNode> {
+    // A sub-category is only visible while its parent is active too.
     const category = await this.prisma.serviceCategory.findFirst({
-      where: { slug, isActive: true },
+      where: {
+        slug,
+        isActive: true,
+        OR: [{ parentId: null }, { parent: { isActive: true } }],
+      },
       include: { children: { where: { isActive: true }, orderBy: [...ORDER] } },
     });
     if (!category) throw NOT_FOUND();

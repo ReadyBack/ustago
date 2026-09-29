@@ -858,6 +858,10 @@ model LedgerAccount {
   type       LedgerAccountType
   /// Null for platform accounts.
   providerId String?           @map("provider_id") @db.Uuid
+  /// "platform" for platform accounts, otherwise the provider id. Non-null
+  /// so the unique key also covers platform accounts (NULLs never collide
+  /// in a PostgreSQL unique index).
+  ownerKey   String            @map("owner_key") @db.VarChar(64)
   currency   CurrencyCode      @default(TRY)
   createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -865,7 +869,8 @@ model LedgerAccount {
   provider ProviderProfile? @relation(fields: [providerId], references: [id], onDelete: Restrict)
   entries  LedgerEntry[]
 
-  @@unique([providerId, type, currency])
+  @@unique([ownerKey, type, currency])
+  @@index([providerId])
   @@map("ledger_accounts")
 }
 
