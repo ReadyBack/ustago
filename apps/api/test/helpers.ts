@@ -1,12 +1,13 @@
-import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { randomInt, randomUUID } from 'node:crypto';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { hash } from '@node-rs/argon2';
-import type { AuthResponse } from '@ustago/types';
-import { authResponseSchema } from '@ustago/validation';
+import type { AuthResponse, AuthTokens, OtpVerifyResponse } from '@ustago/types';
+import { authResponseSchema, otpVerifyResponseSchema } from '@ustago/validation';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module.js';
@@ -14,7 +15,10 @@ import { setupApp } from '../src/app.setup.js';
 import { API_ENV, type ApiEnv, loadApiEnv } from '../src/config/env.js';
 import type { Role } from '../src/generated/prisma/client.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { RedisService } from '../src/redis/redis.service.js';
 import { seedReferenceData } from '../src/seed/seed-reference.js';
+import { FakeSmsProvider } from '../src/sms/fake-sms.provider.js';
+import { SMS_PROVIDER } from '../src/sms/sms-provider.js';
 
 /**
  * E2E helpers. Tests run against the real PostgreSQL and Redis from
@@ -44,6 +48,11 @@ export async function createTestApp(
     AUTH_RATE_LIMIT_MAX: '1000',
     API_SWAGGER_ENABLED: 'false',
     JWT_ACCESS_SECRET: process.env['JWT_ACCESS_SECRET'] ?? 'e2e-only-secret-0123456789abcdefghij',
+    // Codes stay in memory and are read through the container, never HTTP.
+    SMS_PROVIDER: 'fake',
+    OTP_RESEND_COOLDOWN_SECONDS: '0',
+    STORAGE_DRIVER: 'local',
+    STORAGE_LOCAL_DIR: mkdtempSync(join(tmpdir(), 'ustago-e2e-storage-')),
     ...envOverrides,
   });
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -64,9 +73,57 @@ export function uniqueEmail(label: string): string {
   return `e2e-${RUN_ID}-${label}-${counter}@ustago.test`;
 }
 
-/** A random Turkish mobile number in E.164 form. */
+const phones = new Set<string>();
+
+/** A random Turkish mobile number in E.164 form, removed again by cleanup(). */
 export function uniquePhone(): string {
-  return `+9055${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`;
+  const phone = `+90532${String(randomInt(0, 1e7)).padStart(7, '0')}`;
+  phones.add(phone);
+  return phone;
+}
+
+/** The in-memory SMS outbox of the app under test. */
+export function fakeSms(ctx: TestContext): FakeSmsProvider {
+  const sms = ctx.app.get<unknown>(SMS_PROVIDER);
+  if (!(sms instanceof FakeSmsProvider)) throw new Error('E2E tests need SMS_PROVIDER=fake');
+  return sms;
+}
+
+/** Deletes rate-limit counters so suites sharing one IP do not throttle each other. */
+export async function resetRateLimits(ctx: TestContext, pattern = 'rl:*'): Promise<void> {
+  const redis = await ctx.app.get(RedisService).connected();
+  const keys = await redis.keys(pattern);
+  if (keys.length > 0) await redis.del(...keys);
+}
+
+export async function requestOtp(
+  ctx: TestContext,
+  phone: string,
+  options: { purpose?: 'REGISTER_OR_LOGIN' | 'VERIFY_PHONE'; auth?: string } = {},
+): Promise<string> {
+  const req = ctx.http().post('/api/v1/auth/otp/request');
+  if (options.auth) req.set('Authorization', options.auth);
+  await req.send({ phone, purpose: options.purpose ?? 'REGISTER_OR_LOGIN' }).expect(202);
+  const code = fakeSms(ctx).lastCodeFor(phone);
+  if (!code) throw new Error('No OTP was sent');
+  return code;
+}
+
+/** Signs in (or signs up) with phone + OTP and returns the tokens. */
+export async function phoneLogin(
+  ctx: TestContext,
+  phone = uniquePhone(),
+  profile: { firstName?: string; lastName?: string } = {},
+): Promise<OtpVerifyResponse & { tokens: AuthTokens }> {
+  const code = await requestOtp(ctx, phone);
+  const res = await ctx
+    .http()
+    .post('/api/v1/auth/otp/verify')
+    .send({ phone, code, purpose: 'REGISTER_OR_LOGIN', ...profile })
+    .expect(200);
+  const body = otpVerifyResponseSchema.parse(res.body);
+  if (!body.tokens) throw new Error('REGISTER_OR_LOGIN must return tokens');
+  return { ...body, tokens: body.tokens };
 }
 
 export async function registerUser(
@@ -112,15 +169,20 @@ export async function login(
   return authResponseSchema.parse(res.body);
 }
 
-export const bearer = (auth: AuthResponse) => `Bearer ${auth.tokens.accessToken}`;
+export const bearer = (auth: { tokens: AuthTokens }) => `Bearer ${auth.tokens.accessToken}`;
 
 /** Removes every user this run created (sessions, roles, profiles cascade). */
 export async function cleanup(ctx: TestContext): Promise<void> {
   const users = await ctx.prisma.user.findMany({
-    where: { email: { startsWith: `e2e-${RUN_ID}-` } },
+    where: {
+      OR: [{ email: { startsWith: `e2e-${RUN_ID}-` } }, { phone: { in: [...phones] } }],
+    },
     select: { id: true },
   });
   const ids = users.map((u) => u.id);
+  await ctx.prisma.otpChallenge.deleteMany({
+    where: { OR: [{ phone: { in: [...phones] } }, { userId: { in: ids } }] },
+  });
   await ctx.prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } });
   await ctx.prisma.device.deleteMany({ where: { userId: { in: ids } } });
   await ctx.prisma.user.deleteMany({ where: { id: { in: ids } } });
