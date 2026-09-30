@@ -1,0 +1,144 @@
+#!/usr/bin/env node
+/**
+ * Regenerates src/seed/data/turkey-coordinates.ts: approximate centres of
+ * the 81 provinces and 973 districts from the GeoNames gazetteer, as
+ * packaged by the npm package `cities.json` (CC BY 4.0, GeoNames). See
+ * docs/reference-data/turkey-locations.md.
+ *
+ *   npm pack cities.json && tar xzf cities.json-*.tgz
+ *   node scripts/import-turkey-coordinates.mjs package/
+ *
+ * For each district (our PTT/NVI list, src/seed/data/turkey-districts.ts):
+ *   1. DISTRICT_SEAT: the populated place with the district's name inside
+ *      the matching GeoNames district (admin2) — the district seat;
+ *   2. DISTRICT_AREA_MEAN: otherwise the mean of that district's populated
+ *      places;
+ *   3. PROVINCE_CENTER: otherwise the provincial capital (listed in the
+ *      output so a person can improve it later).
+ * "Merkez" districts use the provincial capital. Coordinates are rounded to
+ * 4 decimals (~10 m): they are approximate centres, never anyone's address.
+ */
+import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const dir = process.argv[2];
+if (!dir) {
+  console.error('usage: import-turkey-coordinates.mjs <cities.json package dir>');
+  process.exit(2);
+}
+const read = (f) => JSON.parse(readFileSync(resolve(dir, f), 'utf8'));
+const cities = read('cities.json').filter((c) => c.country === 'TR');
+const admin1 = read('admin1.json').filter((a) => a.code.startsWith('TR.'));
+const admin2 = read('admin2.json').filter((a) => a.code.startsWith('TR.'));
+
+const here = import.meta.dirname;
+const districtsSrc = readFileSync(resolve(here, '../src/seed/data/turkey-districts.ts'), 'utf8');
+const DISTRICTS = Function(
+  `return ${districtsSrc.slice(districtsSrc.indexOf('= {') + 2).replace(/;\s*$/, '')}`,
+)();
+const referenceSrc = readFileSync(resolve(here, '../src/seed/reference-data.ts'), 'utf8');
+const PROVINCES = [...referenceSrc.matchAll(/\[(\d+), '([^']+)'\]/g)].map((m) => [+m[1], m[2]]);
+
+/** Turkish-aware folding: "Hakkâri" = "Hakkari", "19 Mayıs" = "Ondokuzmayıs". */
+const fold = (s) =>
+  s
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ (ilçesi|province)$/, '')
+    .replace(/19 mayıs/, 'ondokuzmayıs')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/[^a-z]/g, '');
+/** Provinces whose capital has another name. */
+const CAPITAL = { 31: 'Antakya', 41: 'İzmit', 54: 'Adapazarı' };
+const CODE = { DISTRICT_SEAT: 'S', DISTRICT_AREA_MEAN: 'M', PROVINCE_CENTER: 'P' };
+const round = (n) => Math.round(Number(n) * 10_000) / 10_000;
+
+const provinceOut = {};
+const districtOut = {};
+const fallbacks = [];
+const counts = { DISTRICT_SEAT: 0, DISTRICT_AREA_MEAN: 0, PROVINCE_CENTER: 0 };
+for (const [plate, name] of PROVINCES) {
+  const a1 = admin1.find((a) => fold(a.name) === fold(name));
+  if (!a1) throw new Error(`GeoNames province not found: ${name}`);
+  const code = a1.code.slice(3);
+  const places = cities.filter((c) => c.admin1 === code);
+  const capital = places.find((c) => fold(c.name) === fold(CAPITAL[plate] ?? name));
+  if (!capital) throw new Error(`Capital not found: ${name}`);
+  provinceOut[plate] = [round(capital.lat), round(capital.lng)];
+  const a2s = admin2.filter((a) => a.code.startsWith(`${a1.code}.`));
+  districtOut[plate] = {};
+  for (const district of DISTRICTS[plate]) {
+    const key = district === 'Merkez' ? (CAPITAL[plate] ?? name) : district;
+    const a2 =
+      a2s.find((a) => fold(a.name) === fold(key)) ??
+      a2s.find((a) => fold(a.name) === `${fold(key)}merkez`);
+    let point = null;
+    let source = 'PROVINCE_CENTER';
+    if (district === 'Merkez') {
+      point = capital;
+      source = 'DISTRICT_SEAT';
+    } else if (a2) {
+      const inDistrict = places.filter((c) => c.admin2 === a2.code.split('.')[2]);
+      const seat = inDistrict.find((c) => fold(c.name) === fold(key));
+      if (seat) {
+        point = seat;
+        source = 'DISTRICT_SEAT';
+      } else if (inDistrict.length > 0) {
+        point = {
+          lat: inDistrict.reduce((s, c) => s + Number(c.lat), 0) / inDistrict.length,
+          lng: inDistrict.reduce((s, c) => s + Number(c.lng), 0) / inDistrict.length,
+        };
+        source = 'DISTRICT_AREA_MEAN';
+      }
+    }
+    // Name lookup across the province only when GeoNames has no such
+    // district at all: village names repeat (a "Kadıköy" village exists in
+    // Silivri), so a district that exists but has no places falls back to
+    // the province centre instead.
+    if (!point && !a2) {
+      const seat = places.find((c) => fold(c.name) === fold(key));
+      if (seat) {
+        point = seat;
+        source = 'DISTRICT_SEAT';
+      }
+    }
+    if (!point) {
+      point = capital;
+      fallbacks.push(`${name} / ${district}`);
+    }
+    counts[source] += 1;
+    districtOut[plate][district] = [round(point.lat), round(point.lng), CODE[source]];
+  }
+}
+
+const lines = [
+  '/**',
+  ' * GENERATED by scripts/import-turkey-coordinates.mjs — do not edit by hand.',
+  ' *',
+  ' * Approximate centres (WGS84) of the 81 provinces (the provincial capital)',
+  ' * and 973 districts (the district seat), from the GeoNames gazetteer via',
+  ' * the npm package cities.json (CC BY 4.0). Used only for approximate,',
+  ' * straight-line distances ("Yaklaşık 12 km"); never shown as a location.',
+  ' * Provenance and limits: docs/reference-data/turkey-locations.md',
+  ' *',
+  ` * Districts: ${counts.DISTRICT_SEAT} seat, ${counts.DISTRICT_AREA_MEAN} area mean, ${counts.PROVINCE_CENTER} province-centre fallback.`,
+  ' */',
+  '',
+  '/** [latitude, longitude] of the provincial capital, by plate code. */',
+  `export const PROVINCE_CENTERS: Readonly<Record<number, readonly [number, number]>> = ${JSON.stringify(provinceOut)};`,
+  '',
+  "/** S = district seat, M = mean of the district's places, P = province centre (fallback). */",
+  "export type CoordinateSourceCode = 'S' | 'M' | 'P';",
+  '',
+  '/** [latitude, longitude, source] by plate code and district name. */',
+  'export const DISTRICT_CENTERS: Readonly<',
+  '  Record<number, Readonly<Record<string, readonly [number, number, CoordinateSourceCode]>>>',
+  `> = ${JSON.stringify(districtOut)};`,
+  '',
+];
+writeFileSync(resolve(here, '../src/seed/data/turkey-coordinates.ts'), lines.join('\n'));
+// eslint-disable-next-line no-console
+console.log(counts);
+// eslint-disable-next-line no-console
+if (fallbacks.length) console.log(`Province-centre fallbacks:\n  ${fallbacks.join('\n  ')}`);

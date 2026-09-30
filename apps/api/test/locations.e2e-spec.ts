@@ -46,7 +46,7 @@ describe('Türkiye locations and province × category settings (e2e)', () => {
 
   it('re-running the seed adds nothing', async () => {
     const result = await seedReferenceData(ctx.prisma);
-    expect(result).toEqual({ provinces: 0, districts: 0, categories: 0 });
+    expect(result).toEqual({ provinces: 0, districts: 0, categories: 0, coordinates: 0 });
   });
 
   it('lets only admins include inactive districts and categories', async () => {

@@ -134,6 +134,14 @@ model User {
   deletionRequests          AccountDeletionRequest[]
   dataExports               DataExportRequest[]
   destinationsVerified      PayoutDestination[]           @relation("PayoutDestinationVerifiedBy")
+  // Faz 7
+  reviewReplies             ProviderReviewReply[]
+  conversationParticipants  ConversationParticipant[]
+  messagesSent              Message[]                     @relation("MessageSender")
+  messageReports            MessageReport[]               @relation("MessageReporter")
+  messageReportsReviewed    MessageReport[]               @relation("MessageReportReviewer")
+  blocksMade                UserBlock[]                   @relation("BlockBy")
+  blocksReceived            UserBlock[]                   @relation("BlockedUser")
 
   @@index([status])
   @@map("users")
@@ -282,35 +290,70 @@ model Device {
 
 /// Official province (il). `id` is the plate code, 1-81.
 model Province {
-  id        Int      @id @db.SmallInt
-  name      String   @unique @db.VarChar(60)
-  slug      String   @unique @db.VarChar(60)
+  id           Int      @id @db.SmallInt
+  name         String   @unique @db.VarChar(60)
+  slug         String   @unique @db.VarChar(60)
   /// Marketplace open in this province (pilot cities first).
-  isActive  Boolean  @default(false) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  isActive     Boolean  @default(false) @map("is_active")
+  /// Faz 7 (docs/adr/0029): ISO 3166-1 alpha-2; Türkiye is the first country.
+  countryCode  String   @default("TR") @map("country_code") @db.Char(2)
+  /// While closed (`isActive` false): true = WAITLIST (customers may still
+  /// post a request, it waits for supply), false = DISABLED.
+  waitlistOpen Boolean  @default(true) @map("waitlist_open")
+  /// Approximate centre (the provincial capital), WGS84. Reference data.
+  latitude     Decimal? @db.Decimal(9, 6)
+  longitude    Decimal? @db.Decimal(9, 6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  country         Country                 @relation(fields: [countryCode], references: [code], onDelete: Restrict)
   districts       District[]
   addresses       Address[]
   serviceRequests ServiceRequest[]
   categoryRules   ProvinceCategory[]
+  serviceRegions  ProviderServiceRegion[]
+  marketEvents    MarketplaceEvent[]
 
+  @@index([countryCode])
   @@map("provinces")
 }
 
-model District {
-  id         String   @id @default(uuid(7)) @db.Uuid
-  provinceId Int      @map("province_id") @db.SmallInt
-  name       String   @db.VarChar(80)
-  slug       String   @db.VarChar(80)
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+/// Faz 7: countries the data model can hold. Only TR is active.
+model Country {
+  code      String   @id @db.Char(2)
+  name      String   @db.VarChar(80)
+  isActive  Boolean  @default(false) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  province        Province              @relation(fields: [provinceId], references: [id], onDelete: Restrict)
+  provinces Province[]
+
+  @@map("countries")
+}
+
+model District {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  provinceId       Int      @map("province_id") @db.SmallInt
+  name             String   @db.VarChar(80)
+  slug             String   @db.VarChar(80)
+  isActive         Boolean  @default(true) @map("is_active")
+  /// Faz 7: approximate centre of the district (its seat), WGS84, from the
+  /// GeoNames gazetteer (docs/reference-data/turkey-locations.md). Used for
+  /// approximate distances only, never shown as anyone's location.
+  latitude         Decimal? @db.Decimal(9, 6)
+  longitude        Decimal? @db.Decimal(9, 6)
+  /// DISTRICT_SEAT | DISTRICT_AREA_MEAN | PROVINCE_CENTER (fallback).
+  coordinateSource String?  @map("coordinate_source") @db.VarChar(24)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  province        Province                @relation(fields: [provinceId], references: [id], onDelete: Restrict)
   addresses       Address[]
   serviceRequests ServiceRequest[]
   providerAreas   ProviderServiceArea[]
+  regionCenters   ProviderServiceRegion[]
+  serviceCenters  ProviderProfile[]       @relation("ProviderServiceCenter")
+  marketEvents    MarketplaceEvent[]
 
   @@unique([provinceId, slug])
   @@map("districts")
@@ -375,9 +418,11 @@ model CustomerProfile {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   serviceRequests ServiceRequest[]
   jobs            Job[]
+  favorites       FavoriteProvider[]
+  conversations   Conversation[]
 
   @@map("customer_profiles")
 }
@@ -397,36 +442,50 @@ enum ProviderType {
 }
 
 model ProviderProfile {
-  id                     String                @id @default(uuid(7)) @db.Uuid
-  userId                 String                @unique @map("user_id") @db.Uuid
-  type                   ProviderType          @default(INDIVIDUAL)
-  status                 ProviderStatus        @default(DRAFT)
-  displayName            String                @map("display_name") @db.VarChar(120)
-  bio                    String?               @db.VarChar(2000)
-  yearsOfExperience      Int?                  @map("years_of_experience") @db.SmallInt
+  id                      String                @id @default(uuid(7)) @db.Uuid
+  userId                  String                @unique @map("user_id") @db.Uuid
+  type                    ProviderType          @default(INDIVIDUAL)
+  status                  ProviderStatus        @default(DRAFT)
+  displayName             String                @map("display_name") @db.VarChar(120)
+  bio                     String?               @db.VarChar(2000)
+  yearsOfExperience       Int?                  @map("years_of_experience") @db.SmallInt
   /// Provider opted in to UstaGO NOW (emergency) jobs.
-  nowEnabled             Boolean               @default(false) @map("now_enabled")
+  nowEnabled              Boolean               @default(false) @map("now_enabled")
   /// Currently accepting NOW jobs ("müsaitim" toggle).
-  isAvailableNow         Boolean               @default(false) @map("is_available_now")
-  lastLatitude           Decimal?              @map("last_latitude") @db.Decimal(9, 6)
-  lastLongitude          Decimal?              @map("last_longitude") @db.Decimal(9, 6)
-  lastLocationAt         DateTime?             @map("last_location_at") @db.Timestamptz(3)
-  approvedAt             DateTime?             @map("approved_at") @db.Timestamptz(3)
+  isAvailableNow          Boolean               @default(false) @map("is_available_now")
+  lastLatitude            Decimal?              @map("last_latitude") @db.Decimal(9, 6)
+  lastLongitude           Decimal?              @map("last_longitude") @db.Decimal(9, 6)
+  lastLocationAt          DateTime?             @map("last_location_at") @db.Timestamptz(3)
+  approvedAt              DateTime?             @map("approved_at") @db.Timestamptz(3)
   /// Last time the application went to PENDING_REVIEW.
-  submittedAt            DateTime?             @map("submitted_at") @db.Timestamptz(3)
+  submittedAt             DateTime?             @map("submitted_at") @db.Timestamptz(3)
   /// Last admin decision (approve, reject, suspend, reinstate).
-  reviewedAt             DateTime?             @map("reviewed_at") @db.Timestamptz(3)
-  reviewedById           String?               @map("reviewed_by_id") @db.Uuid
+  reviewedAt              DateTime?             @map("reviewed_at") @db.Timestamptz(3)
+  reviewedById            String?               @map("reviewed_by_id") @db.Uuid
   /// Shown to the provider while REJECTED or SUSPENDED (DB check).
-  statusReason           String?               @map("status_reason") @db.VarChar(1000)
+  statusReason            String?               @map("status_reason") @db.VarChar(1000)
   /// Product access (Faz 6, docs/adr/0023), separate from the application
   /// status above and from verification. Changed only through
   /// provider_suspensions by SuspensionsService.
-  accountStatus          ProviderAccountStatus @default(ACTIVE) @map("account_status")
-  accountStatusChangedAt DateTime?             @map("account_status_changed_at") @db.Timestamptz(3)
-  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt              DateTime?             @map("deleted_at") @db.Timestamptz(3)
+  accountStatus           ProviderAccountStatus @default(ACTIVE) @map("account_status")
+  accountStatusChangedAt  DateTime?             @map("account_status_changed_at") @db.Timestamptz(3)
+  /// Faz 7 availability (docs/adr/0031), separate from account status:
+  /// "Yeni iş alma" switch. False = no new dispatch, NOW or matching.
+  acceptingNewJobs        Boolean               @default(true) @map("accepting_new_jobs")
+  /// "Bugün müsait değilim": no new dispatch until this instant.
+  unavailableUntil        DateTime?             @map("unavailable_until") @db.Timestamptz(3)
+  /// Maximum travel distance (km) from the service centre; null = no limit
+  /// beyond the service areas.
+  maxTravelKm             Int?                  @map("max_travel_km") @db.SmallInt
+  /// "Hizmet merkezi": a district, never a home address (docs/adr/0029).
+  serviceCenterDistrictId String?               @map("service_center_district_id") @db.Uuid
+  /// Private-storage key of the profile photo (served by signed URL).
+  photoStorageKey         String?               @map("photo_storage_key") @db.VarChar(512)
+  /// Last provider action in the app (quote, job step, availability).
+  lastActiveAt            DateTime?             @map("last_active_at") @db.Timestamptz(3)
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt               DateTime?             @map("deleted_at") @db.Timestamptz(3)
 
   user               User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
   reviewedBy         User?                       @relation("ProviderReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
@@ -447,6 +506,16 @@ model ProviderProfile {
   verificationCase   ProviderVerificationCase?
   verificationEvents ProviderVerificationEvent[]
   suspensions        ProviderSuspension[]
+  // Faz 7
+  serviceCenter      District?                   @relation("ProviderServiceCenter", fields: [serviceCenterDistrictId], references: [id], onDelete: SetNull)
+  serviceRegions     ProviderServiceRegion[]
+  weeklyHours        ProviderWeeklyHours[]
+  timeOff            ProviderTimeOff[]
+  portfolioItems     ProviderPortfolioItem[]
+  favoritedBy        FavoriteProvider[]
+  dispatches         RequestDispatch[]
+  preferredRequests  ServiceRequest[]            @relation("PreferredProvider")
+  conversations      Conversation[]
 
   @@index([status, nowEnabled, isAvailableNow])
   @@index([status, submittedAt])
@@ -477,6 +546,139 @@ model ProviderServiceArea {
   @@id([providerId, districtId])
   @@index([districtId])
   @@map("provider_service_areas")
+}
+
+// ============================================================================
+// Faz 7: service regions, availability, portfolio (docs/adr/0028-0031)
+// ============================================================================
+
+enum ProviderRegionKind {
+  /// Every district of the province.
+  PROVINCE
+  /// Within `radiusKm` of a centre district (never a home address).
+  RADIUS
+}
+
+/// Service areas wider than one district (district rows stay in
+/// provider_service_areas). A request is covered when its district is in
+/// provider_service_areas, or its province has an active PROVINCE region,
+/// or its approximate point is within an active RADIUS region.
+model ProviderServiceRegion {
+  id               String             @id @default(uuid(7)) @db.Uuid
+  providerId       String             @map("provider_id") @db.Uuid
+  kind             ProviderRegionKind
+  provinceId       Int                @map("province_id") @db.SmallInt
+  /// RADIUS only: the centre district; its reference centre is copied below.
+  centerDistrictId String?            @map("center_district_id") @db.Uuid
+  radiusKm         Int?               @map("radius_km") @db.SmallInt
+  centerLat        Decimal?           @map("center_lat") @db.Decimal(9, 6)
+  centerLng        Decimal?           @map("center_lng") @db.Decimal(9, 6)
+  active           Boolean            @default(true)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  provider       ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  province       Province        @relation(fields: [provinceId], references: [id], onDelete: Restrict)
+  centerDistrict District?       @relation(fields: [centerDistrictId], references: [id], onDelete: Restrict)
+
+  /// One live PROVINCE region per provider and province.
+  @@unique([providerId, provinceId], map: "provider_service_regions_one_province_key", where: raw("kind = 'PROVINCE' AND active"))
+  @@index([providerId, active])
+  @@index([provinceId, kind, active])
+  @@map("provider_service_regions")
+}
+
+/// Weekly working hours in the marketplace time zone (Europe/Istanbul),
+/// minutes from local midnight. Several intervals per day are allowed.
+/// No rows at all = hours not set (the provider is treated as flexible).
+model ProviderWeeklyHours {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  providerId  String   @map("provider_id") @db.Uuid
+  /// ISO weekday: 1 = Pazartesi ... 7 = Pazar.
+  weekday     Int      @db.SmallInt
+  startMinute Int      @map("start_minute") @db.SmallInt
+  endMinute   Int      @map("end_minute") @db.SmallInt
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, weekday, startMinute])
+  @@map("provider_weekly_hours")
+}
+
+/// "İzindeyim": no new dispatch, matching or NOW between startsAt and
+/// endsAt. Existing jobs are never touched.
+model ProviderTimeOff {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  providerId  String    @map("provider_id") @db.Uuid
+  startsAt    DateTime  @map("starts_at") @db.Timestamptz(3)
+  endsAt      DateTime  @map("ends_at") @db.Timestamptz(3)
+  note        String?   @db.VarChar(200)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, endsAt])
+  @@map("provider_time_off")
+}
+
+/// A piece of past work shown on the public profile.
+model ProviderPortfolioItem {
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  providerId         String    @map("provider_id") @db.Uuid
+  categoryId         String?   @map("category_id") @db.Uuid
+  title              String    @db.VarChar(120)
+  description        String?   @db.VarChar(1000)
+  sortOrder          Int       @default(0) @map("sort_order")
+  /// The provider confirmed the photos show no customer faces, addresses
+  /// or documents and that they may publish them.
+  consentConfirmedAt DateTime  @map("consent_confirmed_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  provider ProviderProfile  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  category ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  media    PortfolioMedia[]
+
+  @@index([providerId, deletedAt, sortOrder])
+  @@map("provider_portfolio_items")
+}
+
+/// Photos of a portfolio item. Video is architecture-ready (`kind`) but not
+/// accepted in this phase (no transcoding).
+model PortfolioMedia {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  itemId         String   @map("item_id") @db.Uuid
+  uploadIntentId String   @unique @map("upload_intent_id") @db.Uuid
+  storageKey     String   @unique @map("storage_key") @db.VarChar(512)
+  kind           String   @default("IMAGE") @db.VarChar(10)
+  mimeType       String   @map("mime_type") @db.VarChar(100)
+  sizeBytes      Int      @map("size_bytes")
+  sortOrder      Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  item         ProviderPortfolioItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  uploadIntent UploadIntent          @relation(fields: [uploadIntentId], references: [id], onDelete: Restrict)
+
+  @@index([itemId, sortOrder])
+  @@map("portfolio_media")
+}
+
+/// A customer's saved provider. Private to the customer: providers never
+/// see who saved them.
+model FavoriteProvider {
+  customerId String   @map("customer_id") @db.Uuid
+  providerId String   @map("provider_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  customer CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, providerId])
+  @@index([customerId, createdAt])
+  @@map("favorite_providers")
 }
 
 enum VerificationType {
@@ -549,6 +751,10 @@ enum UploadPurpose {
   PROVIDER_VERIFICATION
   /// Optional JPEG/PNG photos a customer attaches to a service request.
   SERVICE_REQUEST_PHOTO
+  /// Faz 7: portfolio photos, chat photos and provider profile photos.
+  PORTFOLIO_IMAGE
+  CHAT_IMAGE
+  PROFILE_PHOTO
 }
 
 /// A signed upload slot handed to a client (ADR-0010). The client uploads
@@ -570,6 +776,8 @@ model UploadIntent {
 
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   serviceRequestPhoto ServiceRequestPhoto?
+  portfolioMedia      PortfolioMedia?
+  message             Message?
 
   @@index([userId, createdAt])
   @@map("upload_intents")
@@ -602,20 +810,22 @@ model ProviderScore {
 // ============================================================================
 
 model ServiceCategory {
-  id            String   @id @default(uuid(7)) @db.Uuid
-  parentId      String?  @map("parent_id") @db.Uuid
-  slug          String   @unique @db.VarChar(80)
-  name          String   @db.VarChar(80)
-  description   String?  @db.VarChar(500)
-  icon          String?  @db.VarChar(60)
-  sortOrder     Int      @default(0) @map("sort_order")
-  isActive      Boolean  @default(true) @map("is_active")
+  id                 String             @id @default(uuid(7)) @db.Uuid
+  parentId           String?            @map("parent_id") @db.Uuid
+  slug               String             @unique @db.VarChar(80)
+  name               String             @db.VarChar(80)
+  description        String?            @db.VarChar(500)
+  icon               String?            @db.VarChar(60)
+  sortOrder          Int                @default(0) @map("sort_order")
+  isActive           Boolean            @default(true) @map("is_active")
   /// Category can be requested as UstaGO NOW (emergency).
-  supportsNow   Boolean  @default(false) @map("supports_now")
+  supportsNow        Boolean            @default(false) @map("supports_now")
   /// Category can be requested through "Teklif Al".
-  supportsQuote Boolean  @default(true) @map("supports_quote")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  supportsQuote      Boolean            @default(true) @map("supports_quote")
+  /// Faz 7: how the request wizard treats photos for this category.
+  requestPhotoPolicy RequestPhotoPolicy @default(OPTIONAL) @map("request_photo_policy")
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   parent          ServiceCategory?              @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
   children        ServiceCategory[]             @relation("CategoryTree")
@@ -624,9 +834,70 @@ model ServiceCategory {
   serviceRequests ServiceRequest[]
   jobs            Job[]
   requirements    CategoryProviderRequirement[]
+  aliases         CategoryAlias[]
+  questions       CategoryQuestion[]
+  portfolioItems  ProviderPortfolioItem[]
+  marketEvents    MarketplaceEvent[]
 
   @@index([parentId, sortOrder])
   @@map("service_categories")
+}
+
+enum RequestPhotoPolicy {
+  OPTIONAL
+  RECOMMENDED
+  REQUIRED
+}
+
+/// Search synonym ("elektrikçi", "elektrik ustası" → Elektrik). `normalized`
+/// is the Turkish-folded form used for lookup; unique across categories.
+model CategoryAlias {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  categoryId String   @map("category_id") @db.Uuid
+  alias      String   @db.VarChar(80)
+  normalized String   @unique @db.VarChar(80)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@map("category_aliases")
+}
+
+enum CategoryQuestionType {
+  SINGLE_SELECT
+  MULTI_SELECT
+  BOOLEAN
+  SHORT_TEXT
+  NUMBER
+}
+
+/// Admin-defined extra question of a category's request form. A published
+/// request keeps a snapshot of the question text and its answer
+/// (service_requests.answers), so editing a question never changes history.
+model CategoryQuestion {
+  id         String               @id @default(uuid(7)) @db.Uuid
+  categoryId String               @map("category_id") @db.Uuid
+  /// Stable machine key within the category ("power_out").
+  key        String               @db.VarChar(40)
+  label      String               @db.VarChar(200)
+  helpText   String?              @map("help_text") @db.VarChar(300)
+  type       CategoryQuestionType
+  /// SELECT types: [{ "value": "full", "label": "Tamamen" }, ...].
+  options    Json?
+  required   Boolean              @default(false)
+  minValue   Int?                 @map("min_value")
+  maxValue   Int?                 @map("max_value")
+  sortOrder  Int                  @default(0) @map("sort_order")
+  isActive   Boolean              @default(true) @map("is_active")
+  createdAt  DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, key])
+  @@index([categoryId, isActive, sortOrder])
+  @@map("category_questions")
 }
 
 // ============================================================================
@@ -656,43 +927,70 @@ enum ServiceRequestStatus {
 /// COMPLETED. CANCELLED and EXPIRED end an open request. Transitions live
 /// in service-requests/domain/service-request-lifecycle.ts only.
 model ServiceRequest {
-  id               String               @id @default(uuid(7)) @db.Uuid
-  customerId       String               @map("customer_id") @db.Uuid
-  categoryId       String               @map("category_id") @db.Uuid
-  addressId        String               @map("address_id") @db.Uuid
+  id                  String               @id @default(uuid(7)) @db.Uuid
+  customerId          String               @map("customer_id") @db.Uuid
+  categoryId          String               @map("category_id") @db.Uuid
+  addressId           String               @map("address_id") @db.Uuid
   /// Denormalised from the address for regional search.
-  provinceId       Int                  @map("province_id") @db.SmallInt
-  districtId       String               @map("district_id") @db.Uuid
-  type             ServiceRequestType
-  status           ServiceRequestStatus @default(DRAFT)
-  title            String               @db.VarChar(140)
-  description      String               @db.VarChar(4000)
+  provinceId          Int                  @map("province_id") @db.SmallInt
+  districtId          String               @map("district_id") @db.Uuid
+  type                ServiceRequestType
+  status              ServiceRequestStatus @default(DRAFT)
+  title               String               @db.VarChar(140)
+  description         String               @db.VarChar(4000)
   /// Customer's expectation only; never binds a provider's quote.
   /// Null = "Bütçem belli değil / teklif almak istiyorum".
-  budgetMinor      BigInt?              @map("budget_minor")
-  currency         CurrencyCode         @default(TRY)
-  preferredStartAt DateTime?            @map("preferred_start_at") @db.Timestamptz(3)
-  preferredEndAt   DateTime?            @map("preferred_end_at") @db.Timestamptz(3)
-  publishedAt      DateTime?            @map("published_at") @db.Timestamptz(3)
-  expiresAt        DateTime?            @map("expires_at") @db.Timestamptz(3)
-  cancelledAt      DateTime?            @map("cancelled_at") @db.Timestamptz(3)
-  cancelReason     String?              @map("cancel_reason") @db.VarChar(500)
+  budgetMinor         BigInt?              @map("budget_minor")
+  currency            CurrencyCode         @default(TRY)
+  preferredStartAt    DateTime?            @map("preferred_start_at") @db.Timestamptz(3)
+  preferredEndAt      DateTime?            @map("preferred_end_at") @db.Timestamptz(3)
+  publishedAt         DateTime?            @map("published_at") @db.Timestamptz(3)
+  expiresAt           DateTime?            @map("expires_at") @db.Timestamptz(3)
+  cancelledAt         DateTime?            @map("cancelled_at") @db.Timestamptz(3)
+  cancelReason        String?              @map("cancel_reason") @db.VarChar(500)
   /// Client-generated key: retrying "create" (double tap, flaky network)
   /// returns the request created the first time instead of a duplicate.
-  idempotencyKey   String?              @map("idempotency_key") @db.Uuid
-  version          Int                  @default(0)
-  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  idempotencyKey      String?              @map("idempotency_key") @db.Uuid
+  // Faz 7 (docs/adr/0028, 0029)
+  /// Upper end when the customer gave a range ("₺1.500–₺2.000").
+  budgetMaxMinor      BigInt?              @map("budget_max_minor")
+  /// NOW | TODAY | TOMORROW | DATE: what the customer picked in "Ne zaman?".
+  scheduleOption      String?              @map("schedule_option") @db.VarChar(10)
+  /// Snapshot of the category questions and answers at publication.
+  answers             Json?
+  /// Approximate point (district centre or address rounded to ~1 km).
+  /// Never the exact address; used for distances.
+  approxLatitude      Decimal?             @map("approx_latitude") @db.Decimal(8, 4)
+  approxLongitude     Decimal?             @map("approx_longitude") @db.Decimal(8, 4)
+  /// "Bu ustayı tekrar çağır" / "Bu ustadan teklif iste".
+  preferredProviderId String?              @map("preferred_provider_id") @db.Uuid
+  /// True: only the preferred provider sees it until the customer widens it.
+  preferredOnly       Boolean              @default(false) @map("preferred_only")
+  rehireOfJobId       String?              @map("rehire_of_job_id") @db.Uuid
+  /// Dispatch waves sent so far (0 = none yet) and when the next is due.
+  dispatchWave        Int                  @default(0) @map("dispatch_wave") @db.SmallInt
+  lastDispatchedAt    DateTime?            @map("last_dispatched_at") @db.Timestamptz(3)
+  nextDispatchAt      DateTime?            @map("next_dispatch_at") @db.Timestamptz(3)
+  /// When the "no offer yet" prompt was raised for the customer.
+  noOfferAlertedAt    DateTime?            @map("no_offer_alerted_at") @db.Timestamptz(3)
+  version             Int                  @default(0)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  customer       CustomerProfile          @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  category       ServiceCategory          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  address        Address                  @relation(fields: [addressId], references: [id], onDelete: Restrict)
-  province       Province                 @relation(fields: [provinceId], references: [id], onDelete: Restrict)
-  district       District                 @relation(fields: [districtId], references: [id], onDelete: Restrict)
-  quotes         Quote[]
-  dispatchOffers EmergencyDispatchOffer[]
-  job            Job?
-  photos         ServiceRequestPhoto[]
+  preferredProvider ProviderProfile?         @relation("PreferredProvider", fields: [preferredProviderId], references: [id], onDelete: SetNull)
+  rehireOfJob       Job?                     @relation("RehireOf", fields: [rehireOfJobId], references: [id], onDelete: SetNull)
+  dispatches        RequestDispatch[]
+  conversations     Conversation[]
+  marketEvents      MarketplaceEvent[]
+  customer          CustomerProfile          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  category          ServiceCategory          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  address           Address                  @relation(fields: [addressId], references: [id], onDelete: Restrict)
+  province          Province                 @relation(fields: [provinceId], references: [id], onDelete: Restrict)
+  district          District                 @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  quotes            Quote[]
+  dispatchOffers    EmergencyDispatchOffer[]
+  job               Job?
+  photos            ServiceRequestPhoto[]
 
   @@unique([customerId, idempotencyKey])
   @@index([customerId, createdAt])
@@ -700,6 +998,8 @@ model ServiceRequest {
   /// Provider opportunity feed: requests in the provider's districts.
   @@index([districtId, categoryId, status])
   @@index([createdAt])
+  @@index([nextDispatchAt])
+  @@index([preferredProviderId])
   @@map("service_requests")
 }
 
@@ -757,6 +1057,53 @@ model EmergencyDispatchOffer {
   @@map("emergency_dispatch_offers")
 }
 
+enum DispatchNotifyMode {
+  /// In-app row and a push.
+  PUSH
+  /// In-app row only (provider chose "sessiz" or it was quiet hours).
+  IN_APP
+  /// No notification (provider turned new-job alerts off); still listed.
+  NONE
+}
+
+enum DispatchResult {
+  PENDING
+  QUOTED
+  /// The request closed (matched elsewhere, cancelled, expired).
+  CLOSED
+}
+
+/// Faz 7 (docs/adr/0028): one row per provider a request was dispatched to,
+/// for both QUOTE and NOW. Unique per (request, provider): a later wave never
+/// notifies the same provider twice.
+model RequestDispatch {
+  id               String             @id @default(uuid(7)) @db.Uuid
+  serviceRequestId String             @map("service_request_id") @db.Uuid
+  providerId       String             @map("provider_id") @db.Uuid
+  wave             Int                @db.SmallInt
+  /// Ranking algorithm that produced the score ("MATCH_V1").
+  algorithmVersion String             @map("algorithm_version") @db.VarChar(20)
+  matchScore       Decimal            @map("match_score") @db.Decimal(5, 2)
+  /// Explainable breakdown (internal; admin/debug only).
+  scoreBreakdown   Json               @map("score_breakdown")
+  /// Approximate (straight-line) distance, km.
+  distanceKm       Decimal?           @map("distance_km") @db.Decimal(6, 1)
+  isPreferred      Boolean            @default(false) @map("is_preferred")
+  notifyMode       DispatchNotifyMode @map("notify_mode")
+  dispatchedAt     DateTime           @default(now()) @map("dispatched_at") @db.Timestamptz(3)
+  viewedAt         DateTime?          @map("viewed_at") @db.Timestamptz(3)
+  respondedAt      DateTime?          @map("responded_at") @db.Timestamptz(3)
+  result           DispatchResult     @default(PENDING)
+
+  serviceRequest ServiceRequest  @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  provider       ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceRequestId, providerId])
+  @@index([serviceRequestId, wave])
+  @@index([providerId, dispatchedAt])
+  @@map("request_dispatches")
+}
+
 enum QuoteStatus {
   /// Waiting for the customer to answer the provider's latest offer.
   PENDING_CUSTOMER
@@ -797,6 +1144,16 @@ model Quote {
   @@map("quotes")
 }
 
+/// "Ne zaman gelebilirim": chosen by the provider, never computed.
+enum QuoteEta {
+  MIN_30
+  HOUR_1
+  HOUR_2
+  TODAY
+  TOMORROW
+  CUSTOM
+}
+
 enum QuoteRevisionKind {
   /// Provider's first offer.
   OFFER
@@ -817,6 +1174,11 @@ model QuoteRevision {
   laborMinor               BigInt?           @map("labor_minor")
   materialMinor            BigInt?           @map("material_minor")
   materialsIncluded        Boolean?          @map("materials_included")
+  /// Faz 7 optional breakdown lines; the total stays the only binding amount.
+  serviceMinor             BigInt?           @map("service_minor")
+  otherMinor               BigInt?           @map("other_minor")
+  /// Provider's own arrival estimate (no routing API, docs/adr/0029).
+  arrivalEta               QuoteEta?         @map("arrival_eta")
   currency                 CurrencyCode      @default(TRY)
   note                     String?           @db.VarChar(2000)
   estimatedDurationMinutes Int?              @map("estimated_duration_minutes")
@@ -928,6 +1290,8 @@ model Job {
   refunds            Refund[]
   earnings           ProviderEarning[]
   cashSettlement     CashSettlement?
+  rehires            ServiceRequest[]    @relation("RehireOf")
+  conversations      Conversation[]
 
   @@index([customerId, createdAt])
   @@index([customerId, status])
@@ -1592,14 +1956,29 @@ model Review {
   createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  job         Job   @relation(fields: [jobId], references: [id], onDelete: Restrict)
-  author      User  @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
-  target      User  @relation("ReviewTarget", fields: [targetId], references: [id], onDelete: Restrict)
-  moderatedBy User? @relation("ReviewModeratedBy", fields: [moderatedById], references: [id], onDelete: SetNull)
+  job         Job                  @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  author      User                 @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  target      User                 @relation("ReviewTarget", fields: [targetId], references: [id], onDelete: Restrict)
+  moderatedBy User?                @relation("ReviewModeratedBy", fields: [moderatedById], references: [id], onDelete: SetNull)
+  reply       ProviderReviewReply?
 
   @@unique([jobId, direction])
   @@index([targetId, status, createdAt])
   @@map("reviews")
+}
+
+/// Faz 7: the provider's one public answer to a review about them. The
+/// review text itself can never be changed by the provider.
+model ProviderReviewReply {
+  reviewId  String   @id @map("review_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  body      String   @db.VarChar(1000)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@map("provider_review_replies")
 }
 
 /// Which side of the marketplace a trust signal or sanction applies to.
@@ -1833,6 +2212,8 @@ model Notification {
   entityType String?             @map("entity_type") @db.VarChar(40)
   entityId   String?             @map("entity_id") @db.VarChar(64)
   deepLink   String?             @map("deep_link") @db.VarChar(200)
+  /// Faz 7 notification centre tab: JOBS | MESSAGES | FINANCE | ACCOUNT.
+  category   String?             @db.VarChar(16)
   sentAt     DateTime?           @map("sent_at") @db.Timestamptz(3)
   readAt     DateTime?           @map("read_at") @db.Timestamptz(3)
   createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -1843,6 +2224,7 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([userId, readAt, createdAt])
+  @@index([userId, category, createdAt])
   @@map("notifications")
 }
 
@@ -1850,17 +2232,30 @@ model Notification {
 /// always delivered in the app and by push; only these categories can be
 /// turned off.
 model NotificationPreference {
-  userId           String   @id @map("user_id") @db.Uuid
+  userId           String          @id @map("user_id") @db.Uuid
   /// New quotes, counter offers, accepted / rejected quotes.
-  quoteUpdatesPush Boolean  @default(true) @map("quote_updates_push")
+  quoteUpdatesPush Boolean         @default(true) @map("quote_updates_push")
   /// Campaigns. Nothing is sent in this phase; stored for consent.
-  marketingPush    Boolean  @default(false) @map("marketing_push")
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  marketingPush    Boolean         @default(false) @map("marketing_push")
+  /// Faz 7: chat messages.
+  newMessagePush   Boolean         @default(true) @map("new_message_push")
+  /// Faz 7, providers: new matching jobs ON / SILENT (in-app only) / OFF.
+  newJobAlerts     NewJobAlertMode @default(ON) @map("new_job_alerts")
+  /// Quiet hours (minutes from local midnight, Europe/Istanbul); both or neither.
+  quietHoursStart  Int?            @map("quiet_hours_start") @db.SmallInt
+  quietHoursEnd    Int?            @map("quiet_hours_end") @db.SmallInt
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_preferences")
+}
+
+enum NewJobAlertMode {
+  ON
+  SILENT
+  OFF
 }
 
 enum PushDeliveryStatus {
@@ -2362,4 +2757,202 @@ model DataExportRequest {
 
   @@index([userId, requestedAt])
   @@map("data_export_requests")
+}
+
+// ============================================================================
+// Faz 7: job/request-bound messaging (docs/adr/0030)
+// ============================================================================
+
+enum MessageType {
+  TEXT
+  IMAGE
+  /// Server-generated event ("Teklif ₺2.200 olarak kabul edildi.").
+  SYSTEM
+}
+
+enum ConversationRole {
+  CUSTOMER
+  PROVIDER
+}
+
+/// One conversation per (service request, provider): it starts with the
+/// provider's quote and continues into the job. Never a general chat.
+model Conversation {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  serviceRequestId String    @map("service_request_id") @db.Uuid
+  providerId       String    @map("provider_id") @db.Uuid
+  customerId       String    @map("customer_id") @db.Uuid
+  jobId            String?   @map("job_id") @db.Uuid
+  lastMessageAt    DateTime? @map("last_message_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  serviceRequest ServiceRequest            @relation(fields: [serviceRequestId], references: [id], onDelete: Restrict)
+  provider       ProviderProfile           @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  customer       CustomerProfile           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  job            Job?                      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  participants   ConversationParticipant[]
+  messages       Message[]
+  reports        MessageReport[]
+
+  @@unique([serviceRequestId, providerId])
+  @@index([jobId])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  conversationId String           @map("conversation_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  role           ConversationRole
+  /// createdAt of the newest message this participant has read.
+  lastReadAt     DateTime?        @map("last_read_at") @db.Timestamptz(3)
+  /// "Kendimden gizle": hidden in this user's list only; kept on the server.
+  hiddenAt       DateTime?        @map("hidden_at") @db.Timestamptz(3)
+  joinedAt       DateTime         @default(now()) @map("joined_at") @db.Timestamptz(3)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id                  String      @id @default(uuid(7)) @db.Uuid
+  conversationId      String      @map("conversation_id") @db.Uuid
+  /// Null for SYSTEM messages.
+  senderId            String?     @map("sender_id") @db.Uuid
+  type                MessageType
+  body                String?     @db.VarChar(2000)
+  /// Client-generated id: a retried send returns the first message.
+  clientMessageId     String?     @map("client_message_id") @db.Uuid
+  /// SYSTEM only: one message per event ("quote_accepted:<quoteId>").
+  eventKey            String?     @map("event_key") @db.VarChar(120)
+  uploadIntentId      String?     @unique @map("upload_intent_id") @db.Uuid
+  storageKey          String?     @map("storage_key") @db.VarChar(512)
+  mimeType            String?     @map("mime_type") @db.VarChar(100)
+  sizeBytes           Int?        @map("size_bytes")
+  /// Looks like a phone number or e-mail (detection only, never blocked).
+  containsContactInfo Boolean     @default(false) @map("contains_contact_info")
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  editedAt            DateTime?   @map("edited_at") @db.Timestamptz(3)
+  deletedAt           DateTime?   @map("deleted_at") @db.Timestamptz(3)
+
+  conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?           @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+  uploadIntent UploadIntent?   @relation(fields: [uploadIntentId], references: [id], onDelete: Restrict)
+  reports      MessageReport[]
+
+  @@unique([conversationId, senderId, clientMessageId])
+  @@unique([conversationId, eventKey])
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+enum MessageReportReason {
+  SPAM
+  HARASSMENT
+  FRAUD
+  CONTACT_INFO
+  INAPPROPRIATE
+  OTHER
+}
+
+enum MessageReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+}
+
+/// "Mesajı bildir". Support may open the reported conversation only with a
+/// reason, and every opening is audited.
+model MessageReport {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  messageId      String              @map("message_id") @db.Uuid
+  conversationId String              @map("conversation_id") @db.Uuid
+  reporterId     String              @map("reporter_id") @db.Uuid
+  reason         MessageReportReason
+  note           String?             @db.VarChar(500)
+  status         MessageReportStatus @default(OPEN)
+  reviewedById   String?             @map("reviewed_by_id") @db.Uuid
+  reviewedAt     DateTime?           @map("reviewed_at") @db.Timestamptz(3)
+  resolutionNote String?             @map("resolution_note") @db.VarChar(500)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  reporter     User         @relation("MessageReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewedBy   User?        @relation("MessageReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([messageId, reporterId])
+  @@index([status, createdAt])
+  @@map("message_reports")
+}
+
+/// A user blocked another. Stops new messages between them; an active
+/// job's workflow (steps, payment, completion) is never blocked.
+model UserBlock {
+  blockerId String   @map("blocker_id") @db.Uuid
+  blockedId String   @map("blocked_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  blocker User @relation("BlockBy", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockedUser", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@map("user_blocks")
+}
+
+// ============================================================================
+// Faz 7: marketplace analytics events (docs/adr/0028)
+// ============================================================================
+
+/// Event names as used in the Faz 7 brief.
+enum MarketplaceEventType {
+  request_created
+  request_dispatched
+  provider_viewed_request
+  quote_created
+  quote_accepted
+  job_started
+  job_completed
+  conversation_started
+  message_sent
+  provider_favorited
+  provider_rehired
+  search_performed
+  search_no_result
+  search_category_clicked
+  request_no_offer
+  request_search_expanded
+}
+
+/// Append-only. Never holds message bodies, addresses, phone numbers,
+/// national ids, IBANs or user ids: only marketplace ids, region, category
+/// and small numeric values.
+model MarketplaceEvent {
+  id               String               @id @default(uuid(7)) @db.Uuid
+  type             MarketplaceEventType
+  occurredAt       DateTime             @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  serviceRequestId String?              @map("service_request_id") @db.Uuid
+  providerId       String?              @map("provider_id") @db.Uuid
+  categoryId       String?              @map("category_id") @db.Uuid
+  provinceId       Int?                 @map("province_id") @db.SmallInt
+  districtId       String?              @map("district_id") @db.Uuid
+  /// Small numeric payload: wave number, result count, minutes.
+  value            Int?
+  /// Low-cardinality extras (normalised search text without digits, wave).
+  metadata         Json?
+
+  serviceRequest ServiceRequest?  @relation(fields: [serviceRequestId], references: [id], onDelete: SetNull)
+  category       ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  province       Province?        @relation(fields: [provinceId], references: [id], onDelete: SetNull)
+  district       District?        @relation(fields: [districtId], references: [id], onDelete: SetNull)
+
+  @@index([type, occurredAt])
+  @@index([serviceRequestId, occurredAt])
+  @@index([provinceId, type, occurredAt])
+  @@index([categoryId, type, occurredAt])
+  @@map("marketplace_events")
 }

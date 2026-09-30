@@ -45,7 +45,7 @@ export class RequestExpiryService implements OnApplicationBootstrap, OnApplicati
     return this.prisma.$transaction(async (tx) => {
       const expired = await tx.$queryRaw<{ id: string }[]>`
         UPDATE service_requests
-        SET status = 'EXPIRED', version = version + 1, updated_at = now()
+        SET status = 'EXPIRED', version = version + 1, updated_at = now(), next_dispatch_at = NULL
         WHERE status IN ('PUBLISHED', 'MATCHING', 'QUOTED') AND expires_at <= ${now}
         RETURNING id`;
       if (expired.length === 0) return 0;
@@ -60,6 +60,10 @@ export class RequestExpiryService implements OnApplicationBootstrap, OnApplicati
       await tx.emergencyDispatchOffer.updateMany({
         where: { serviceRequestId: { in: ids }, status: { in: ['SENT', 'SEEN'] } },
         data: { status: 'EXPIRED' },
+      });
+      await tx.requestDispatch.updateMany({
+        where: { serviceRequestId: { in: ids }, result: 'PENDING' },
+        data: { result: 'CLOSED' },
       });
       await tx.auditLog.createMany({
         data: ids.map((id) => ({

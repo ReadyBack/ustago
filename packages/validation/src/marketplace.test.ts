@@ -92,6 +92,14 @@ describe('createQuoteSchema', () => {
     );
   });
 
+  it('accepts labour + material + servis/diğer lines that add up to the total', () => {
+    const lines = { laborMinor: 100000, materialMinor: 120000, serviceMinor: 20000 };
+    expect(
+      createQuoteSchema.safeParse({ totalMinor: 250000, ...lines, otherMinor: 10000 }).success,
+    ).toBe(true);
+    expect(createQuoteSchema.safeParse({ totalMinor: 250000, ...lines }).success).toBe(false);
+  });
+
   it('rejects zero, negative and fractional totals', () => {
     for (const totalMinor of [0, -100, 2500.5]) {
       expect(createQuoteSchema.safeParse({ totalMinor }).success).toBe(false);

@@ -50,8 +50,14 @@ export const NotificationEvent = {
   CASH_DISPUTED: 'cash.disputed',
   CASH_RESOLVED: 'cash.resolved',
   EARNING_AVAILABLE: 'earning.available',
+  // Faz 7: messaging and marketplace
+  MESSAGE_NEW: 'message.new',
+  REQUEST_NO_OFFER: 'service_request.no_offer',
+  REQUEST_PREFERRED: 'service_request.preferred',
   PAYOUT_PAID: 'payout.paid',
   PAYOUT_FAILED: 'payout.failed',
+  /** The provider answered the customer's review (deep link: the job). */
+  REVIEW_REPLIED: 'review.replied',
 } as const;
 
 export type NotificationEventKey = (typeof NotificationEvent)[keyof typeof NotificationEvent];
@@ -84,13 +90,71 @@ export function categoryOf(type: string): NotificationCategory {
 
 export interface PushPreferences {
   quoteUpdatesPush: boolean;
+  /** Faz 7. */
+  newMessagePush: boolean;
+  newJobAlerts: 'ON' | 'SILENT' | 'OFF';
+  quietHoursStart: number | null;
+  quietHoursEnd: number | null;
 }
 
-export const DEFAULT_PUSH_PREFERENCES: PushPreferences = { quoteUpdatesPush: true };
+export const DEFAULT_PUSH_PREFERENCES: PushPreferences = {
+  quoteUpdatesPush: true,
+  newMessagePush: true,
+  newJobAlerts: 'ON',
+  quietHoursStart: null,
+  quietHoursEnd: null,
+};
 
-/** Whether an event should also go out as a push for this user. */
-export function wantsPush(type: string, prefs: PushPreferences): boolean {
-  return categoryOf(type) === 'JOB' || prefs.quoteUpdatesPush;
+/** "New work nearby" alerts a provider can silence (Faz 7). */
+export function isNewJobAlert(type: string): boolean {
+  return type === 'service_request.new_opportunity' || type === 'service_request.preferred';
+}
+
+/**
+ * Whether an event should also go out as a push for this user. Job, money
+ * and account events are transactional and always pushed (someone is at
+ * the door); quotes, messages and new-job alerts follow the user's
+ * switches and are held back during quiet hours (the in-app row is still
+ * written). NOW emergency offers are job events and ignore quiet hours.
+ * `localMinute` is the current minute of the day in the marketplace zone.
+ */
+export function wantsPush(type: string, prefs: PushPreferences, localMinute?: number): boolean {
+  const quiet = localMinute !== undefined && inQuietHours(prefs, localMinute);
+  if (type.startsWith('message.')) return prefs.newMessagePush && !quiet;
+  if (isNewJobAlert(type)) return prefs.newJobAlerts === 'ON' && !quiet;
+  if (categoryOf(type) === 'JOB') return true;
+  return prefs.quoteUpdatesPush && !quiet;
+}
+
+/** Quiet hours may wrap midnight (23:00-07:00). */
+export function inQuietHours(
+  prefs: Pick<PushPreferences, 'quietHoursStart' | 'quietHoursEnd'>,
+  localMinute: number,
+): boolean {
+  const { quietHoursStart: start, quietHoursEnd: end } = prefs;
+  if (start === null || end === null || start === end) return false;
+  return start < end
+    ? localMinute >= start && localMinute < end
+    : localMinute >= start || localMinute < end;
+}
+
+/** Notification centre tab (Faz 7); stored on the row when it is written. */
+export type NotificationTab = 'JOBS' | 'MESSAGES' | 'FINANCE' | 'ACCOUNT';
+
+export function notificationTab(type: string): NotificationTab {
+  if (type.startsWith('message.')) return 'MESSAGES';
+  if (
+    type.startsWith('payment.') ||
+    type.startsWith('cash.') ||
+    type.startsWith('earning.') ||
+    type.startsWith('payout.')
+  ) {
+    return 'FINANCE';
+  }
+  if (type.startsWith('provider.') || type.startsWith('auth.') || type.startsWith('account.')) {
+    return 'ACCOUNT';
+  }
+  return 'JOBS';
 }
 
 export interface NotificationTarget {
@@ -136,6 +200,16 @@ export function notificationTarget(
     if (paymentId) {
       return { entityType: 'PAYMENT', entityId: paymentId, deepLink: `/payments/${paymentId}` };
     }
+  }
+  if (type.startsWith('message.')) {
+    const conversationId = id('conversationId');
+    return conversationId
+      ? {
+          entityType: 'CONVERSATION',
+          entityId: conversationId,
+          deepLink: `/messages/${conversationId}`,
+        }
+      : null;
   }
   if (type.startsWith('provider.')) {
     const providerId = id('providerId');

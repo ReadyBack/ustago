@@ -27,6 +27,7 @@ describe('notification events', () => {
     [NotificationEvent.JOB_CANCELLED, 'JOB'],
     [NotificationEvent.DISPUTE_RESOLVED, 'JOB'],
     [NotificationEvent.REVIEW_RECEIVED, 'JOB'],
+    [NotificationEvent.REVIEW_REPLIED, 'JOB'],
     [NotificationEvent.NOW_NEW_REQUEST, 'JOB'],
     [NotificationEvent.QUOTE_COUNTERED, 'QUOTE'],
     [NotificationEvent.NEW_OPPORTUNITY, 'QUOTE'],
@@ -35,9 +36,39 @@ describe('notification events', () => {
   });
 
   it('always pushes job events; quote pushes follow the preference', () => {
-    const off = { quoteUpdatesPush: false };
+    const prefs = {
+      quoteUpdatesPush: false,
+      newMessagePush: true,
+      newJobAlerts: 'ON' as const,
+      quietHoursStart: null,
+      quietHoursEnd: null,
+    };
+    const off = prefs;
     expect(wantsPush(NotificationEvent.JOB_EN_ROUTE, off)).toBe(true);
     expect(wantsPush(NotificationEvent.QUOTE_COUNTERED, off)).toBe(false);
-    expect(wantsPush(NotificationEvent.QUOTE_COUNTERED, { quoteUpdatesPush: true })).toBe(true);
+    expect(wantsPush(NotificationEvent.QUOTE_COUNTERED, { ...prefs, quoteUpdatesPush: true })).toBe(
+      true,
+    );
+  });
+  it('holds back optional pushes in quiet hours, never job events', () => {
+    const quiet = {
+      quoteUpdatesPush: true,
+      newMessagePush: true,
+      newJobAlerts: 'ON' as const,
+      quietHoursStart: 23 * 60,
+      quietHoursEnd: 7 * 60,
+    };
+    const night = 2 * 60;
+    const day = 12 * 60;
+    for (const type of [
+      NotificationEvent.QUOTE_COUNTERED,
+      NotificationEvent.MESSAGE_NEW,
+      NotificationEvent.NEW_OPPORTUNITY,
+    ]) {
+      expect(wantsPush(type, quiet, night)).toBe(false);
+      expect(wantsPush(type, quiet, day)).toBe(true);
+    }
+    expect(wantsPush(NotificationEvent.JOB_EN_ROUTE, quiet, night)).toBe(true);
+    expect(wantsPush(NotificationEvent.NOW_NEW_REQUEST, quiet, night)).toBe(true);
   });
 });

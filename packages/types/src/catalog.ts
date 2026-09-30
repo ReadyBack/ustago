@@ -9,6 +9,8 @@ export interface ServiceCategory {
   isActive: boolean;
   supportsNow: boolean;
   supportsQuote: boolean;
+  /** Faz 7: how the request wizard treats photos (admin setting). */
+  requestPhotoPolicy?: 'OPTIONAL' | 'RECOMMENDED' | 'REQUIRED';
 }
 
 export interface ServiceCategoryNode extends ServiceCategory {
@@ -21,6 +23,12 @@ export interface Province {
   name: string;
   slug: string;
   isActive: boolean;
+  /**
+   * Faz 7 (docs/adr/0029): ACTIVE = open; WAITLIST = closed, but customers
+   * may post requests that wait for supply; DISABLED = closed.
+   */
+  launchStatus: 'ACTIVE' | 'WAITLIST' | 'DISABLED';
+  countryCode: string;
 }
 
 export interface District {

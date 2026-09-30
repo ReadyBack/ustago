@@ -1,4 +1,11 @@
-import type { Quote, QuoteProviderCard, QuoteRevision, ServiceRequestType } from '@ustago/types';
+import type {
+  ApproxDistance,
+  Quote,
+  QuoteComparisonLabel,
+  QuoteProviderCard,
+  QuoteRevision,
+  ServiceRequestType,
+} from '@ustago/types';
 import { MAX_QUOTE_REVISIONS } from '@ustago/validation';
 
 import { toMoney, toMoneyOrNull } from '../common/money.js';
@@ -15,6 +22,9 @@ export function toQuoteRevision(r: RevisionRow): QuoteRevision {
     labor: toMoneyOrNull(r.laborMinor, r.currency),
     material: toMoneyOrNull(r.materialMinor, r.currency),
     materialsIncluded: r.materialsIncluded,
+    service: toMoneyOrNull(r.serviceMinor, r.currency),
+    other: toMoneyOrNull(r.otherMinor, r.currency),
+    arrivalEta: r.arrivalEta,
     note: r.note,
     estimatedDurationMinutes: r.estimatedDurationMinutes,
     availableFrom: r.availableFrom?.toISOString() ?? null,
@@ -43,7 +53,18 @@ function requestOpenForQuotes(r: { status: string; expiresAt: Date | null }): bo
 }
 
 /** A quote thread as seen by one of its two parties. */
-export function toQuote(q: QuoteRow, card: QuoteProviderCard, viewer: Party): Quote {
+export interface QuoteViewExtras {
+  comparisonLabels?: QuoteComparisonLabel[];
+  distance?: ApproxDistance | null;
+  conversationId?: string | null;
+}
+
+export function toQuote(
+  q: QuoteRow,
+  card: QuoteProviderCard,
+  viewer: Party,
+  extras: QuoteViewExtras = {},
+): Quote {
   const latest = latestRevision(q);
   const requestType: ServiceRequestType = q.serviceRequest.type;
   return {
@@ -68,5 +89,8 @@ export function toQuote(q: QuoteRow, card: QuoteProviderCard, viewer: Party): Qu
     ),
     createdAt: q.createdAt.toISOString(),
     updatedAt: q.updatedAt.toISOString(),
+    comparisonLabels: extras.comparisonLabels ?? [],
+    distance: extras.distance ?? null,
+    conversationId: extras.conversationId ?? null,
   };
 }

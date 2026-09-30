@@ -38,6 +38,9 @@ const RULES: readonly Rule[] = [
   { pattern: ['provider', 'verification'], to: () => '/verification' },
   { pattern: ['verification'], to: () => '/verification' },
   { pattern: ['usta', ':id'], to: (id) => `/usta/${id}` },
+  // Faz 7: message.* notifications open the conversation.
+  { pattern: ['messages', ':id'], to: (id) => `/messages/${id}` },
+  { pattern: ['conversations', ':id'], to: (id) => `/messages/${id}` },
   { pattern: ['notifications'], to: () => '/notifications' },
   { pattern: ['me', 'sessions'], to: () => '/sessions' },
   { pattern: ['sessions'], to: () => '/sessions' },

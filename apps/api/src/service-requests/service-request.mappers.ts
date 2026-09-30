@@ -1,13 +1,17 @@
 import type {
   AdminServiceRequestListItem,
+  ApproxDistance,
   ApproximateLocation,
+  CategoryAnswerSnapshot,
   CategoryRef,
+  DispatchSummary,
   JobSummary,
   Opportunity,
   ServiceAddress,
   ServiceRequest,
   ServiceRequestListItem,
   ServiceRequestPhoto,
+  ScheduleOption,
 } from '@ustago/types';
 
 import { toMoney, toMoneyOrNull } from '../common/money.js';
@@ -126,6 +130,25 @@ function toPhotos(photos: OpportunityRow['photos']): ServiceRequestPhoto[] {
   return photos.map((p) => ({ id: p.id, mimeType: p.mimeType, sizeBytes: p.sizeBytes }));
 }
 
+/**
+ * The answer snapshot stored on the request (docs/adr/0028): later edits to
+ * the category questions never change what the customer answered.
+ */
+export function toAnswers(raw: unknown): CategoryAnswerSnapshot[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (a): a is CategoryAnswerSnapshot =>
+      typeof a === 'object' &&
+      a !== null &&
+      typeof (a as { key?: unknown }).key === 'string' &&
+      typeof (a as { label?: unknown }).label === 'string',
+  );
+}
+
+export function toScheduleOption(v: string | null): ScheduleOption | null {
+  return v === 'NOW' || v === 'TODAY' || v === 'TOMORROW' || v === 'DATE' ? v : null;
+}
+
 function quoteCounts(quotes: { status: Parameters<typeof isQuoteOpen>[0] }[]) {
   return {
     quoteCount: quotes.length,
@@ -137,7 +160,10 @@ function quoteCounts(quotes: { status: Parameters<typeof isQuoteOpen>[0] }[]) {
  * The customer's view. The address may since have been soft deleted; past
  * requests keep pointing at it.
  */
-export function toServiceRequest(r: CustomerRow): ServiceRequest {
+export function toServiceRequest(
+  r: CustomerRow,
+  dispatch: DispatchSummary | null = null,
+): ServiceRequest {
   const hasQuotes = r.quotes.length > 0;
   const editable = editableFields(r.status, hasQuotes);
   return {
@@ -149,6 +175,11 @@ export function toServiceRequest(r: CustomerRow): ServiceRequest {
     category: toCategoryRef(r.category),
     address: toServiceAddress(r.address),
     budget: toMoneyOrNull(r.budgetMinor, r.currency),
+    budgetMax: toMoneyOrNull(r.budgetMaxMinor, r.currency),
+    scheduleOption: toScheduleOption(r.scheduleOption),
+    answers: toAnswers(r.answers),
+    dispatch,
+    rehireOfJobId: r.rehireOfJobId,
     preferredStartAt: r.preferredStartAt?.toISOString() ?? null,
     preferredEndAt: r.preferredEndAt?.toISOString() ?? null,
     publishedAt: r.publishedAt?.toISOString() ?? null,
@@ -191,7 +222,17 @@ export function toServiceRequestListItem(r: ListRow): ServiceRequestListItem {
  * allow-list: no customer identity, phone or e-mail, no street, building,
  * apartment, postal code, coordinates or directions.
  */
-export function toOpportunity(r: OpportunityRow, myQuoteId: string | null): Opportunity {
+export interface OpportunityExtras {
+  distance?: ApproxDistance | null;
+  dispatch?: { wave: number; dispatchedAt: Date; viewedAt: Date | null } | null;
+  providerId?: string | null;
+}
+
+export function toOpportunity(
+  r: OpportunityRow,
+  myQuoteId: string | null,
+  extras: OpportunityExtras = {},
+): Opportunity {
   return {
     id: r.id,
     type: r.type,
@@ -201,11 +242,25 @@ export function toOpportunity(r: OpportunityRow, myQuoteId: string | null): Oppo
     category: toCategoryRef(r.category),
     location: toLocation(r),
     budget: toMoneyOrNull(r.budgetMinor, r.currency),
+    budgetMax: toMoneyOrNull(r.budgetMaxMinor, r.currency),
+    scheduleOption: toScheduleOption(r.scheduleOption),
+    answers: toAnswers(r.answers),
     preferredStartAt: r.preferredStartAt?.toISOString() ?? null,
     preferredEndAt: r.preferredEndAt?.toISOString() ?? null,
     publishedAt: r.publishedAt?.toISOString() ?? null,
     expiresAt: r.expiresAt?.toISOString() ?? null,
     photos: toPhotos(r.photos),
+    photoCount: r.photos.length,
+    distance: extras.distance ?? null,
+    dispatch: extras.dispatch
+      ? {
+          wave: extras.dispatch.wave,
+          dispatchedAt: extras.dispatch.dispatchedAt.toISOString(),
+          viewedAt: extras.dispatch.viewedAt?.toISOString() ?? null,
+        }
+      : null,
+    isPreferredForMe:
+      Boolean(extras.providerId) && r.preferredProviderId === (extras.providerId ?? null),
     myQuoteId,
   };
 }

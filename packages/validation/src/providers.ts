@@ -18,12 +18,29 @@ import { z } from 'zod';
 
 import { providerStatusSchema, providerTypeSchema } from './auth.js';
 import { paginationQuerySchema } from './common.js';
+import { MAX_BIO_LENGTH } from './provider-ops.js';
+
+/**
+ * Faz 7: the bio is plain text everywhere it is written (same rules as
+ * `plainTextBio`, without its 20-character minimum: a short draft is
+ * allowed and onboarding reports it as incomplete instead).
+ */
+const bioTextSchema = z
+  .string()
+  .trim()
+  .max(MAX_BIO_LENGTH)
+  .refine((v) => !/[<>]/.test(v), 'Tanıtım metninde < ve > karakterleri kullanılamaz.')
+  .refine(
+    // eslint-disable-next-line no-control-regex
+    (v) => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(v),
+    'Tanıtım metni geçersiz karakter içeriyor.',
+  );
 
 export const createProviderProfileRequestSchema = z
   .object({
     displayName: z.string().trim().min(2).max(120),
     type: providerTypeSchema.default('INDIVIDUAL'),
-    bio: z.string().trim().max(2000).optional(),
+    bio: bioTextSchema.optional(),
     yearsOfExperience: z.number().int().min(0).max(70).optional(),
   })
   .strict();
@@ -33,7 +50,7 @@ export const updateProviderProfileRequestSchema = z
   .object({
     displayName: z.string().trim().min(2).max(120).optional(),
     type: providerTypeSchema.optional(),
-    bio: z.string().trim().max(2000).nullable().optional(),
+    bio: bioTextSchema.nullable().optional(),
     yearsOfExperience: z.number().int().min(0).max(70).nullable().optional(),
   })
   .strict()

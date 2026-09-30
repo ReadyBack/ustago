@@ -8,11 +8,21 @@ import { apiRequest } from '@/lib/api';
 import { requireAdmin } from '@/lib/auth';
 import { formatDate, JOB_STATUS_LABELS, REVISION_KIND_LABELS } from '@/lib/labels';
 
+import { DispatchSection, MatchPreviewSection } from './dispatch-section';
+
+const SCHEDULE_LABEL = {
+  NOW: 'Hemen',
+  TODAY: 'Bugün',
+  TOMORROW: 'Yarın',
+  DATE: 'Belirli bir tarih',
+} as const;
+
 export default async function ServiceRequestDetailPage(props: PageProps<'/service-requests/[id]'>) {
   const { id: rawId } = await props.params;
   const id = uuidSchema.safeParse(rawId);
   if (!id.success) notFound();
-  await requireAdmin(`/service-requests/${id.data}`);
+  const preview = (await props.searchParams).preview === '1';
+  await requireAdmin(`/service-requests/${id.data}${preview ? '?preview=1' : ''}`);
 
   const result = await apiRequest(`/admin/service-requests/${id.data}`, {
     schema: adminServiceRequestDetailSchema,
@@ -44,7 +54,13 @@ export default async function ServiceRequestDetailPage(props: PageProps<'/servic
               {r.location.district.name} / {r.location.province.name}
             </dd>
             <dt>Müşteri bütçesi</dt>
-            <dd>{r.budget ? `${formatMoney(r.budget)} (bağlayıcı değil)` : 'Belirtilmedi'}</dd>
+            <dd>
+              {r.budget
+                ? `${formatMoney(r.budget)}${r.budgetMax ? `–${formatMoney(r.budgetMax)}` : ''} (bağlayıcı değil)`
+                : 'Belirtilmedi'}
+            </dd>
+            <dt>Ne zaman</dt>
+            <dd>{r.scheduleOption ? SCHEDULE_LABEL[r.scheduleOption] : 'Belirtilmedi'}</dd>
             <dt>Tercih edilen</dt>
             <dd>
               {r.preferredStartAt
@@ -155,6 +171,11 @@ export default async function ServiceRequestDetailPage(props: PageProps<'/servic
           </div>
         ))}
       </section>
+
+      <DispatchSection requestId={r.id} />
+      <div id="eslestirme">
+        <MatchPreviewSection requestId={r.id} enabled={preview} />
+      </div>
     </div>
   );
 }

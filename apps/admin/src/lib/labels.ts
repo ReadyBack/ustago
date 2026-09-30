@@ -486,6 +486,92 @@ export const PAYOUT_RESOLVE_LABELS: Record<'PAID' | 'FAILED', string> = {
   FAILED: 'Sağlayıcı ödemedi (FAILED)',
 };
 
+// -- Faz 7: pazar yeri, kategori içeriği, mesaj şikayetleri -------------------
+
+export const LAUNCH_STATUS_LABELS: Record<'ACTIVE' | 'WAITLIST' | 'DISABLED', string> = {
+  ACTIVE: 'Açık',
+  WAITLIST: 'Bekleme listesi',
+  DISABLED: 'Kapalı',
+};
+
+/** What each launch status means for customers and providers. */
+export const LAUNCH_STATUS_HINTS: Record<'ACTIVE' | 'WAITLIST' | 'DISABLED', string> = {
+  ACTIVE: 'İl pazar yerinde açık: talepler ustalara dağıtılır.',
+  WAITLIST: 'İl kapalı; müşteriler talep bırakabilir, talepler usta bulunana kadar bekler.',
+  DISABLED: 'İl kapalı: yeni talep alınmaz.',
+};
+
+export const QUESTION_TYPE_LABELS: Record<
+  'SINGLE_SELECT' | 'MULTI_SELECT' | 'BOOLEAN' | 'SHORT_TEXT' | 'NUMBER',
+  string
+> = {
+  SINGLE_SELECT: 'Tek seçim',
+  MULTI_SELECT: 'Çoklu seçim',
+  BOOLEAN: 'Evet / Hayır',
+  SHORT_TEXT: 'Kısa metin',
+  NUMBER: 'Sayı',
+};
+
+export const PHOTO_POLICY_LABELS: Record<'OPTIONAL' | 'RECOMMENDED' | 'REQUIRED', string> = {
+  OPTIONAL: 'İsteğe bağlı',
+  RECOMMENDED: 'Önerilir',
+  REQUIRED: 'Zorunlu',
+};
+
+export const NOTIFY_MODE_LABELS: Record<'PUSH' | 'IN_APP' | 'NONE', string> = {
+  PUSH: 'Anlık bildirim',
+  IN_APP: 'Uygulama içi',
+  NONE: 'Bildirim yok',
+};
+
+export const DISPATCH_RESULT_LABELS: Record<'PENDING' | 'QUOTED' | 'CLOSED', string> = {
+  PENDING: 'Bekliyor',
+  QUOTED: 'Teklif verdi',
+  CLOSED: 'Kapandı',
+};
+
+export const MARKETPLACE_EVENT_LABELS: Record<string, string> = {
+  request_created: 'Talep oluşturuldu',
+  request_dispatched: 'Talep ustalara gönderildi',
+  provider_viewed_request: 'Usta talebi görüntüledi',
+  quote_created: 'Teklif verildi',
+  quote_accepted: 'Teklif kabul edildi',
+  job_started: 'İş başladı',
+  job_completed: 'İş tamamlandı',
+  conversation_started: 'Konuşma başladı',
+  message_sent: 'Mesaj gönderildi',
+  provider_favorited: 'Usta favorilere eklendi',
+  provider_rehired: 'Usta yeniden tutuldu',
+  search_performed: 'Arama yapıldı',
+  search_no_result: 'Arama sonuçsuz',
+  search_category_clicked: 'Aramadan kategori seçildi',
+  request_no_offer: 'Talep teklifsiz kaldı',
+  request_search_expanded: 'Arama genişletildi',
+};
+
+export const MESSAGE_REPORT_REASON_LABELS: Record<
+  'SPAM' | 'HARASSMENT' | 'FRAUD' | 'CONTACT_INFO' | 'INAPPROPRIATE' | 'OTHER',
+  string
+> = {
+  SPAM: 'İstenmeyen mesaj (spam)',
+  HARASSMENT: 'Taciz / hakaret',
+  FRAUD: 'Dolandırıcılık şüphesi',
+  CONTACT_INFO: 'İletişim bilgisi paylaşımı',
+  INAPPROPRIATE: 'Uygunsuz içerik',
+  OTHER: 'Diğer',
+};
+
+export const MESSAGE_REPORT_STATUS_LABELS: Record<'OPEN' | 'REVIEWED' | 'DISMISSED', string> = {
+  OPEN: 'Açık',
+  REVIEWED: 'İncelendi',
+  DISMISSED: 'Yok sayıldı',
+};
+
+export const CONVERSATION_ROLE_LABELS: Record<'CUSTOMER' | 'PROVIDER', string> = {
+  CUSTOMER: 'Müşteri',
+  PROVIDER: 'Usta',
+};
+
 /** Label for a status string from a loosely typed API field; unknown values show as-is. */
 export function labelOf(labels: Record<string, string>, key: string): string {
   return Object.hasOwn(labels, key) ? (labels[key] as string) : key;

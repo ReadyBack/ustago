@@ -10,7 +10,11 @@ import {
   MAX_QUOTE_REVISIONS,
 } from '@ustago/validation';
 
+import { MarketplaceEventsService } from '../analytics/marketplace-events.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { ConversationsService } from '../conversations/conversations.service.js';
+import { DispatchService } from '../dispatch/dispatch.service.js';
+import { GeoService } from '../geo/geo.service.js';
 import type { AuthUser } from '../common/auth/auth-user.js';
 import { conflict, forbidden, notFound, unprocessable } from '../common/http/errors.js';
 import { toMinor, toMoneyOrNull } from '../common/money.js';
@@ -52,7 +56,9 @@ import {
   revisionKindFor,
   turnOf,
 } from './domain/quote-negotiation.js';
+import { comparisonLabels } from './domain/quote-comparison.js';
 import { ProviderCardsService } from './provider-cards.service.js';
+import { approxDistance } from '../geo/distance.js';
 import { latestRevision, quoteInclude, toQuote, toQuoteRevision } from './quote.mappers.js';
 
 type Tx = Prisma.TransactionClient;
@@ -113,6 +119,10 @@ export class QuotesService {
     private readonly audit: AuditService,
     private readonly rateLimit: RateLimitService,
     private readonly risk: RiskSignalsService,
+    private readonly dispatch: DispatchService,
+    private readonly events: MarketplaceEventsService,
+    private readonly conversations: ConversationsService,
+    private readonly geo: GeoService,
     @Inject(API_ENV) private readonly env: ApiEnv,
   ) {}
 
@@ -230,6 +240,9 @@ export class QuotesService {
             totalMinor: toMinor(input.totalMinor),
             laborMinor: nullableMinor(input.laborMinor),
             materialMinor: nullableMinor(input.materialMinor),
+            serviceMinor: nullableMinor(input.serviceMinor),
+            otherMinor: nullableMinor(input.otherMinor),
+            arrivalEta: input.arrivalEta ?? null,
             materialsIncluded: input.materialsIncluded ?? null,
             currency: request.currency,
             note: input.note ?? null,
@@ -237,6 +250,22 @@ export class QuotesService {
             availableFrom: toDate(input.availableFrom),
             validUntil: toDate(input.validUntil),
           },
+        });
+        await this.dispatch.markRespondedIn(tx, provider.id, requestId);
+        await tx.providerProfile.update({
+          where: { id: provider.id },
+          data: { lastActiveAt: new Date() },
+        });
+        await this.events.recordIn(tx, {
+          type: 'quote_created',
+          serviceRequestId: requestId,
+          providerId: provider.id,
+          categoryId: request.categoryId,
+          provinceId: request.provinceId,
+          districtId: request.districtId,
+          value: request.publishedAt
+            ? Math.max(0, Math.round((Date.now() - request.publishedAt.getTime()) / 60_000))
+            : null,
         });
         const to = transitionFor(request.status, 'QUOTE_RECEIVED', request.type);
         if (to && to !== request.status) {
@@ -486,6 +515,31 @@ export class QuotesService {
             data: { status: 'SUPERSEDED' },
           });
         }
+        // Faz 7: close the dispatch, stop further waves, record the funnel
+        // step and note the agreement in the chat (if one was opened).
+        await tx.serviceRequest.update({
+          where: { id: request.id },
+          data: { nextDispatchAt: null },
+        });
+        await tx.requestDispatch.updateMany({
+          where: { serviceRequestId: request.id, result: 'PENDING' },
+          data: { result: 'CLOSED' },
+        });
+        await this.events.recordIn(tx, {
+          type: 'quote_accepted',
+          serviceRequestId: request.id,
+          providerId: quote.providerId,
+          categoryId: request.categoryId,
+          provinceId: request.provinceId,
+          districtId: request.districtId,
+          value: Number(latest.totalMinor),
+        });
+        await this.conversations.postSystemEventIn(tx, {
+          serviceRequestId: request.id,
+          providerId: quote.providerId,
+          eventKey: `quote.accepted:${quoteId}`,
+          body: `Teklif kabul edildi: ${formatMoney(Number(latest.totalMinor))}. İş oluşturuldu.`,
+        });
 
         await this.audit.recordIn(tx, {
           action: 'quote.accepted',
@@ -679,15 +733,64 @@ export class QuotesService {
       include: quoteInclude,
       orderBy: { id: 'asc' },
     });
-    const cards = await this.cards.cards(quotes.map((q) => q.providerId));
+    const providerIds = quotes.map((q) => q.providerId);
+    const [cards, distances, conversations] = await Promise.all([
+      this.cards.cards(providerIds),
+      this.providerDistances(requestId, providerIds),
+      this.prisma.conversation.findMany({
+        where: { serviceRequestId: requestId, providerId: { in: providerIds } },
+        select: { id: true, providerId: true },
+      }),
+    ]);
+    const conversationBy = new Map(conversations.map((c) => [c.providerId, c.id]));
+    const labels = comparisonLabels(
+      quotes.map((q) => ({
+        id: q.id,
+        open: isQuoteOpen(q.status),
+        totalMinor: Number(latestRevision(q).totalMinor),
+        distanceKm: distances.get(q.providerId) ?? null,
+        rating: cards.get(q.providerId)?.rating ?? null,
+      })),
+    );
     const rank = (s: QuoteStatus) => (s === 'ACCEPTED' ? 0 : isQuoteOpen(s) ? 1 : 2);
     return quotes
       .sort((a, b) => rank(a.status) - rank(b.status))
       .map((q) => {
         const card = cards.get(q.providerId);
         if (!card) throw new Error('Provider card missing');
-        return toQuote(q, card, 'CUSTOMER');
+        return toQuote(q, card, 'CUSTOMER', {
+          comparisonLabels: labels.get(q.id) ?? [],
+          distance: approxDistance(distances.get(q.providerId) ?? null),
+          conversationId: conversationBy.get(q.providerId) ?? null,
+        });
       });
+  }
+
+  /** Approximate km from each provider's service centre to the request (docs/adr/0029). */
+  private async providerDistances(
+    requestId: string,
+    providerIds: string[],
+  ): Promise<Map<string, number | null>> {
+    const out = new Map<string, number | null>();
+    if (providerIds.length === 0) return out;
+    const [request, providers, at] = await Promise.all([
+      this.prisma.serviceRequest.findUniqueOrThrow({
+        where: { id: requestId },
+        select: { districtId: true, approxLatitude: true, approxLongitude: true },
+      }),
+      this.prisma.providerProfile.findMany({
+        where: { id: { in: providerIds } },
+        select: { id: true, serviceCenterDistrictId: true },
+      }),
+      this.geo.ready(),
+    ]);
+    const point =
+      request.approxLatitude !== null && request.approxLongitude !== null
+        ? { lat: Number(request.approxLatitude), lng: Number(request.approxLongitude) }
+        : at(request.districtId);
+    for (const p of providers)
+      out.set(p.id, this.geo.distanceKm(at(p.serviceCenterDistrictId), point));
+    return out;
   }
 
   /** "Tekliflerim": the provider's own threads, never anyone else's. */

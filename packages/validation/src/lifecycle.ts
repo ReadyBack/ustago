@@ -199,9 +199,13 @@ export const updateReviewSchema = createReviewSchema
   .refine((value) => Object.keys(value).length > 0, { message: 'En az bir alan gönderin.' });
 export type UpdateReview = z.infer<typeof updateReviewSchema>;
 
+export const notificationCategorySchema = z.enum(['JOBS', 'MESSAGES', 'FINANCE', 'ACCOUNT']);
+
 export const listNotificationsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(30),
   cursor: z.uuid().optional(),
+  /** Faz 7 notification centre tab. */
+  category: notificationCategorySchema.optional(),
   unreadOnly: z
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
@@ -213,15 +217,45 @@ export const updateNotificationPreferencesSchema = z
   .object({
     quoteUpdatesPush: z.boolean().optional(),
     marketingPush: z.boolean().optional(),
+    newMessagePush: z.boolean().optional(),
+    newJobAlerts: z.enum(['ON', 'SILENT', 'OFF']).optional(),
+    /** Both or neither (null clears quiet hours). */
+    quietHoursStart: z.number().int().min(0).max(1439).nullable().optional(),
+    quietHoursEnd: z.number().int().min(0).max(1439).nullable().optional(),
   })
   .strict()
+  .refine(
+    (v) =>
+      (v.quietHoursStart === undefined) === (v.quietHoursEnd === undefined) &&
+      (v.quietHoursStart === null) === (v.quietHoursEnd === null) &&
+      ((v.quietHoursStart ?? null) === null || v.quietHoursStart !== v.quietHoursEnd),
+    { path: ['quietHoursEnd'], message: 'Sessiz saatler için başlangıç ve bitişi birlikte girin.' },
+  )
   .refine((value) => Object.keys(value).length > 0, { message: 'En az bir alan gönderin.' });
 export type UpdateNotificationPreferences = z.infer<typeof updateNotificationPreferencesSchema>;
 
 export const listProviderReviewsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(10),
   cursor: z.uuid().optional(),
+  /** Faz 7: NEWEST keeps the id cursor; HIGHEST / LOWEST use offset pages. */
+  sort: z.enum(['NEWEST', 'HIGHEST', 'LOWEST']).default('NEWEST'),
+  page: z.coerce.number().int().min(0).max(1000).default(0),
+  /** Faz 7: only reviews with this overall rating (1-5). */
+  rating: z.coerce.number().int().min(1).max(5).optional(),
 });
+
+/** POST /reviews/:id/reply: the provider's one public answer. */
+export const replyToReviewSchema = z
+  .object({
+    body: z
+      .string()
+      .trim()
+      .min(3, 'Cevap en az 3 karakter olmalı.')
+      .max(1000)
+      .refine((v) => !/[<>]/.test(v), 'Cevapta < ve > karakterleri kullanılamaz.'),
+  })
+  .strict();
+export type ReplyToReview = z.infer<typeof replyToReviewSchema>;
 export type ListProviderReviewsQuery = z.infer<typeof listProviderReviewsQuerySchema>;
 
 // ---------------------------------------------------------------------------
@@ -298,6 +332,7 @@ export const publicReviewSchema = z
     authorName: z.string(),
     categoryName: z.string(),
     createdAt: z.iso.datetime(),
+    reply: z.object({ body: z.string(), createdAt: z.iso.datetime() }).nullable(),
   })
   .strict() satisfies z.ZodType<PublicReview>;
 
@@ -344,8 +379,13 @@ export const providerQualitySchema = z.object({
 
 export const notificationPreferencesSchema = z.object({
   jobUpdatesPush: z.literal(true),
+  financePush: z.literal(true),
   quoteUpdatesPush: z.boolean(),
+  newMessagePush: z.boolean(),
   marketingPush: z.boolean(),
+  newJobAlerts: z.enum(['ON', 'SILENT', 'OFF']),
+  quietHoursStart: z.number().int().nullable(),
+  quietHoursEnd: z.number().int().nullable(),
 }) satisfies z.ZodType<NotificationPreferences>;
 
 export const unreadNotificationCountSchema = z.object({

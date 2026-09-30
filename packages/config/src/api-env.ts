@@ -12,6 +12,21 @@ const booleanString = z.enum(['true', 'false']).transform((value) => value === '
 export const APP_ENVIRONMENTS = ['development', 'test', 'staging', 'production'] as const;
 export type AppEnvironment = (typeof APP_ENVIRONMENTS)[number];
 
+/** "10,20,50" → [10, 20, 50]; every item an integer within [min, max]. */
+function intList(fallback: string, min: number, max: number) {
+  return z
+    .string()
+    .default(fallback)
+    .transform((v, ctx) => {
+      const items = v.split(',').map((x) => Number(x.trim()));
+      if (items.length === 0 || items.some((n) => !Number.isInteger(n) || n < min || n > max)) {
+        ctx.addIssue({ code: 'custom', message: `must be integers between ${min} and ${max}` });
+        return z.NEVER;
+      }
+      return items;
+    });
+}
+
 export const apiEnvSchema = z
   .object({
     APP_VERSION: z.string().min(1).default('0.0.0-dev'),
@@ -253,6 +268,57 @@ export const apiEnvSchema = z
       .max(24 * 90)
       .optional(),
 
+    // --- Faz 7 marketplace (docs/adr/0028-0031) ---
+    /**
+     * Providers per dispatch wave, comma separated ("10,20,50"): wave 1 goes
+     * to the best nearby matches, later waves widen. Never nationwide.
+     */
+    DISPATCH_WAVE_SIZES: intList('10,20,50', 1, 200),
+    /**
+     * Extra distance cap (km) per wave, same order; 0 = only the provider's
+     * own service areas limit it.
+     */
+    DISPATCH_WAVE_RADII_KM: intList('15,40,0', 0, 500),
+    /** Minutes before the next wave when the request has too few quotes. */
+    DISPATCH_WAVE_INTERVAL_MINUTES: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 60)
+      .default(30),
+    /** A request with this many quotes stops widening. */
+    DISPATCH_TARGET_QUOTES: z.coerce.number().int().min(1).max(20).default(3),
+    /** Seconds between dispatch sweeps; 0 turns the sweep off (tests). */
+    DISPATCH_SWEEP_SECONDS: z.coerce.number().int().min(0).max(3600).default(30),
+    /** Minutes without a quote before the customer sees "henüz teklif gelmedi". */
+    NO_OFFER_ALERT_MINUTES: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 60 * 7)
+      .default(120),
+    /** Days after approval during which a new provider gets the cold-start boost. */
+    MATCH_COLD_START_DAYS: z.coerce.number().int().min(0).max(365).default(60),
+    /** Completed jobs (and distinct providers) needed before a price guide is shown. */
+    PRICE_GUIDE_MIN_SAMPLE: z.coerce.number().int().min(3).max(1000).default(10),
+    PRICE_GUIDE_MIN_PROVIDERS: z.coerce.number().int().min(2).max(100).default(3),
+    /** Dispatches needed before a provider's response time is shown. */
+    RESPONSE_STATS_MIN_SAMPLE: z.coerce.number().int().min(1).max(1000).default(5),
+    /** Requests in 30 days before a category is listed as "popular". */
+    POPULAR_CATEGORY_MIN_REQUESTS: z.coerce.number().int().min(1).max(10000).default(3),
+    /** Chat messages per user and conversation per minute, and per user per hour. */
+    CHAT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(600).default(20),
+    CHAT_RATE_LIMIT_PER_HOUR: z.coerce.number().int().min(1).max(10000).default(300),
+    /** Upper bound for chat, portfolio and profile photos. */
+    MEDIA_IMAGE_MAX_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1024)
+      .max(20 * 1024 * 1024)
+      .default(8 * 1024 * 1024),
+    /** Searches per user (or IP) per minute. */
+    SEARCH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(60),
+
     /** IANA zone for business "today" in admin statistics (data stays UTC). */
     MARKETPLACE_TIME_ZONE: z
       .string()
@@ -267,6 +333,13 @@ export const apiEnvSchema = z
       }, 'must be an IANA time zone'),
   })
   .superRefine((env, ctx) => {
+    if (env.DISPATCH_WAVE_SIZES.length !== env.DISPATCH_WAVE_RADII_KM.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['DISPATCH_WAVE_RADII_KM'],
+        message: 'needs one value per DISPATCH_WAVE_SIZES item',
+      });
+    }
     if (env.AUTH_SESSION_MAX_DAYS < env.AUTH_REFRESH_TTL_DAYS) {
       ctx.addIssue({
         code: 'custom',

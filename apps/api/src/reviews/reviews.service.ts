@@ -1,30 +1,45 @@
 import { Injectable } from '@nestjs/common';
-import type { Paginated, PublicReview, Review } from '@ustago/types';
+import type {
+  Paginated,
+  ProviderReviewReply,
+  PublicReview,
+  Review,
+  ReviewDistribution,
+} from '@ustago/types';
 import {
   type CreateReview,
   type ListProviderReviewsQuery,
-  maskPersonName,
+  type ReplyToReview,
   type UpdateReview,
 } from '@ustago/validation';
 
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth/auth-user.js';
-import { conflict, forbidden, notFound } from '../common/http/errors.js';
+import { badRequest, conflict, forbidden, notFound } from '../common/http/errors.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { toReview } from '../jobs/job.mappers.js';
 import { JobStore } from '../jobs/job.store.js';
 import { NotificationEvent } from '../notifications/notification-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { publiclyListedProviderWhere } from '../providers/public-visibility.js';
 import { QualityService } from '../quality/quality.service.js';
 import { RateLimitService } from '../rate-limit/rate-limit.service.js';
 import { isEditable, reviewEligibility } from './domain/review-policy.js';
+import {
+  publicReviewInclude,
+  publishedReviewsWhere,
+  reviewDistributionOf,
+  toPublicReview,
+} from './public-reviews.js';
 
 /** Review writes per user per hour: generous for real use, a wall for scripts. */
 const REVIEW_WRITE_LIMIT = 20;
 const REVIEW_WRITE_WINDOW_SECONDS = 3600;
 
 const reviewNotFound = () => notFound('REVIEW_NOT_FOUND', 'Değerlendirme bulunamadı.');
+const replyExists = () =>
+  conflict('REVIEW_REPLY_EXISTS', 'Bu değerlendirmeye zaten cevap verdiniz.');
 const alreadyReviewed = () =>
   conflict('REVIEW_ALREADY_EXISTS', 'Bu iş için zaten değerlendirme yaptınız.');
 
@@ -185,46 +200,137 @@ export class ReviewsService {
     return toReview(row);
   }
 
-  /** Published reviews of an ACTIVE provider, newest first, with masked author names. */
+  /**
+   * Published reviews of a publicly listed provider, with masked author
+   * names and the provider's reply. Sort NEWEST (id desc; ids are
+   * time-ordered), HIGHEST (rating desc, then newest) or LOWEST (rating
+   * asc, then newest); optional star filter. `cursor` is the last review
+   * id of the previous page (keyset, stable with the id tiebreak); `page`
+   * (offset) is still accepted when no cursor is sent.
+   */
   async listForProvider(
     providerId: string,
     query: ListProviderReviewsQuery,
   ): Promise<Paginated<PublicReview>> {
-    const provider = await this.prisma.providerProfile.findFirst({
-      where: { id: providerId, status: 'ACTIVE', deletedAt: null },
-      select: { userId: true },
-    });
-    if (!provider) throw notFound('PROVIDER_NOT_FOUND', 'Usta bulunamadı.');
+    const provider = await this.publicProvider(providerId);
+    const base: Prisma.ReviewWhereInput = {
+      ...publishedReviewsWhere(provider.userId),
+      ...(query.rating !== undefined ? { rating: query.rating } : {}),
+    };
+    let after: Prisma.ReviewWhereInput = {};
+    if (query.cursor) {
+      const c = await this.prisma.review.findFirst({
+        where: { id: query.cursor, targetId: provider.userId },
+        select: { id: true, rating: true },
+      });
+      if (!c) throw badRequest('INVALID_CURSOR', 'Sayfa bilgisi geçersiz.');
+      after =
+        query.sort === 'NEWEST'
+          ? { id: { lt: c.id } }
+          : {
+              OR: [
+                { rating: query.sort === 'HIGHEST' ? { lt: c.rating } : { gt: c.rating } },
+                { rating: c.rating, id: { lt: c.id } },
+              ],
+            };
+    }
+    const orderBy: Prisma.ReviewOrderByWithRelationInput[] =
+      query.sort === 'NEWEST'
+        ? [{ id: 'desc' }]
+        : [{ rating: query.sort === 'HIGHEST' ? 'desc' : 'asc' }, { id: 'desc' }];
     const rows = await this.prisma.review.findMany({
-      where: {
-        targetId: provider.userId,
-        direction: 'CUSTOMER_TO_PROVIDER',
-        status: 'PUBLISHED',
-        ...(query.cursor ? { id: { lt: query.cursor } } : {}),
-      },
-      include: {
-        author: { select: { firstName: true, lastName: true } },
-        job: { select: { category: { select: { name: true } } } },
-      },
-      orderBy: { id: 'desc' },
+      where: { AND: [base, after] },
+      include: publicReviewInclude,
+      orderBy,
+      skip: query.cursor ? 0 : query.page * query.limit,
       take: query.limit + 1,
     });
     const page = rows.slice(0, query.limit);
     return {
-      items: page.map((r) => ({
-        id: r.id,
-        rating: r.rating,
-        qualityRating: r.qualityRating,
-        communicationRating: r.communicationRating,
-        punctualityRating: r.punctualityRating,
-        valueRating: r.priceRating,
-        comment: r.comment,
-        authorName: maskPersonName(r.author.firstName, r.author.lastName),
-        categoryName: r.job.category.name,
-        createdAt: r.createdAt.toISOString(),
-      })),
+      items: page.map(toPublicReview),
       nextCursor: rows.length > query.limit ? (page.at(-1)?.id ?? null) : null,
     };
+  }
+
+  /** Star counts of a listed provider's published reviews. */
+  async distribution(providerId: string): Promise<ReviewDistribution> {
+    const provider = await this.publicProvider(providerId);
+    return reviewDistributionOf(this.prisma, provider.userId);
+  }
+
+  /**
+   * The reviewed provider's one public answer (Faz 7). Only for a published
+   * review about them; a second answer is a 409. Plain text (schema). The
+   * review itself is never changed. Audited; the customer is notified.
+   */
+  async reply(
+    user: AuthUser,
+    reviewId: string,
+    input: ReplyToReview,
+    ipAddress: string | null,
+  ): Promise<ProviderReviewReply> {
+    await this.limit(user.id);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const locked = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id FROM reviews WHERE id = ${reviewId}::uuid FOR UPDATE`;
+        if (locked.length === 0) throw reviewNotFound();
+        const review = await tx.review.findUniqueOrThrow({
+          where: { id: reviewId },
+          include: {
+            reply: { select: { reviewId: true } },
+            job: { select: { id: true, providerId: true } },
+          },
+        });
+        // Someone else's review looks exactly like a missing one.
+        if (review.direction !== 'CUSTOMER_TO_PROVIDER' || review.targetId !== user.id) {
+          throw reviewNotFound();
+        }
+        if (review.status !== 'PUBLISHED') {
+          throw conflict(
+            'REVIEW_NOT_REPLYABLE',
+            'Yalnızca yayındaki değerlendirmelere cevap verilebilir.',
+            { status: review.status },
+          );
+        }
+        if (review.reply) throw replyExists();
+        const reply = await tx.providerReviewReply.create({
+          data: { reviewId, authorId: user.id, body: input.body },
+        });
+        await this.audit.recordIn(tx, {
+          action: 'review.replied',
+          actorId: user.id,
+          entityType: 'review',
+          entityId: reviewId,
+          ipAddress,
+          metadata: { jobId: review.job.id, providerId: review.job.providerId },
+        });
+        await this.notifications.enqueueIn(tx, [
+          {
+            userId: review.authorId,
+            type: NotificationEvent.REVIEW_REPLIED,
+            title: 'Usta değerlendirmenize cevap verdi',
+            body: reply.body.length > 140 ? `${reply.body.slice(0, 139)}…` : reply.body,
+            data: { jobId: review.job.id, reviewId },
+          },
+        ]);
+        return { body: reply.body, createdAt: reply.createdAt.toISOString() };
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw replyExists();
+      }
+      throw error;
+    }
+  }
+
+  private async publicProvider(providerId: string): Promise<{ userId: string }> {
+    const provider = await this.prisma.providerProfile.findFirst({
+      where: { id: providerId, ...publiclyListedProviderWhere },
+      select: { userId: true },
+    });
+    if (!provider) throw notFound('PROVIDER_NOT_FOUND', 'Usta bulunamadı.');
+    return provider;
   }
 
   private limit(userId: string): Promise<void> {

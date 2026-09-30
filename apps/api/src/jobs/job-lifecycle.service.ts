@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import type { Job } from '@ustago/types';
 import type { CancelJob, OpenDispute } from '@ustago/validation';
 
+import { MarketplaceEventsService } from '../analytics/marketplace-events.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { ConversationsService } from '../conversations/conversations.service.js';
 import type { AuthUser } from '../common/auth/auth-user.js';
 import { conflict, unprocessable } from '../common/http/errors.js';
 import { Prisma } from '../generated/prisma/client.js';
@@ -41,6 +43,17 @@ const AUDIT_ACTION: Record<JobAction, string> = {
   CANCEL: 'job.cancelled',
 };
 
+/** Chat system lines for job steps (no prices: those live on the job). */
+const SYSTEM_LINES: Partial<Record<JobAction, string>> = {
+  EN_ROUTE: 'Usta yola çıktı.',
+  ARRIVE: 'Usta adrese ulaştı.',
+  START: 'İş başladı.',
+  REQUEST_COMPLETION: 'Usta işin tamamlandığını bildirdi; müşteri onayı bekleniyor.',
+  COMPLETE: 'İş tamamlandı.',
+  CANCEL: 'İş iptal edildi.',
+  DISPUTE: 'İş için sorun bildirildi; destek ekibi inceleyecek.',
+};
+
 const disputeAlreadyOpen = () =>
   conflict('DISPUTE_ALREADY_OPEN', 'Bu iş için zaten açık bir sorun bildirimi var.');
 
@@ -67,6 +80,8 @@ export class JobLifecycleService {
     private readonly audit: AuditService,
     private readonly quality: QualityService,
     private readonly jobFinance: JobFinanceService,
+    private readonly events: MarketplaceEventsService,
+    private readonly conversations: ConversationsService,
   ) {}
 
   enRoute(user: AuthUser, jobId: string, ip: string | null): Promise<Job> {
@@ -161,6 +176,7 @@ export class JobLifecycleService {
           },
         });
         await this.notifications.enqueueIn(tx, this.notificationsFor(locked, action, extra));
+        await this.marketplaceEffects(tx, locked, action, party, now);
         if (action === 'COMPLETE' || action === 'CANCEL') {
           await this.quality.recalculateIn(tx, [job.providerId], now);
         }
@@ -175,6 +191,52 @@ export class JobLifecycleService {
     }
     if (after) await this.jobFinance.finish(after);
     return this.jobs.get(user.id, jobId);
+  }
+
+  /**
+   * Faz 7: funnel events (docs/adr/0028), a system line in the chat
+   * (docs/adr/0030; only if a conversation exists, deduplicated by key)
+   * and the provider's last activity.
+   */
+  private async marketplaceEffects(
+    tx: Tx,
+    locked: LockedJob,
+    action: JobAction,
+    party: 'CUSTOMER' | 'PROVIDER',
+    now: Date,
+  ): Promise<void> {
+    const { job } = locked;
+    if (party === 'PROVIDER') {
+      await tx.providerProfile.update({
+        where: { id: job.providerId },
+        data: { lastActiveAt: now },
+      });
+    }
+    const event =
+      action === 'START' ? 'job_started' : action === 'COMPLETE' ? 'job_completed' : null;
+    const line = SYSTEM_LINES[action];
+    if (!event && !line) return;
+    const request = await tx.serviceRequest.findUniqueOrThrow({
+      where: { id: job.serviceRequestId },
+      select: { categoryId: true, provinceId: true, districtId: true },
+    });
+    if (event) {
+      await this.events.recordIn(tx, {
+        type: event,
+        serviceRequestId: job.serviceRequestId,
+        providerId: job.providerId,
+        ...request,
+        value: event === 'job_completed' ? Number(job.agreedPriceMinor) : null,
+      });
+    }
+    if (line) {
+      await this.conversations.postSystemEventIn(tx, {
+        serviceRequestId: job.serviceRequestId,
+        providerId: job.providerId,
+        eventKey: `job.${action.toLowerCase()}:${job.id}`,
+        body: line,
+      });
+    }
   }
 
   /**

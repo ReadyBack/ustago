@@ -1,16 +1,25 @@
 import type { Quote, ServiceRequest } from '@ustago/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
+import { conversationIdForQuote, requestV2Api } from '../../src/api/customer-v2';
 import { requestApi } from '../../src/api/services';
 import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { InfoRow } from '../../src/components/InfoRow';
-import { ProviderInfo } from '../../src/components/ProviderInfo';
+import { Chip } from '../../src/components/Chip';
 import { Screen } from '../../src/components/Screen';
 import { EmptyState, ErrorState, FormError, LoadingState } from '../../src/components/States';
 import { Body, Heading, Small } from '../../src/components/Text';
+import { DispatchStatusCard } from '../../src/features/customer/DispatchStatusCard';
+import { SCHEDULE_OPTION } from '../../src/features/provider/labels';
+import {
+  isOpenQuote,
+  QuoteComparisonTable,
+  QuoteOfferCard,
+} from '../../src/features/customer/QuoteCompare';
 import { useApi } from '../../src/hooks/useApi';
 import { useSubmit } from '../../src/hooks/useSubmit';
 import { categoryIcon } from '../../src/lib/categories';
@@ -22,8 +31,8 @@ import {
   formatMoney,
   timeAgo,
 } from '../../src/lib/format';
-import { quoteStatusLabel, REQUEST_STATUS } from '../../src/lib/labels';
-import { colors, spacing } from '../../src/lib/theme';
+import { REQUEST_STATUS } from '../../src/lib/labels';
+import { spacing } from '../../src/lib/theme';
 
 export default function RequestDetail() {
   const router = useRouter();
@@ -33,6 +42,21 @@ export default function RequestDetail() {
   });
   const quotes = useApi<Quote[]>(`request-quotes:${id}`, () => requestApi.quotes(id), {
     pollMs: 10_000,
+  });
+
+  const [compare, setCompare] = useState(false);
+  const [messagingId, setMessagingId] = useState<string | null>(null);
+  const expand = useSubmit(async () => {
+    request.setData(await requestV2Api.expandSearch(id));
+  });
+  const message = useSubmit(async (q: Quote) => {
+    setMessagingId(q.id);
+    try {
+      const conversationId = await conversationIdForQuote(q);
+      router.push(`/messages/${conversationId}`);
+    } finally {
+      setMessagingId(null);
+    }
   });
 
   const cancel = useSubmit(async () => {
@@ -47,6 +71,7 @@ export default function RequestDetail() {
   }
   const r = request.data;
   const status = REQUEST_STATUS[r.status];
+  const openQuotes = (quotes.data ?? []).filter(isOpenQuote);
   const refresh = async () => {
     await Promise.all([request.refresh(), quotes.refresh()]);
   };
@@ -67,13 +92,26 @@ export default function RequestDetail() {
           {r.address.province.name}
         </Small>
         <Body>{r.description}</Body>
-        <InfoRow label="Tahmini bütçeniz" value={formatBudget(r.budget)} />
+        <InfoRow
+          label="Tahmini bütçeniz"
+          value={
+            r.budget && r.budgetMax
+              ? `${formatMoney(r.budget)}–${formatMoney(r.budgetMax)}`
+              : formatBudget(r.budget)
+          }
+        />
+        {r.scheduleOption ? (
+          <InfoRow label="Ne zaman" value={SCHEDULE_OPTION[r.scheduleOption]} />
+        ) : null}
         {r.preferredStartAt ? (
           <InfoRow
             label="Tercih edilen zaman"
             value={formatDateRange(r.preferredStartAt, r.preferredEndAt)}
           />
         ) : null}
+        {r.answers.map((a) => (
+          <InfoRow key={a.questionId} label={a.label} value={a.displayValue} />
+        ))}
         {r.photos.length > 0 ? (
           <InfoRow label="Fotoğraf" value={`${r.photos.length} adet`} />
         ) : null}
@@ -81,6 +119,15 @@ export default function RequestDetail() {
           <InfoRow label="Açık kalma süresi" value={formatDateTime(r.expiresAt)} />
         ) : null}
       </Card>
+
+      {r.dispatch && !r.job && r.status !== 'CANCELLED' && r.status !== 'EXPIRED' ? (
+        <DispatchStatusCard
+          dispatch={r.dispatch}
+          onExpand={() => void expand.submit()}
+          expanding={expand.busy}
+          error={expand.error}
+        />
+      ) : null}
 
       {r.job ? (
         <Card highlight="success">
@@ -92,10 +139,13 @@ export default function RequestDetail() {
       ) : null}
 
       <Heading>Gelen Teklifler</Heading>
-      {r.budget ? (
+      {r.budget && !r.job ? (
         <Small>
-          Bütçeniz {formatMoney(r.budget)}. Ustalar farklı fiyat verebilir; karşı teklif
-          yapabilirsiniz.
+          Bütçeniz{' '}
+          {r.budgetMax
+            ? `${formatMoney(r.budget)}–${formatMoney(r.budgetMax)}`
+            : formatMoney(r.budget)}
+          . Ustalar farklı fiyat verebilir; karşı teklif yapabilirsiniz.
         </Small>
       ) : null}
       {quotes.loading ? (
@@ -106,12 +156,14 @@ export default function RequestDetail() {
         <EmptyState
           icon={r.type === 'NOW' ? '🚨' : '⏳'}
           title={
-            r.status === 'CANCELLED' || r.status === 'EXPIRED'
-              ? 'Teklif gelmedi'
-              : 'Teklifler bekleniyor'
+            r.job
+              ? 'Teklif aşaması kapandı'
+              : r.status === 'CANCELLED' || r.status === 'EXPIRED'
+                ? 'Teklif gelmedi'
+                : 'Teklifler bekleniyor'
           }
           body={
-            r.status === 'CANCELLED' || r.status === 'EXPIRED'
+            r.job || r.status === 'CANCELLED' || r.status === 'EXPIRED'
               ? undefined
               : r.type === 'NOW'
                 ? 'Talebiniz bölgenizde şu an müsait ustalara iletildi. Bu ekran kendiliğinden yenilenir.'
@@ -119,31 +171,35 @@ export default function RequestDetail() {
           }
         />
       ) : (
-        quotes.data?.map((q) => {
-          const label = quoteStatusLabel(q.status, 'CUSTOMER');
-          return (
-            <Card
-              key={q.id}
-              testID={`quote-${q.id}`}
-              onPress={() => router.push(`/quote/${q.id}`)}
-              highlight={
-                q.status === 'ACCEPTED' ? 'success' : q.turn === 'CUSTOMER' ? 'primary' : undefined
-              }
-              accessibilityLabel={`${q.provider.displayName}, ${formatMoney(q.latest.total)}, ${label.label}`}
-            >
-              <ProviderInfo provider={q.provider} />
-              <View style={styles.row}>
-                <Text style={styles.price}>{formatMoney(q.latest.total)}</Text>
-                <Badge label={label.label} tone={label.tone} />
-              </View>
-              <Small>
-                {q.revisions.length > 1 ? `${q.revisions.length} adım pazarlık · ` : ''}
-                {q.latest.materialsIncluded ? 'Malzeme dahil · ' : ''}
-                {timeAgo(q.updatedAt)}
-              </Small>
-            </Card>
-          );
-        })
+        <>
+          {openQuotes.length >= 2 ? (
+            <View style={styles.row} accessibilityRole="tablist">
+              <Chip label="Liste" selected={!compare} onPress={() => setCompare(false)} />
+              <Chip
+                label={`Karşılaştır (${openQuotes.length})`}
+                selected={compare}
+                onPress={() => setCompare(true)}
+              />
+            </View>
+          ) : null}
+          {compare && openQuotes.length >= 2 ? (
+            <QuoteComparisonTable
+              quotes={openQuotes}
+              onOpen={(q) => router.push(`/quote/${q.id}`)}
+            />
+          ) : (
+            quotes.data?.map((q) => (
+              <QuoteOfferCard
+                key={q.id}
+                quote={q}
+                onOpen={(x) => router.push(`/quote/${x.id}`)}
+                onMessage={(x) => void message.submit(x)}
+                messaging={messagingId === q.id}
+              />
+            ))
+          )}
+          <FormError message={message.error} />
+        </>
       )}
 
       {r.actions.cancel ? (
@@ -178,5 +234,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  price: { fontSize: 22, fontWeight: '800', color: colors.textPrimary },
 });

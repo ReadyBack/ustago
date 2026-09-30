@@ -104,10 +104,39 @@ export class MetricsRegistry {
   readonly domainEvents = new Counter('ustago_domain_events_total', 'Domain events by type');
   readonly workerRuns = new Counter('ustago_worker_runs_total', 'Worker runs by outcome');
   readonly gauges = new Gauge('ustago_gauge', 'Operational gauges (backlog, open alerts)');
+  // Faz 7 marketplace (labels: enum values only; never ids, queries or regions).
+  readonly marketplaceEvents = new Counter(
+    'ustago_marketplace_events_total',
+    'Marketplace funnel events by type',
+  );
+  readonly matchingDuration = new Histogram(
+    'ustago_matching_duration_seconds',
+    'Candidate selection and scoring duration by operation',
+  );
+  readonly dispatchedProviders = new Counter(
+    'ustago_dispatched_providers_total',
+    'Providers reached by dispatch, by wave and notify mode',
+  );
+  readonly chatMessages = new Counter('ustago_chat_messages_total', 'Chat messages by type');
+  readonly searchRequests = new Counter(
+    'ustago_search_requests_total',
+    'Searches by outcome (hit, fuzzy, no_result)',
+  );
 
   render(): string {
     return (
-      [this.httpRequests, this.httpDuration, this.domainEvents, this.workerRuns, this.gauges]
+      [
+        this.httpRequests,
+        this.httpDuration,
+        this.domainEvents,
+        this.workerRuns,
+        this.gauges,
+        this.marketplaceEvents,
+        this.matchingDuration,
+        this.dispatchedProviders,
+        this.chatMessages,
+        this.searchRequests,
+      ]
         .map((m) => m.render())
         .join('\n') + '\n'
     );

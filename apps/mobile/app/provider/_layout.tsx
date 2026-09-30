@@ -3,12 +3,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NotificationBell } from '../../src/components/NotificationBell';
 import { TabIcon } from '../../src/components/TabIcon';
+import { badgeText, useMessageBadge } from '../../src/features/chat/useMessageBadge';
 import { colors } from '../../src/lib/theme';
 
 export default function ProviderTabs() {
   const insets = useSafeAreaInsets();
+  // Unread count: on focus, on every tab switch and every 60 s (no live connection).
+  const messages = useMessageBadge();
   return (
     <Tabs
+      screenListeners={{ focus: () => void messages.refresh() }}
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
@@ -27,28 +31,31 @@ export default function ProviderTabs() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'İşler',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🧰" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="quotes"
-        options={{
-          title: 'Tekliflerim',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} />,
+          title: 'Ana Sayfa',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="jobs"
         options={{
-          title: 'İşlerim',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused} />,
+          title: 'İşler',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🧰" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Mesajlar',
+          tabBarBadge: badgeText(messages.count),
+          tabBarAccessibilityLabel:
+            messages.count > 0 ? `Mesajlar, ${messages.count} okunmamış` : 'Mesajlar',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="earnings"
         options={{
-          title: 'Kazançlarım',
+          title: 'Kazançlar',
           tabBarIcon: ({ focused }) => <TabIcon emoji="💰" focused={focused} />,
         }}
       />

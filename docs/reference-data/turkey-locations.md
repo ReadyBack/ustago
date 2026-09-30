@@ -52,3 +52,25 @@ ayarları (`province_categories`) admin tarafından yönetilir.
 5. `pnpm db:seed` — seed idempotenttir (`createMany … skipDuplicates`); var olan
    satırlara ve admin'in `is_active` seçimlerine dokunmaz. Kaldırılan bir ilçe
    silinmez (adresler ona bağlı olabilir); admin tarafından pasif yapılır.
+
+## Koordinatlar (Faz 7)
+
+Mesafe hesabı (ADR-0029) için 81 ilin ve 973 ilçenin **yaklaşık merkezi** tutulur
+(`provinces.latitude/longitude`, `districts.latitude/longitude`).
+
+- **Kaynak:** GeoNames gazetteer, npm paketi [`cities.json`](https://www.npmjs.com/package/cities.json)
+  üzerinden (lisans CC BY 4.0, atıf: GeoNames). Üretilen dosya:
+  `apps/api/src/seed/data/turkey-coordinates.ts` (elle düzenlenmez).
+- **Yöntem** (`apps/api/scripts/import-turkey-coordinates.mjs`):
+  1. İlçe adındaki yerleşim, GeoNames'in aynı ilçesinde (admin2) bulunursa: ilçe merkezi (913 ilçe).
+  2. Bulunmazsa ilçedeki yerleşimlerin ortalaması (42 ilçe).
+  3. O da yoksa il merkezi (18 ilçe; betik çıktısında listelenir, bir kişi düzeltebilir).
+     "Merkez" ilçeleri il merkezini kullanır. 4 ondalığa (~10 m) yuvarlanır.
+- **Sınırlar:** Bunlar yerleşim merkezleridir; ilçe sınırı, nüfus ağırlıklı merkez ya da adres
+  değildir. Mesafeler kuş uçuşudur ve arayüzde "Yaklaşık" diye yazılır. İl merkezi yedeğine düşen
+  18 ilçede mesafe daha kabadır.
+- **Seed:** `seedReferenceData` koordinatları yalnız `latitude IS NULL` olan satırlara yazar;
+  admin ya da kişi düzeltmesinin üstüne yazmaz. Eski taleplerin yaklaşık noktası da bir kez
+  doldurulur.
+- **Güncelleme:** `npm pack cities.json && tar xzf cities.json-*.tgz`, sonra
+  `node apps/api/scripts/import-turkey-coordinates.mjs package/`, prettier, testler, `pnpm db:seed`.

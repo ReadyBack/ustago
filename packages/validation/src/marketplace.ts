@@ -23,6 +23,13 @@ import {
   jobTimelineEntrySchema,
   reviewSchema,
 } from './lifecycle.js';
+import {
+  categoryAnswerSnapshotSchema,
+  categoryAnswersSchema,
+  dispatchSummarySchema,
+  quoteEtaSchema,
+  scheduleOptionSchema,
+} from './discovery.js';
 import { moneySchema, pricePartMinorSchema, priceMinorSchema } from './money.js';
 
 /** Photos per request; enough to show the problem, small enough to review. */
@@ -113,9 +120,31 @@ export const createServiceRequestSchema = z
     publish: z.boolean().default(true),
     /** Client-generated; resending the same key returns the first request. */
     idempotencyKey: z.uuid().optional(),
+    // Faz 7 (docs/adr/0028, 0029)
+    /** Upper end of a budget range ("₺1.500–₺2.000"); needs `budgetMinor`. */
+    budgetMaxMinor: priceMinorSchema.nullable().optional(),
+    scheduleOption: scheduleOptionSchema.nullable().optional(),
+    /** Answers to the category's questions, keyed by question key. */
+    answers: categoryAnswersSchema.optional(),
+    /** "Bu ustadan teklif iste" / "Bu ustayı tekrar çağır". */
+    preferredProviderId: z.uuid().nullable().optional(),
+    /** Only the preferred provider sees it until the customer widens it. */
+    preferredOnly: z.boolean().optional(),
+    /** Set by the rehire flow; must be the customer's own completed job. */
+    rehireOfJobId: z.uuid().nullable().optional(),
   })
   .strict()
-  .refine(windowOrdered, WINDOW_ERROR);
+  .refine(windowOrdered, WINDOW_ERROR)
+  .refine(
+    (v) =>
+      typeof v.budgetMaxMinor !== 'number' ||
+      (v.budgetMinor !== null && v.budgetMaxMinor >= v.budgetMinor),
+    { path: ['budgetMaxMinor'], message: 'Bütçe aralığının üst sınırı alt sınırdan küçük olamaz.' },
+  )
+  .refine((v) => !v.preferredOnly || Boolean(v.preferredProviderId), {
+    path: ['preferredOnly'],
+    message: 'Yalnız tercih edilen ustaya göndermek için bir usta seçin.',
+  });
 export type CreateServiceRequest = z.infer<typeof createServiceRequestSchema>;
 
 export const updateServiceRequestSchema = z
@@ -164,9 +193,22 @@ export type CreateRequestPhotoUpload = z.infer<typeof createRequestPhotoUploadSc
 
 export const listOpportunitiesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
-  cursor: z.uuid().optional(),
+  /** Opaque: a request id for NEW, a keyset token for NEAREST / BUDGET. */
+  cursor: z
+    .string()
+    .max(200)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
   type: serviceRequestTypeSchema.optional(),
   categoryId: z.uuid().optional(),
+  /** Faz 7 "Sana Uygun İşler" filters; every sort pages with a stable keyset cursor. */
+  sort: z.enum(['NEW', 'NEAREST', 'BUDGET']).default('NEW'),
+  maxDistanceKm: z.coerce.number().int().min(1).max(500).optional(),
+  /** Only requests dispatched to me. */
+  dispatchedOnly: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
 });
 export type ListOpportunitiesQuery = z.infer<typeof listOpportunitiesQuerySchema>;
 
@@ -181,6 +223,11 @@ export const createQuoteSchema = z
     laborMinor: pricePartMinorSchema.nullable().optional(),
     materialMinor: pricePartMinorSchema.nullable().optional(),
     materialsIncluded: z.boolean().nullable().optional(),
+    /** Faz 7 optional breakdown lines ("Servis", "Diğer"). */
+    serviceMinor: pricePartMinorSchema.nullable().optional(),
+    otherMinor: pricePartMinorSchema.nullable().optional(),
+    /** "Ne zaman gelebilirim"; CUSTOM uses `availableFrom`. */
+    arrivalEta: quoteEtaSchema.nullable().optional(),
     note: optionalNote(2000),
     estimatedDurationMinutes: z
       .number()
@@ -199,9 +246,34 @@ export const createQuoteSchema = z
       v.laborMinor === null ||
       v.materialMinor === undefined ||
       v.materialMinor === null ||
+      // With servis/diğer lines the four-line rule below applies instead.
+      typeof v.serviceMinor === 'number' ||
+      typeof v.otherMinor === 'number' ||
       v.laborMinor + v.materialMinor === v.totalMinor,
     { path: ['totalMinor'], message: 'İşçilik ve malzeme toplamı, toplam tutara eşit olmalı.' },
-  );
+  )
+  .refine(
+    (v) => {
+      // When labour and material are both given, every given line must add
+      // up to the total; the lines never replace the total (docs/adr/0020).
+      if (typeof v.laborMinor !== 'number' || typeof v.materialMinor !== 'number') {
+        const lines = [v.laborMinor, v.materialMinor, v.serviceMinor, v.otherMinor].filter(
+          (x): x is number => typeof x === 'number',
+        );
+        return lines.reduce((a, b) => a + b, 0) <= v.totalMinor;
+      }
+      if ((v.serviceMinor ?? null) === null && (v.otherMinor ?? null) === null) return true;
+      return (
+        v.laborMinor + v.materialMinor + (v.serviceMinor ?? 0) + (v.otherMinor ?? 0) ===
+        v.totalMinor
+      );
+    },
+    { path: ['totalMinor'], message: 'Kalemlerin toplamı teklif toplamını aşamaz.' },
+  )
+  .refine((v) => v.arrivalEta !== 'CUSTOM' || Boolean(v.availableFrom), {
+    path: ['availableFrom'],
+    message: 'Özel zaman için tarih/saat seçin.',
+  });
 export type CreateQuote = z.infer<typeof createQuoteSchema>;
 
 /**
@@ -238,6 +310,8 @@ export const listJobsQuerySchema = z.object({
   role: z.enum(['CUSTOMER', 'PROVIDER']).default('CUSTOMER'),
   /** ACTIVE: agreed and not finished (home screen "Aktif işiniz"). */
   scope: z.enum(['ALL', 'ACTIVE', 'FINISHED']).default('ALL'),
+  /** Faz 7 history filter ("Geçmiş İşlerim"): only completed or only cancelled. */
+  outcome: z.enum(['COMPLETED', 'CANCELLED']).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   cursor: z.uuid().optional(),
 });
@@ -341,6 +415,11 @@ export const serviceRequestSchema = z.object({
   }),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  budgetMax: moneySchema.nullable(),
+  scheduleOption: scheduleOptionSchema.nullable(),
+  answers: z.array(categoryAnswerSnapshotSchema),
+  dispatch: dispatchSummarySchema.nullable(),
+  rehireOfJobId: z.uuid().nullable(),
 }) satisfies z.ZodType<ServiceRequest>;
 
 export const serviceRequestListItemSchema = z.object({
@@ -374,6 +453,15 @@ export const opportunitySchema = z.object({
   expiresAt: nullableDate,
   photos: z.array(photoSchema),
   myQuoteId: z.uuid().nullable(),
+  budgetMax: moneySchema.nullable(),
+  scheduleOption: scheduleOptionSchema.nullable(),
+  answers: z.array(categoryAnswerSnapshotSchema),
+  photoCount: z.number().int(),
+  distance: z.object({ km: z.number(), approximate: z.literal(true) }).nullable(),
+  dispatch: z
+    .object({ wave: z.number().int(), dispatchedAt: z.iso.datetime(), viewedAt: nullableDate })
+    .nullable(),
+  isPreferredForMe: z.boolean(),
 }) satisfies z.ZodType<Opportunity>;
 
 export const quoteRevisionSchema = z.object({
@@ -385,6 +473,9 @@ export const quoteRevisionSchema = z.object({
   labor: moneySchema.nullable(),
   material: moneySchema.nullable(),
   materialsIncluded: z.boolean().nullable(),
+  service: moneySchema.nullable(),
+  other: moneySchema.nullable(),
+  arrivalEta: quoteEtaSchema.nullable(),
   note: z.string().nullable(),
   estimatedDurationMinutes: z.number().int().nullable(),
   availableFrom: nullableDate,
@@ -421,6 +512,9 @@ export const quoteSchema = z.object({
   }),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  comparisonLabels: z.array(z.enum(['LOWEST_PRICE', 'NEAREST', 'HIGHEST_RATED'])),
+  distance: z.object({ km: z.number(), approximate: z.literal(true) }).nullable(),
+  conversationId: z.uuid().nullable(),
 }) satisfies z.ZodType<Quote>;
 
 export const providerQuoteListItemSchema = z.object({
@@ -500,6 +594,7 @@ export const appNotificationSchema = z.object({
   entityType: z.string().nullable(),
   entityId: z.string().nullable(),
   deepLink: z.string().nullable(),
+  category: z.enum(['JOBS', 'MESSAGES', 'FINANCE', 'ACCOUNT']),
   readAt: nullableDate,
   createdAt: z.iso.datetime(),
 }) satisfies z.ZodType<AppNotification>;
@@ -539,6 +634,8 @@ export const adminServiceRequestDetailSchema = z.object({
   category: categoryRefSchema,
   location: approximateLocationSchema.extend({ neighborhood: z.string().nullable() }),
   budget: moneySchema.nullable(),
+  budgetMax: moneySchema.nullable(),
+  scheduleOption: scheduleOptionSchema.nullable(),
   preferredStartAt: nullableDate,
   preferredEndAt: nullableDate,
   publishedAt: nullableDate,

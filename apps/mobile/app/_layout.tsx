@@ -82,8 +82,12 @@ function Navigator() {
         <Stack.Screen name="request/[id]" options={{ title: 'Talep' }} />
         <Stack.Screen name="quote/[id]" options={{ title: 'Teklif ve Pazarlık' }} />
         <Stack.Screen name="job/[id]" options={{ title: 'İş' }} />
-        <Stack.Screen name="notifications" options={{ title: 'Bildirimler' }} />
+        <Stack.Screen name="notifications/index" options={{ title: 'Bildirimler' }} />
+        <Stack.Screen name="notifications/preferences" options={{ title: 'Bildirim Tercihleri' }} />
         <Stack.Screen name="usta/[id]" options={{ title: 'Usta Profili' }} />
+        <Stack.Screen name="search" options={{ title: 'Hizmet Ara' }} />
+        <Stack.Screen name="providers/index" options={{ title: 'Ustalar' }} />
+        <Stack.Screen name="favorites" options={{ title: 'Favori Ustalarım' }} />
         <Stack.Screen name="opportunity/[id]" options={{ title: 'İş Detayı' }} />
         <Stack.Screen name="addresses/index" options={{ title: 'Adreslerim' }} />
         <Stack.Screen name="addresses/edit" options={{ title: 'Adres' }} />
@@ -96,6 +100,12 @@ function Navigator() {
         <Stack.Screen name="sessions" options={{ title: 'Aktif Oturumlar' }} />
         <Stack.Screen name="account-deletion" options={{ title: 'Hesap ve Verilerim' }} />
         <Stack.Screen name="unavailable" options={{ title: 'Bulunamadı' }} />
+        <Stack.Screen name="messages/[id]" options={{ title: 'Mesajlar' }} />
+        <Stack.Screen name="provider-settings/availability" options={{ title: 'Müsaitlik' }} />
+        <Stack.Screen name="provider-settings/coverage" options={{ title: 'Hizmet Bölgeleri' }} />
+        <Stack.Screen name="provider-settings/portfolio" options={{ title: 'Portföy' }} />
+        <Stack.Screen name="provider-settings/photo" options={{ title: 'Profil Fotoğrafı' }} />
+        <Stack.Screen name="provider-settings/reviews" options={{ title: 'Değerlendirmelerim' }} />
       </Stack>
     </>
   );

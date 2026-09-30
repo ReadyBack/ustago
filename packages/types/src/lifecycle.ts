@@ -120,6 +120,13 @@ export interface PublicReview {
   authorName: string;
   categoryName: string;
   createdAt: string;
+  /** Faz 7: the provider's one public answer, if any. */
+  reply: ProviderReviewReply | null;
+}
+
+export interface ProviderReviewReply {
+  body: string;
+  createdAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,9 +209,21 @@ export interface ProviderQuality {
 export interface NotificationPreferences {
   /** Always true: job updates are transactional (someone is coming to the door). */
   jobUpdatesPush: true;
+  /** Always true: payment, refund and payout events are transactional. */
+  financePush: true;
   quoteUpdatesPush: boolean;
+  /** Faz 7: chat messages. */
+  newMessagePush: boolean;
   marketingPush: boolean;
+  /** Faz 7, providers: new matching jobs. SILENT = in the app only, no push. */
+  newJobAlerts: 'ON' | 'SILENT' | 'OFF';
+  /** Minutes from local midnight (Europe/Istanbul); both null = no quiet hours. */
+  quietHoursStart: number | null;
+  quietHoursEnd: number | null;
 }
+
+/** Notification centre tabs (Faz 7). */
+export type NotificationCategory = 'JOBS' | 'MESSAGES' | 'FINANCE' | 'ACCOUNT';
 
 export interface UnreadNotificationCount {
   unread: number;

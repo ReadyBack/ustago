@@ -1,83 +1,89 @@
-import type { JobListItem, Paginated } from '@ustago/types';
-import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { jobApi } from '../../src/api/services';
-import { Badge } from '../../src/components/Badge';
-import { Card } from '../../src/components/Card';
 import { ProviderGate } from '../../src/components/ProviderGate';
-import { Screen } from '../../src/components/Screen';
-import { EmptyState, ErrorState, LoadingState } from '../../src/components/States';
-import { Small } from '../../src/components/Text';
-import { useApi } from '../../src/hooks/useApi';
-import { categoryIcon } from '../../src/lib/categories';
-import { formatMoney, timeAgo } from '../../src/lib/format';
-import { JOB_STATUS } from '../../src/lib/labels';
-import { colors, spacing } from '../../src/lib/theme';
+import { MyJobsList } from '../../src/features/provider/MyJobsList';
+import { MyQuotesList } from '../../src/features/provider/MyQuotesList';
+import { OpportunityInbox } from '../../src/features/provider/OpportunityInbox';
+import { colors, spacing, typography } from '../../src/lib/theme';
 
-export default function MyJobs() {
+export type JobsSegment = 'inbox' | 'quotes' | 'active' | 'history';
+
+const SEGMENTS: { value: JobsSegment; label: string }[] = [
+  { value: 'inbox', label: 'Sana Uygun İşler' },
+  { value: 'quotes', label: 'Tekliflerim' },
+  { value: 'active', label: 'Aktif İşler' },
+  { value: 'history', label: 'Geçmiş' },
+];
+
+const isSegment = (v: unknown): v is JobsSegment => SEGMENTS.some((s) => s.value === v);
+
+/** "İşler": new work, my quotes, active and past jobs. `?segment=` picks one. */
+export default function ProviderJobs() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ segment?: string; dispatched?: string }>();
+  const segment: JobsSegment = isSegment(params.segment) ? params.segment : 'inbox';
+
   return (
     <ProviderGate>
-      <JobList />
+      <View style={styles.fill}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.barWrap}
+          contentContainerStyle={styles.bar}
+          accessibilityRole="tablist"
+        >
+          {SEGMENTS.map((s) => {
+            const selected = s.value === segment;
+            return (
+              <Pressable
+                key={s.value}
+                testID={`segment-${s.value}`}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                onPress={() => router.setParams({ segment: s.value })}
+                style={[styles.tab, selected && styles.tabSelected]}
+              >
+                <Text style={[styles.tabText, selected && styles.tabTextSelected]}>{s.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        <View style={styles.fill}>
+          {segment === 'inbox' ? (
+            <OpportunityInbox
+              key={params.dispatched === '1' ? 'dispatched' : 'all'}
+              initialDispatchedOnly={params.dispatched === '1'}
+            />
+          ) : segment === 'quotes' ? (
+            <MyQuotesList />
+          ) : (
+            <MyJobsList key={segment} scope={segment === 'active' ? 'ACTIVE' : 'FINISHED'} />
+          )}
+        </View>
+      </View>
     </ProviderGate>
   );
 }
 
-function JobList() {
-  const router = useRouter();
-  const jobs = useApi<Paginated<JobListItem>>('jobs:PROVIDER', () => jobApi.list('PROVIDER'), {
-    pollMs: 15_000,
-  });
-  return (
-    <Screen onRefresh={jobs.refresh} refreshing={jobs.refreshing}>
-      {jobs.loading ? (
-        <LoadingState />
-      ) : jobs.error ? (
-        <ErrorState message={jobs.error} onRetry={jobs.refresh} />
-      ) : jobs.data?.items.length === 0 ? (
-        <EmptyState
-          icon="📅"
-          title="Henüz işiniz yok"
-          body="Bir teklifiniz kabul edildiğinde iş burada görünür."
-        />
-      ) : (
-        jobs.data?.items.map((j) => {
-          const status = JOB_STATUS[j.status];
-          return (
-            <Card
-              key={j.id}
-              testID={`job-${j.id}`}
-              onPress={() => router.push(`/job/${j.id}`)}
-              highlight="success"
-            >
-              <View style={styles.row}>
-                <Text style={styles.icon}>{categoryIcon(j.category.slug)}</Text>
-                <View style={styles.flex}>
-                  <Text style={styles.title} numberOfLines={1}>
-                    {j.title}
-                  </Text>
-                  <Small>
-                    {j.counterpart} · {j.location.district.name} · {timeAgo(j.createdAt)}
-                  </Small>
-                </View>
-              </View>
-              <View style={styles.rowBetween}>
-                <Text style={styles.price}>{formatMoney(j.currentTotal)}</Text>
-                <Badge label={status.label} tone={status.tone} />
-              </View>
-            </Card>
-          );
-        })
-      )}
-    </Screen>
-  );
-}
-
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  flex: { flex: 1 },
-  icon: { fontSize: 26 },
-  title: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  price: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
+  fill: { flex: 1, backgroundColor: colors.surface },
+  barWrap: {
+    flexGrow: 0,
+    backgroundColor: colors.background,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  bar: { paddingHorizontal: spacing.sm, gap: spacing.xs },
+  tab: {
+    minHeight: typography.minTouchTarget,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  tabSelected: { borderBottomColor: colors.primary },
+  tabText: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
+  tabTextSelected: { color: colors.primary, fontWeight: '800' },
 });

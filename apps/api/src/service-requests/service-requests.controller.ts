@@ -22,6 +22,8 @@ import {
   apiErrorResponseSchema,
   type CancelServiceRequest,
   cancelServiceRequestSchema,
+  type ExpandSearch,
+  expandSearchSchema,
   type CreateRequestPhotoUpload,
   createRequestPhotoUploadSchema,
   type CreateServiceRequest,
@@ -131,6 +133,23 @@ export class ServiceRequestsController {
     @Req() req: Request,
   ): Promise<ServiceRequest> {
     return this.requests.publish(user, id, clientIp(req));
+  }
+
+  @Post(':id/expand-search')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Arama alanını genişlet: sıradaki dağıtım dalgası hemen gönderilir; "sadece bu usta" kaldırılabilir.',
+  })
+  @ApiZodBody(expandSearchSchema)
+  @ApiZodResponse(200, serviceRequestSchema)
+  @ApiZodResponse(409, apiErrorResponseSchema, 'INVALID_REQUEST_STATE / SEARCH_RECENTLY_EXPANDED')
+  expandSearch(
+    @CurrentUser() user: AuthUser,
+    @Param('id', idPipe) id: string,
+    @Body(new ZodValidationPipe(expandSearchSchema)) body: ExpandSearch,
+  ): Promise<ServiceRequest> {
+    return this.requests.expandSearch(user, id, body.includeOtherProviders);
   }
 
   @Post(':id/cancel')

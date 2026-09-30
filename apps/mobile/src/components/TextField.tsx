@@ -63,6 +63,8 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    // Web gives inputs an intrinsic width; let them shrink inside rows.
+    minWidth: 0,
     fontSize: typography.fontSizeBody,
     color: colors.textPrimary,
     paddingVertical: 10,

@@ -172,7 +172,17 @@ describe('Notifications and push outbox (e2e)', () => {
           .expect(200)
       ).body,
     );
-    expect(prefs).toEqual({ jobUpdatesPush: true, quoteUpdatesPush: true, marketingPush: false });
+    // Faz 7 adds message/new-job/quiet-hours settings; job and finance pushes stay on.
+    expect(prefs).toEqual({
+      jobUpdatesPush: true,
+      financePush: true,
+      quoteUpdatesPush: true,
+      marketingPush: false,
+      newMessagePush: true,
+      newJobAlerts: 'ON',
+      quietHoursStart: null,
+      quietHoursEnd: null,
+    });
     await ctx
       .http()
       .patch('/api/v1/me/notification-preferences')

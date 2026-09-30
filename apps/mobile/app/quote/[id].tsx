@@ -18,7 +18,9 @@ import { Body, Heading, Small } from '../../src/components/Text';
 import { useApi } from '../../src/hooks/useApi';
 import { useSubmit } from '../../src/hooks/useSubmit';
 import { confirm } from '../../src/lib/confirm';
-import { formatDuration, formatMoney, timeAgo } from '../../src/lib/format';
+import { chatApi } from '../../src/api/chat';
+import { QUOTE_ETA } from '../../src/features/provider/labels';
+import { formatDateTime, formatDuration, formatMoney, timeAgo } from '../../src/lib/format';
 import { quoteStatusLabel, REVISION_KIND } from '../../src/lib/labels';
 import { colors, radii, spacing } from '../../src/lib/theme';
 
@@ -68,6 +70,10 @@ export default function QuoteThread() {
       await onStale(e);
     }
   });
+  const openChat = useSubmit(async (q: Quote) => {
+    const conversationId = q.conversationId ?? (await chatApi.open({ quoteId: q.id })).id;
+    router.push(`/messages/${conversationId}`);
+  });
   const close = useSubmit(async (q: Quote, as: 'CUSTOMER' | 'PROVIDER') => {
     quote.setData(as === 'CUSTOMER' ? await quoteApi.reject(q.id) : await quoteApi.withdraw(q.id));
   });
@@ -80,7 +86,7 @@ export default function QuoteThread() {
   const viewer = user?.providerProfile?.id === q.provider.id ? 'PROVIDER' : 'CUSTOMER';
   const status = quoteStatusLabel(q.status, viewer);
   const price = formatMoney(q.latest.total);
-  const error = accept.error ?? counter.error ?? close.error;
+  const error = accept.error ?? counter.error ?? close.error ?? openChat.error;
 
   return (
     <Screen onRefresh={quote.refresh} refreshing={quote.refreshing}>
@@ -118,6 +124,15 @@ export default function QuoteThread() {
           ) : null}
         </Card>
       ) : null}
+
+      <Button
+        testID="open-chat"
+        title={viewer === 'CUSTOMER' ? 'Ustaya mesaj yaz' : 'Müşteriye mesaj yaz'}
+        variant="secondary"
+        loading={openChat.busy}
+        onPress={() => void openChat.submit(q)}
+      />
+      <Small>Fiyat değişikliği sohbetten değil, teklif/ek iş üzerinden yapılır.</Small>
 
       <Heading>Pazarlık geçmişi</Heading>
       <View style={styles.timeline} accessibilityLabel="Pazarlık geçmişi">
@@ -239,6 +254,15 @@ function Bubble({
   accepted: boolean;
 }) {
   const duration = formatDuration(revision.estimatedDurationMinutes);
+  // Faz 7 lines: only the ones the provider filled; the total stays binding.
+  const breakdown = [
+    revision.labor ? `İşçilik ${formatMoney(revision.labor)}` : null,
+    revision.material ? `malzeme ${formatMoney(revision.material)}` : null,
+    revision.service ? `servis/ulaşım ${formatMoney(revision.service)}` : null,
+    revision.other ? `diğer ${formatMoney(revision.other)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' + ');
   return (
     <View
       style={[styles.bubble, mine ? styles.mine : styles.theirs, accepted && styles.accepted]}
@@ -250,9 +274,13 @@ function Bubble({
         {REVISION_KIND[revision.kind]}
       </Text>
       <Text style={styles.bubblePrice}>{formatMoney(revision.total)}</Text>
-      {revision.labor && revision.material ? (
+      {breakdown ? <Text style={styles.bubbleMeta}>{breakdown}</Text> : null}
+      {revision.arrivalEta ? (
         <Text style={styles.bubbleMeta}>
-          İşçilik {formatMoney(revision.labor)} + malzeme {formatMoney(revision.material)}
+          Gelebileceği zaman: {QUOTE_ETA[revision.arrivalEta]}
+          {revision.arrivalEta === 'CUSTOM' && revision.availableFrom
+            ? ` (${formatDateTime(revision.availableFrom)})`
+            : ''}
         </Text>
       ) : null}
       {revision.materialsIncluded !== null || duration ? (
