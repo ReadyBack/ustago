@@ -48,10 +48,15 @@ export class FinanceSweepService implements OnApplicationBootstrap, OnApplicatio
       const released = await this.earnings.releaseDue(now);
       const retried = await this.refunds.retryStale(60, now);
       if (released + retried > 0) {
-        this.logger.log(`Finance sweep: ${released} earning(s) released, ${retried} refund(s) retried`);
+        this.logger.log(
+          `Finance sweep: ${released} earning(s) released, ${retried} refund(s) retried`,
+        );
       }
     } catch (error) {
-      this.logger.error('Finance sweep failed', error instanceof Error ? error.stack : String(error));
+      this.logger.error(
+        'Finance sweep failed',
+        error instanceof Error ? error.stack : String(error),
+      );
     } finally {
       this.running = false;
     }

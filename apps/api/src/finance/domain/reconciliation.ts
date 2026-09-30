@@ -76,21 +76,41 @@ export function reconcile(input: ReconciliationInput): Mismatch[] {
         add('PAYMENT_WITHOUT_LEDGER', 'payment', p.id, 'Başarılı ödemenin tahsilat kaydı yok.');
       } else {
         if (capture.amount !== p.amount) {
-          add('PAYMENT_AMOUNT_MISMATCH', 'payment', p.id, 'Tahsilat kaydı tutarı ödemeyle aynı değil.');
+          add(
+            'PAYMENT_AMOUNT_MISMATCH',
+            'payment',
+            p.id,
+            'Tahsilat kaydı tutarı ödemeyle aynı değil.',
+          );
         }
         if (capture.feeCredit !== p.fee) {
-          add('PAYMENT_FEE_MISMATCH', 'payment', p.id, 'Platform ücreti kaydı ödemeyle aynı değil.');
+          add(
+            'PAYMENT_FEE_MISMATCH',
+            'payment',
+            p.id,
+            'Platform ücreti kaydı ödemeyle aynı değil.',
+          );
         }
       }
       const e = earningByPayment.get(p.id);
       if (!e) {
         add('PAYMENT_WITHOUT_EARNING', 'payment', p.id, 'Başarılı ödemenin usta kazancı yok.');
       } else if (e.gross !== p.amount || e.fee !== p.fee) {
-        add('EARNING_SPLIT_MISMATCH', 'provider_earning', e.id, 'Kazanç tutarları ödemeyle aynı değil.');
+        add(
+          'EARNING_SPLIT_MISMATCH',
+          'provider_earning',
+          e.id,
+          'Kazanç tutarları ödemeyle aynı değil.',
+        );
       }
       const expected = statusAfterRefunds(p.amount, p.refundedSucceeded);
       if (expected !== p.status) {
-        add('PAYMENT_STATUS_MISMATCH', 'payment', p.id, `Durum ${p.status}, iadelere göre ${expected} olmalı.`);
+        add(
+          'PAYMENT_STATUS_MISMATCH',
+          'payment',
+          p.id,
+          `Durum ${p.status}, iadelere göre ${expected} olmalı.`,
+        );
       }
     } else if (capture) {
       add('LEDGER_WITHOUT_PAYMENT', 'payment', p.id, `Ödeme ${p.status} ama tahsilat kaydı var.`);
@@ -100,10 +120,20 @@ export function reconcile(input: ReconciliationInput): Mismatch[] {
   for (const e of input.earnings) {
     const released = has(`earning:${e.id}:released`);
     if (e.status === 'AVAILABLE' && !released) {
-      add('EARNING_RELEASE_MISSING', 'provider_earning', e.id, 'Kullanılabilir kazancın aktarım kaydı yok.');
+      add(
+        'EARNING_RELEASE_MISSING',
+        'provider_earning',
+        e.id,
+        'Kullanılabilir kazancın aktarım kaydı yok.',
+      );
     }
     if ((e.status === 'PENDING' || e.status === 'HELD') && released) {
-      add('EARNING_RELEASED_BUT_PENDING', 'provider_earning', e.id, 'Bekleyen kazancın aktarım kaydı var.');
+      add(
+        'EARNING_RELEASED_BUT_PENDING',
+        'provider_earning',
+        e.id,
+        'Bekleyen kazancın aktarım kaydı var.',
+      );
     }
   }
 
@@ -148,7 +178,12 @@ export function reconcile(input: ReconciliationInput): Mismatch[] {
       add('PAYOUT_PAID_MISMATCH', 'payout', p.id, 'Ödenen talebin kayıtları tutarsız.');
     }
     if ((p.status === 'FAILED' || p.status === 'CANCELLED') && (!released || paid)) {
-      add('PAYOUT_RELEASE_MISMATCH', 'payout', p.id, 'İptal/başarısız talebin serbest bırakma kaydı tutarsız.');
+      add(
+        'PAYOUT_RELEASE_MISMATCH',
+        'payout',
+        p.id,
+        'İptal/başarısız talebin serbest bırakma kaydı tutarsız.',
+      );
     }
   }
 
@@ -156,13 +191,28 @@ export function reconcile(input: ReconciliationInput): Mismatch[] {
     const fee = input.ledger.get(`cash:${c.id}:fee`);
     const shouldHave = c.status === 'CONFIRMED' && c.fee > 0n;
     if (shouldHave && !fee) {
-      add('CASH_FEE_MISSING', 'cash_settlement', c.id, 'Onaylı nakit işin platform ücreti kaydı yok.');
+      add(
+        'CASH_FEE_MISSING',
+        'cash_settlement',
+        c.id,
+        'Onaylı nakit işin platform ücreti kaydı yok.',
+      );
     }
     if (!shouldHave && fee) {
-      add('CASH_FEE_UNEXPECTED', 'cash_settlement', c.id, `Nakit kayıt ${c.status} ama ücret kaydı var.`);
+      add(
+        'CASH_FEE_UNEXPECTED',
+        'cash_settlement',
+        c.id,
+        `Nakit kayıt ${c.status} ama ücret kaydı var.`,
+      );
     }
     if (fee && fee.amount !== c.fee) {
-      add('CASH_FEE_MISMATCH', 'cash_settlement', c.id, 'Ücret kaydı tutarı nakit kayıtla aynı değil.');
+      add(
+        'CASH_FEE_MISMATCH',
+        'cash_settlement',
+        c.id,
+        'Ücret kaydı tutarı nakit kayıtla aynı değil.',
+      );
     }
   }
   return out;

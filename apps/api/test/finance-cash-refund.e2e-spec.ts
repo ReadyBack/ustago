@@ -1,13 +1,7 @@
 import { adminCashSettlementSchema } from '@ustago/validation';
 
 import { bearer, cleanup, createTestApp, resetRateLimits, type TestContext } from './helpers.js';
-import {
-  agreedJob,
-  completedJob,
-  startWork,
-  step,
-  stepOk,
-} from './job-helpers.js';
+import { agreedJob, completedJob, startWork, step, stepOk } from './job-helpers.js';
 import { adanaMarket, type Market } from './marketplace-helpers.js';
 import {
   adminActor,
@@ -18,7 +12,6 @@ import {
   expectLedgerConsistent,
   idemKey,
   payOnline,
-  summaryOf,
   walletOf,
 } from './finance-helpers.js';
 import type { Actor } from './provider-helpers.js';
@@ -44,7 +37,7 @@ describe('Finance: cash, refunds, cancellation and disputes', () => {
     await ctx.app.close();
   });
 
-  it('B: cash needs both sides; the fee becomes the provider\'s platform debt', async () => {
+  it("B: cash needs both sides; the fee becomes the provider's platform debt", async () => {
     const job = await agreedJob(ctx, m);
     jobIds.push(job.jobId);
     const chosen = await chooseMethod(ctx, job.customer, job.jobId, 'CASH').expect(200);
@@ -148,8 +141,13 @@ describe('Finance: cash, refunds, cancellation and disputes', () => {
     expect(partial.body.status).toBe('PARTIALLY_REFUNDED');
     expect(partial.body.refundable.amountMinor).toBe(170000);
     // Same key again: no second refund.
-    await adminRefund(ctx, admin, paid.id, { amountMinor: 50000, expectedRefundableMinor: 220000 }, key)
-      .expect(200);
+    await adminRefund(
+      ctx,
+      admin,
+      paid.id,
+      { amountMinor: 50000, expectedRefundableMinor: 220000 },
+      key,
+    ).expect(200);
     detail = await adminPayment(ctx, admin, paid.id);
     expect(detail.refunds).toHaveLength(1);
     expect(detail.refunds[0]).toMatchObject({
@@ -176,7 +174,12 @@ describe('Finance: cash, refunds, cancellation and disputes', () => {
     expect(w.balances.available.amountMinor).toBe(0);
     const audit = detail.audit.map((a) => a.action);
     expect(audit).toEqual(
-      expect.arrayContaining(['payment.created', 'payment.succeeded', 'refund.created', 'refund.completed']),
+      expect.arrayContaining([
+        'payment.created',
+        'payment.succeeded',
+        'refund.created',
+        'refund.completed',
+      ]),
     );
     await expectLedgerConsistent(ctx, [job.jobId]);
   });
@@ -190,11 +193,17 @@ describe('Finance: cash, refunds, cancellation and disputes', () => {
     expect(payment.status).toBe('REFUNDED');
     const refunds = await ctx.prisma.refund.findMany({ where: { paymentId: paid.id } });
     expect(refunds).toHaveLength(1);
-    expect(refunds[0]).toMatchObject({ amountMinor: 220000n, reason: 'JOB_CANCELLED', status: 'SUCCEEDED' });
+    expect(refunds[0]).toMatchObject({
+      amountMinor: 220000n,
+      reason: 'JOB_CANCELLED',
+      status: 'SUCCEEDED',
+    });
     const w = await walletOf(ctx, job.provider);
     expect(w.balances.pending.amountMinor).toBe(0);
     expect(w.balances.available.amountMinor).toBe(0);
-    const earning = await ctx.prisma.providerEarning.findUniqueOrThrow({ where: { paymentId: paid.id } });
+    const earning = await ctx.prisma.providerEarning.findUniqueOrThrow({
+      where: { paymentId: paid.id },
+    });
     expect(earning.status).toBe('REVERSED');
     await expectLedgerConsistent(ctx, [job.jobId]);
   });
@@ -213,7 +222,9 @@ describe('Finance: cash, refunds, cancellation and disputes', () => {
       where: { paymentId: created.body.id },
     });
     await stepOk(ctx, job.provider, job.jobId, 'cancel', { reason: 'Parça yok.' });
-    const cancelled = await ctx.prisma.payment.findUniqueOrThrow({ where: { id: created.body.id } });
+    const cancelled = await ctx.prisma.payment.findUniqueOrThrow({
+      where: { id: created.body.id },
+    });
     expect(cancelled.status).toBe('CANCELLED');
     // The provider still reports the money arrived: it is sent straight back.
     const { mockProvider } = await import('./finance-helpers.js');
@@ -239,7 +250,7 @@ describe('Finance: cash, refunds, cancellation and disputes', () => {
     await expectLedgerConsistent(ctx, [job.jobId]);
   });
 
-  it('F: a dispute freezes the provider\'s money until an admin decides', async () => {
+  it("F: a dispute freezes the provider's money until an admin decides", async () => {
     const job = await agreedJob(ctx, m);
     jobIds.push(job.jobId);
     const paid = await payOnline(ctx, job.customer, job.jobId);
@@ -251,7 +262,9 @@ describe('Finance: cash, refunds, cancellation and disputes', () => {
     let w = await walletOf(ctx, job.provider);
     expect(w.balances.held.amountMinor).toBe(187000);
     expect(w.balances.available.amountMinor).toBe(0);
-    const earning = await ctx.prisma.providerEarning.findUniqueOrThrow({ where: { paymentId: paid.id } });
+    const earning = await ctx.prisma.providerEarning.findUniqueOrThrow({
+      where: { paymentId: paid.id },
+    });
     expect(earning.status).toBe('HELD');
 
     const dispute = await ctx.prisma.dispute.findFirstOrThrow({ where: { jobId: job.jobId } });

@@ -33,8 +33,7 @@ export const RESERVED_PAYOUT_STATUSES: readonly PayoutStatus[] = [
 ];
 
 export type PayoutCheck =
-  | { ok: true }
-  | { ok: false; code: 'PAYOUT_BELOW_MINIMUM' | 'INSUFFICIENT_AVAILABLE_BALANCE' };
+  { ok: true } | { ok: false; code: 'PAYOUT_BELOW_MINIMUM' | 'INSUFFICIENT_AVAILABLE_BALANCE' };
 
 export function checkPayoutAmount(input: {
   amount: bigint;

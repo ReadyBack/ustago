@@ -15,10 +15,7 @@ export type CashDecision =
   | { kind: 'ALREADY_DONE' }
   | { kind: 'INVALID' };
 
-export function decideCashConfirm(
-  current: CashSettlementStatus,
-  party: CashParty,
-): CashDecision {
+export function decideCashConfirm(current: CashSettlementStatus, party: CashParty): CashDecision {
   switch (current) {
     case 'AWAITING_CONFIRMATION':
       return {

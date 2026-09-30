@@ -36,7 +36,12 @@ import { WebhooksService } from './webhooks.service.js';
  */
 @Module({
   imports: [NotificationsModule],
-  controllers: [FinanceController, WebhooksController, DevFinanceController, AdminFinanceController],
+  controllers: [
+    FinanceController,
+    WebhooksController,
+    DevFinanceController,
+    AdminFinanceController,
+  ],
   providers: [
     {
       provide: FINANCE_CONFIG,

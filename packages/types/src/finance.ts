@@ -35,7 +35,8 @@ export type RefundReason =
   | 'DUPLICATE_PAYMENT'
   | 'OTHER';
 export type ProviderEarningStatus = 'PENDING' | 'HELD' | 'AVAILABLE' | 'REVERSED';
-export type PayoutStatus = 'REQUESTED' | 'APPROVED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED';
+export type PayoutStatus =
+  'REQUESTED' | 'APPROVED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED';
 export type LedgerAccountType =
   | 'PROVIDER_PENDING'
   | 'PROVIDER_AVAILABLE'
@@ -57,11 +58,7 @@ export type LedgerTransactionType =
   | 'ADJUSTMENT';
 /** Outcomes the test payment screen can ask the mock provider for. */
 export type MockPaymentOutcome =
-  | 'SUCCESS'
-  | 'CARD_DECLINED'
-  | 'TIMEOUT'
-  | 'PROVIDER_ERROR'
-  | 'CANCELLED';
+  'SUCCESS' | 'CARD_DECLINED' | 'TIMEOUT' | 'PROVIDER_ERROR' | 'CANCELLED';
 
 export interface PaymentAttempt {
   id: string;

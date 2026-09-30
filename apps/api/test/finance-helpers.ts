@@ -31,7 +31,8 @@ export async function adminActor(ctx: TestContext): Promise<Actor> {
 
 export function mockProvider(ctx: TestContext): MockPaymentProvider {
   const provider = ctx.app.get<unknown>(PAYMENT_PROVIDER);
-  if (!(provider instanceof MockPaymentProvider)) throw new Error('Finance e2e needs the mock provider');
+  if (!(provider instanceof MockPaymentProvider))
+    throw new Error('Finance e2e needs the mock provider');
   return provider;
 }
 
@@ -105,11 +106,19 @@ export function confirmCash(ctx: TestContext, actor: Actor, jobId: string) {
 }
 
 export async function walletOf(ctx: TestContext, provider: Actor): Promise<Wallet> {
-  const res = await ctx.http().get('/api/v1/me/wallet').set('Authorization', bearer(provider)).expect(200);
+  const res = await ctx
+    .http()
+    .get('/api/v1/me/wallet')
+    .set('Authorization', bearer(provider))
+    .expect(200);
   return walletSchema.parse(res.body);
 }
 
-export function setDestination(ctx: TestContext, provider: Actor, iban = 'TR330006100519786457841326') {
+export function setDestination(
+  ctx: TestContext,
+  provider: Actor,
+  iban = 'TR330006100519786457841326',
+) {
   return ctx
     .http()
     .put('/api/v1/me/payout-destination')
@@ -117,7 +126,12 @@ export function setDestination(ctx: TestContext, provider: Actor, iban = 'TR3300
     .send({ holderName: 'Test Usta', iban });
 }
 
-export function requestPayout(ctx: TestContext, provider: Actor, amountMinor: number, key = idemKey()) {
+export function requestPayout(
+  ctx: TestContext,
+  provider: Actor,
+  amountMinor: number,
+  key = idemKey(),
+) {
   return ctx
     .http()
     .post('/api/v1/me/payouts')
@@ -159,7 +173,10 @@ export function adminRefund(
  * total credit, no unbalanced transaction, and the reconciliation report
  * finds nothing for this run's rows.
  */
-export async function expectLedgerConsistent(ctx: TestContext, jobIds: string[] = []): Promise<void> {
+export async function expectLedgerConsistent(
+  ctx: TestContext,
+  jobIds: string[] = [],
+): Promise<void> {
   const unbalanced = await ctx.prisma.$queryRaw<{ id: string }[]>`
     SELECT t.id FROM ledger_transactions t
     LEFT JOIN ledger_entries e ON e.journal_id = t.id

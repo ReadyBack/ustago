@@ -84,7 +84,9 @@ export class DevFinanceController {
   @Post('admin/dev/payouts/:id/mark-paid')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'TEST: işlemdeki para çekme talebini "ödendi" yapar. Gerçek transfer yoktur.' })
+  @ApiOperation({
+    summary: 'TEST: işlemdeki para çekme talebini "ödendi" yapar. Gerçek transfer yoktur.',
+  })
   @ApiZodResponse(200, adminPayoutSchema)
   markPaid(
     @CurrentUser() user: AuthUser,
@@ -97,7 +99,9 @@ export class DevFinanceController {
   @Post('admin/dev/payouts/:id/mark-failed')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'TEST: işlemdeki para çekme talebini başarısız yapar; tutar bakiyeye döner.' })
+  @ApiOperation({
+    summary: 'TEST: işlemdeki para çekme talebini başarısız yapar; tutar bakiyeye döner.',
+  })
   @ApiZodResponse(200, adminPayoutSchema)
   markFailed(
     @CurrentUser() user: AuthUser,

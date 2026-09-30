@@ -67,7 +67,8 @@ const IdempotencyHeader = () =>
   ApiHeader({
     name: IDEMPOTENCY_HEADER,
     required: true,
-    description: 'İstemcinin ürettiği tekil anahtar (8-80 karakter, A-Z a-z 0-9 _ -). Tekrarı aynı sonucu döner.',
+    description:
+      'İstemcinin ürettiği tekil anahtar (8-80 karakter, A-Z a-z 0-9 _ -). Tekrarı aynı sonucu döner.',
   });
 
 /**
@@ -99,7 +100,10 @@ export class FinanceController {
   })
   @ApiZodResponse(200, jobPaymentSummarySchema)
   @ApiZodResponse(404, apiErrorResponseSchema, 'JOB_NOT_FOUND')
-  summary(@CurrentUser() user: AuthUser, @Param('id', idPipe) id: string): Promise<JobPaymentSummary> {
+  summary(
+    @CurrentUser() user: AuthUser,
+    @Param('id', idPipe) id: string,
+  ): Promise<JobPaymentSummary> {
     return this.payments.summary(user.id, id);
   }
 
@@ -153,7 +157,11 @@ export class FinanceController {
       'açıksa usta için platform ücreti borcu yazılır.',
   })
   @ApiZodResponse(200, jobPaymentSummarySchema)
-  @ApiZodResponse(409, apiErrorResponseSchema, 'CASH_NOT_SELECTED / CASH_NOT_ALLOWED / CASH_INVALID_STATE')
+  @ApiZodResponse(
+    409,
+    apiErrorResponseSchema,
+    'CASH_NOT_SELECTED / CASH_NOT_ALLOWED / CASH_INVALID_STATE',
+  )
   confirmCash(
     @CurrentUser() user: AuthUser,
     @Param('id', idPipe) id: string,
@@ -178,7 +186,9 @@ export class FinanceController {
   }
 
   @Get('me/payments')
-  @ApiOperation({ summary: 'Ödemelerim: müşterinin çevrim içi ve nakit ödemeleri (yeniden eskiye).' })
+  @ApiOperation({
+    summary: 'Ödemelerim: müşterinin çevrim içi ve nakit ödemeleri (yeniden eskiye).',
+  })
   @ApiZodResponse(200, paginatedSchema(myPaymentListItemSchema))
   myPayments(
     @CurrentUser() user: AuthUser,
@@ -238,7 +248,10 @@ export class FinanceController {
   @ApiOperation({ summary: 'Kazanç detayı.' })
   @ApiZodResponse(200, providerEarningSchema)
   @ApiZodResponse(404, apiErrorResponseSchema, 'EARNING_NOT_FOUND')
-  earning(@CurrentUser() user: AuthUser, @Param('id', idPipe) id: string): Promise<ProviderEarning> {
+  earning(
+    @CurrentUser() user: AuthUser,
+    @Param('id', idPipe) id: string,
+  ): Promise<ProviderEarning> {
     return this.wallet.earning(user.id, id);
   }
 
@@ -302,7 +315,9 @@ export class FinanceController {
 
   @Post('me/payouts/:id/cancel')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Usta henüz onaylanmamış talebini iptal eder; tutar çekilebilir bakiyeye döner.' })
+  @ApiOperation({
+    summary: 'Usta henüz onaylanmamış talebini iptal eder; tutar çekilebilir bakiyeye döner.',
+  })
   @ApiZodResponse(200, payoutSchema)
   @ApiZodResponse(409, apiErrorResponseSchema, 'PAYOUT_INVALID_STATE')
   cancelPayout(

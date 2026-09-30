@@ -70,7 +70,8 @@ export interface WebhookRequest {
 export class WebhookVerificationError extends Error {
   constructor(
     message: string,
-    readonly code: 'WEBHOOK_SIGNATURE_INVALID' | 'WEBHOOK_TIMESTAMP_OUT_OF_RANGE' | 'WEBHOOK_MALFORMED',
+    readonly code:
+      'WEBHOOK_SIGNATURE_INVALID' | 'WEBHOOK_TIMESTAMP_OUT_OF_RANGE' | 'WEBHOOK_MALFORMED',
   ) {
     super(message);
     this.name = 'WebhookVerificationError';

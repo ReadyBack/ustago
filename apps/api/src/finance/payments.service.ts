@@ -12,10 +12,7 @@ import { formatMoney, type ListMyPaymentsQuery } from '@ustago/validation';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth/auth-user.js';
 import { Prisma } from '../generated/prisma/client.js';
-import type {
-  Payment as PaymentRow,
-  PaymentTransaction,
-} from '../generated/prisma/client.js';
+import type { Payment as PaymentRow, PaymentTransaction } from '../generated/prisma/client.js';
 import { NotificationEvent } from '../notifications/notification-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -139,9 +136,9 @@ export class PaymentsService {
 
       const isCustomer = p.party === 'CUSTOMER';
       const open = job.status !== 'CANCELLED';
-      const method = (job.paymentMethod === 'BANK_TRANSFER' ? null : job.paymentMethod) as
-        | PaymentMethodChoice
-        | null;
+      const method = (
+        job.paymentMethod === 'BANK_TRANSFER' ? null : job.paymentMethod
+      ) as PaymentMethodChoice | null;
       const cashParty = p.party;
       let breakdown: JobPaymentSummary['providerBreakdown'] = null;
       if (p.party === 'PROVIDER') {
@@ -168,7 +165,9 @@ export class PaymentsService {
         netPaid: money(paid - refunded, job.currency),
         outstanding: money(outstanding, job.currency),
         inFlight: inFlight ? view(inFlight) : null,
-        payments: payments.filter((x) => x.status !== 'CANCELLED' || x.transactions.length > 0).map(view),
+        payments: payments
+          .filter((x) => x.status !== 'CANCELLED' || x.transactions.length > 0)
+          .map(view),
         cash: cash
           ? {
               id: cash.id,
@@ -185,11 +184,7 @@ export class PaymentsService {
         cashEnabled: this.config.cashEnabled,
         actions: {
           canChooseMethod:
-            isCustomer &&
-            open &&
-            job.status !== 'DISPUTED' &&
-            captured.length === 0 &&
-            !cash,
+            isCustomer && open && job.status !== 'DISPUTED' && captured.length === 0 && !cash,
           canPayOnline:
             isCustomer &&
             this.onlineEnabled &&
@@ -595,12 +590,13 @@ export class PaymentsService {
       },
     });
     const policy = await this.feePolicy.forJob(tx, job.id, now);
-    const capturedBefore = (
-      await tx.payment.aggregate({
-        where: { jobId: job.id, status: { in: [...CAPTURED_PAYMENT_STATUSES] } },
-        _sum: { amountMinor: true },
-      })
-    )._sum.amountMinor ?? 0n;
+    const capturedBefore =
+      (
+        await tx.payment.aggregate({
+          where: { jobId: job.id, status: { in: [...CAPTURED_PAYMENT_STATUSES] } },
+          _sum: { amountMinor: true },
+        })
+      )._sum.amountMinor ?? 0n;
     const fee = incrementalFee(capturedBefore, payment.amountMinor, policy);
     const split = splitGross(payment.amountMinor, fee);
     const lateMoney = payment.status === 'CANCELLED' || payment.status === 'FAILED';
@@ -657,7 +653,12 @@ export class PaymentsService {
       action: 'platform_fee.assessed',
       entityType: 'payment',
       entityId: payment.id,
-      metadata: { ...base, feeMinor: Number(split.fee), feeBps: policy.bps, policyId: policy.policyId },
+      metadata: {
+        ...base,
+        feeMinor: Number(split.fee),
+        feeBps: policy.bps,
+        policyId: policy.policyId,
+      },
     });
     await this.audit.recordIn(tx, {
       action: 'provider_earning.created',
@@ -718,7 +719,10 @@ export class PaymentsService {
   // "Ödemelerim"
   // -------------------------------------------------------------------------
 
-  async myPayments(userId: string, query: ListMyPaymentsQuery): Promise<Paginated<MyPaymentListItem>> {
+  async myPayments(
+    userId: string,
+    query: ListMyPaymentsQuery,
+  ): Promise<Paginated<MyPaymentListItem>> {
     const take = query.limit + 1;
     const cursor = query.cursor ? { id: { lt: query.cursor } } : {};
     const [online, cash] = await Promise.all([

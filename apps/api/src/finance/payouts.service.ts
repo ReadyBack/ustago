@@ -260,7 +260,15 @@ export class PayoutsService {
         idempotencyKey: id,
       });
       await this.prisma.$transaction((tx) =>
-        this.transition(tx, id, 'START_PROCESSING', adminId, ipAddress, null, result.providerPayoutId),
+        this.transition(
+          tx,
+          id,
+          'START_PROCESSING',
+          adminId,
+          ipAddress,
+          null,
+          result.providerPayoutId,
+        ),
       );
     } catch (error) {
       this.logger.error(
@@ -295,7 +303,11 @@ export class PayoutsService {
   }
 
   /** Development only (mock payout provider): payout failed. */
-  async markTestFailed(adminId: string, id: string, ipAddress: string | null): Promise<AdminPayout> {
+  async markTestFailed(
+    adminId: string,
+    id: string,
+    ipAddress: string | null,
+  ): Promise<AdminPayout> {
     await this.prisma.$transaction((tx) =>
       this.transition(tx, id, 'MARK_FAILED', adminId, ipAddress, 'TEST_FAILURE'),
     );
@@ -349,7 +361,9 @@ export class PayoutsService {
         built: payoutPaid({ providerId: payout.providerId, amount: payout.amountMinor }),
         sourceKey: `payout:${id}:paid`,
         refs,
-        description: this.provider.isTestMode ? 'TEST para çekme ödendi (gerçek transfer yok)' : 'Para çekme ödendi',
+        description: this.provider.isTestMode
+          ? 'TEST para çekme ödendi (gerçek transfer yok)'
+          : 'Para çekme ödendi',
         createdById: actorId,
       });
     }
@@ -358,7 +372,9 @@ export class PayoutsService {
         built: payoutReleased({ providerId: payout.providerId, amount: payout.amountMinor }),
         sourceKey: `payout:${id}:released`,
         refs,
-        description: failed ? 'Para çekme başarısız; tutar bakiyeye döndü' : 'Para çekme iptal; tutar bakiyeye döndü',
+        description: failed
+          ? 'Para çekme başarısız; tutar bakiyeye döndü'
+          : 'Para çekme iptal; tutar bakiyeye döndü',
         createdById: actorId,
       });
     }
@@ -381,7 +397,8 @@ export class PayoutsService {
       await this.notifications.enqueueIn(tx, [
         {
           userId: payout.provider.userId,
-          type: event === 'MARK_PAID' ? NotificationEvent.PAYOUT_PAID : NotificationEvent.PAYOUT_FAILED,
+          type:
+            event === 'MARK_PAID' ? NotificationEvent.PAYOUT_PAID : NotificationEvent.PAYOUT_FAILED,
           title:
             event === 'MARK_PAID'
               ? `${formatMoney(Number(payout.amountMinor))} para çekme talebiniz ödendi.`
@@ -399,7 +416,10 @@ export class PayoutsService {
   }
 
   async view(id: string): Promise<Payout> {
-    const row = await this.prisma.payout.findUniqueOrThrow({ where: { id }, include: payoutInclude });
+    const row = await this.prisma.payout.findUniqueOrThrow({
+      where: { id },
+      include: payoutInclude,
+    });
     return toPayout(row);
   }
 
@@ -426,4 +446,3 @@ export function toAdminPayout(
     statusNote: row.statusNote,
   };
 }
-

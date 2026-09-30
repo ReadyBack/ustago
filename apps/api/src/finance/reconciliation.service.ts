@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { ReconciliationReport } from '@ustago/types';
 
+import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { type LedgerFact, reconcile } from './domain/reconciliation.js';
 import { money } from './finance.mappers.js';
@@ -18,11 +19,20 @@ import { money } from './finance.mappers.js';
 export class ReconciliationService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Read-only: one REPEATABLE READ, READ ONLY transaction so every query
+   * sees the same snapshot while payments keep flowing.
+   */
   async run(now = new Date()): Promise<ReconciliationReport> {
-    const db = this.prisma;
-    const facts = await db.$queryRaw<
-      { source_key: string; debit: bigint; fee_credit: bigint }[]
-    >`
+    return this.prisma.$transaction((db) => this.report(db, now), {
+      isolationLevel: 'RepeatableRead',
+      timeout: 60_000,
+    });
+  }
+
+  private async report(db: Prisma.TransactionClient, now: Date): Promise<ReconciliationReport> {
+    await db.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+    const facts = await db.$queryRaw<{ source_key: string; debit: bigint; fee_credit: bigint }[]>`
       SELECT t.source_key,
              COALESCE(SUM(CASE WHEN e.direction = 'DEBIT' THEN e.amount_minor ELSE 0 END), 0)::bigint AS debit,
              COALESCE(SUM(CASE WHEN e.direction = 'CREDIT' AND a.type = 'PLATFORM_FEE_REVENUE' THEN e.amount_minor ELSE 0 END), 0)::bigint AS fee_credit

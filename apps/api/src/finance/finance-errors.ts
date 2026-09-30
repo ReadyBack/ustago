@@ -1,4 +1,10 @@
-import { conflict, forbidden, notFound, serviceUnavailable, unprocessable } from '../common/http/errors.js';
+import {
+  conflict,
+  forbidden,
+  notFound,
+  serviceUnavailable,
+  unprocessable,
+} from '../common/http/errors.js';
 
 /** Stable error codes of the finance endpoints (docs/api/README.md). */
 export const paymentNotFound = () => notFound('PAYMENT_NOT_FOUND', 'Ödeme bulunamadı.');

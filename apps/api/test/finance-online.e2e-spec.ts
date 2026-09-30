@@ -177,9 +177,9 @@ describe('Finance: online payment, change order difference, wallet and payouts',
       .set('Authorization', bearer(job.customer))
       .expect(200);
     const mine = res.body.items.filter((i: { jobId: string }) => i.jobId === job.jobId);
-    expect(mine.map((i: { amount: { amountMinor: number } }) => i.amount.amountMinor).sort()).toEqual([
-      220000, 50000,
-    ]);
+    expect(
+      mine.map((i: { amount: { amountMinor: number } }) => i.amount.amountMinor).sort(),
+    ).toEqual([220000, 50000]);
     const detail = await ctx
       .http()
       .get(`/api/v1/me/payments/${mine[0].id}`)
@@ -265,7 +265,7 @@ describe('Finance: online payment, change order difference, wallet and payouts',
     expect(w.balances.reserved.amountMinor).toBe(100000);
 
     // A failed payout gives the money back.
-    const pending = results.find((r) => r.status === 201)!.body.id as string;
+    const pending = results.find((r) => r.status === 201)?.body.id as string;
     await ctx
       .http()
       .post(`/api/v1/admin/finance/payouts/${pending}/approve`)

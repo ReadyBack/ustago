@@ -3,7 +3,8 @@
  * logged or stored (docs/adr/0019). Card numbers never reach UstaGO in the
  * first place (hosted payment / tokens), this is the second line.
  */
-const SECRET_KEY = /(token|secret|signature|password|authorization|api[-_]?key|cvv|cvc|pan|card[-_]?number|iban)/i;
+const SECRET_KEY =
+  /(token|secret|signature|password|authorization|api[-_]?key|cvv|cvc|pan|card[-_]?number|iban)/i;
 const CARD_LIKE = /\b\d{12,19}\b/g;
 
 export function redact(value: unknown, depth = 0): unknown {

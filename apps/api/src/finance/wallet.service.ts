@@ -49,7 +49,11 @@ export const earningInclude = {
       category: { select: { name: true } },
     },
   },
-  payment: { select: { refunds: { where: { status: { not: 'FAILED' } }, select: { providerPortionMinor: true } } } },
+  payment: {
+    select: {
+      refunds: { where: { status: { not: 'FAILED' } }, select: { providerPortionMinor: true } },
+    },
+  },
 } satisfies Prisma.ProviderEarningInclude;
 
 /**
@@ -178,7 +182,10 @@ export class WalletService {
 
   async earning(userId: string, id: string): Promise<ProviderEarning> {
     const providerId = await this.payouts.providerIdOf(userId);
-    const row = await this.prisma.providerEarning.findUnique({ where: { id }, include: earningInclude });
+    const row = await this.prisma.providerEarning.findUnique({
+      where: { id },
+      include: earningInclude,
+    });
     if (!row || row.providerId !== providerId) throw earningNotFound();
     return toEarning(row);
   }

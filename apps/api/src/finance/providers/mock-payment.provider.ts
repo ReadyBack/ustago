@@ -120,7 +120,8 @@ export class MockPaymentProvider implements PaymentProvider {
   verifyWebhook(request: WebhookRequest): PaymentWebhookEvent {
     const header = request.headers[MOCK_SIGNATURE_HEADER];
     const value = Array.isArray(header) ? header[0] : header;
-    if (!value) throw new WebhookVerificationError('missing signature', 'WEBHOOK_SIGNATURE_INVALID');
+    if (!value)
+      throw new WebhookVerificationError('missing signature', 'WEBHOOK_SIGNATURE_INVALID');
     const parts = Object.fromEntries(
       value.split(',').map((p) => {
         const i = p.indexOf('=');
@@ -161,7 +162,8 @@ export class MockPaymentProvider implements PaymentProvider {
       throw new WebhookVerificationError('unknown event', 'WEBHOOK_MALFORMED');
     }
     const data = parsed.data ?? {};
-    const str = (key: string) => (typeof data[key] === 'string' ? (data[key] as string) : undefined);
+    const str = (key: string) =>
+      typeof data[key] === 'string' ? (data[key] as string) : undefined;
     const amount = str('amountMinor');
     return {
       eventId: parsed.id,

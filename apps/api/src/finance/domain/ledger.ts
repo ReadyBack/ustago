@@ -103,10 +103,7 @@ export function balanceOf(
   entries: readonly { direction: LedgerDirection; amount: bigint }[],
 ): bigint {
   const normal = NORMAL_SIDE[type];
-  return entries.reduce(
-    (sum, e) => (e.direction === normal ? sum + e.amount : sum - e.amount),
-    0n,
-  );
+  return entries.reduce((sum, e) => (e.direction === normal ? sum + e.amount : sum - e.amount), 0n);
 }
 
 /** Signed effect of one entry on its account's balance. */
@@ -119,9 +116,11 @@ export function signedEffect(
 }
 
 /** Debit total, credit total and whether they match (global invariant). */
-export function trialBalance(
-  entries: readonly { direction: LedgerDirection; amount: bigint }[],
-): { debit: bigint; credit: bigint; balanced: boolean } {
+export function trialBalance(entries: readonly { direction: LedgerDirection; amount: bigint }[]): {
+  debit: bigint;
+  credit: bigint;
+  balanced: boolean;
+} {
   let d = 0n;
   let c = 0n;
   for (const e of entries) {
@@ -222,7 +221,10 @@ export function refundRequested(input: {
   source: RefundProviderSource;
 }): BuiltTransaction {
   const { source } = input;
-  if (input.feePortion + source.fromPending + source.fromAvailable + source.toDebt !== input.amount) {
+  if (
+    input.feePortion + source.fromPending + source.fromAvailable + source.toDebt !==
+    input.amount
+  ) {
     throw new LedgerError('refund portions do not add up to the refund amount');
   }
   return {

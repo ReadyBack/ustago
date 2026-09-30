@@ -1,4 +1,13 @@
 import {
+  cashSettlementStatusSchema,
+  ledgerAccountTypeSchema,
+  ledgerTransactionTypeSchema,
+  paymentAttemptStatusSchema,
+  paymentStatusSchema,
+  payoutStatusSchema,
+  providerEarningStatusSchema,
+  refundReasonSchema,
+  refundStatusSchema,
   changeOrderStatusSchema,
   disciplinaryActionStatusSchema,
   disciplinaryActionTypeSchema,
@@ -21,6 +30,15 @@ import {
 } from '@ustago/validation';
 
 import {
+  CashSettlementStatus,
+  LedgerAccountType,
+  LedgerTransactionType,
+  PaymentStatus,
+  PaymentTransactionStatus,
+  PayoutStatus,
+  ProviderEarningStatus,
+  RefundReason,
+  RefundStatus,
   ChangeOrderStatus,
   DisciplinaryActionStatus,
   DisciplinaryActionType,
@@ -64,6 +82,15 @@ describe('enum parity between Prisma and @ustago/validation', () => {
     ['ReviewStatus', ReviewStatus, reviewStatusSchema.options],
     ['DisciplinaryActionType', DisciplinaryActionType, disciplinaryActionTypeSchema.options],
     ['DisciplinaryActionStatus', DisciplinaryActionStatus, disciplinaryActionStatusSchema.options],
+    ['PaymentStatus', PaymentStatus, paymentStatusSchema.options],
+    ['PaymentTransactionStatus', PaymentTransactionStatus, paymentAttemptStatusSchema.options],
+    ['CashSettlementStatus', CashSettlementStatus, cashSettlementStatusSchema.options],
+    ['RefundStatus', RefundStatus, refundStatusSchema.options],
+    ['RefundReason', RefundReason, refundReasonSchema.options],
+    ['ProviderEarningStatus', ProviderEarningStatus, providerEarningStatusSchema.options],
+    ['PayoutStatus', PayoutStatus, payoutStatusSchema.options],
+    ['LedgerAccountType', LedgerAccountType, ledgerAccountTypeSchema.options],
+    ['LedgerTransactionType', LedgerTransactionType, ledgerTransactionTypeSchema.options],
   ])('%s', (_name, prismaEnum, shared) => {
     expect([...shared].sort()).toEqual(Object.values(prismaEnum).sort());
   });

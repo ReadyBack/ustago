@@ -164,9 +164,7 @@ export function maskIban(value: string): string {
 // Requests
 // ---------------------------------------------------------------------------
 
-export const choosePaymentMethodSchema = z
-  .object({ method: paymentMethodChoiceSchema })
-  .strict();
+export const choosePaymentMethodSchema = z.object({ method: paymentMethodChoiceSchema }).strict();
 export type ChoosePaymentMethod = z.infer<typeof choosePaymentMethodSchema>;
 
 export const cashDisputeSchema = z
@@ -225,10 +223,9 @@ export const disputeFinancialActionSchema = z
     refundAmountMinor: positiveMinorSchema.optional(),
   })
   .strict()
-  .refine(
-    (a) => (a.type === 'PARTIAL_CUSTOMER_REFUND') === (a.refundAmountMinor !== undefined),
-    { message: 'Kısmi iade tutarı yalnızca kısmi iadede ve zorunlu olarak verilir.' },
-  );
+  .refine((a) => (a.type === 'PARTIAL_CUSTOMER_REFUND') === (a.refundAmountMinor !== undefined), {
+    message: 'Kısmi iade tutarı yalnızca kısmi iadede ve zorunlu olarak verilir.',
+  });
 export type DisputeFinancialAction = z.infer<typeof disputeFinancialActionSchema>;
 
 const cursorQuery = {
@@ -530,9 +527,7 @@ export const adminPaymentDetailSchema = adminPaymentListItemSchema.extend({
   earning: providerEarningSchema.nullable(),
   refunds: z.array(adminRefundViewSchema),
   ledger: z.array(ledgerTransactionViewSchema),
-  audit: z.array(
-    z.object({ action: z.string(), entityType: z.string().nullable(), at: date }),
-  ),
+  audit: z.array(z.object({ action: z.string(), entityType: z.string().nullable(), at: date })),
 }) satisfies z.ZodType<AdminPaymentDetail>;
 
 export const adminPayoutSchema = payoutSchema.extend({

@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type {
   AdminCashSettlement,
@@ -84,7 +94,9 @@ export class AdminFinanceController {
   }
 
   @Get('finance/payments/:id')
-  @ApiOperation({ summary: 'Ödeme detayı: denemeler, iadeler, kazanç, defter kayıtları, denetim izi.' })
+  @ApiOperation({
+    summary: 'Ödeme detayı: denemeler, iadeler, kazanç, defter kayıtları, denetim izi.',
+  })
   @ApiZodResponse(200, adminPaymentDetailSchema)
   @ApiZodResponse(404, apiErrorResponseSchema, 'PAYMENT_NOT_FOUND')
   payment(@Param('id', idPipe) id: string): Promise<AdminPaymentDetail> {
@@ -101,7 +113,11 @@ export class AdminFinanceController {
   })
   @ApiZodBody(adminRefundSchema)
   @ApiZodResponse(200, adminPaymentDetailSchema)
-  @ApiZodResponse(409, apiErrorResponseSchema, 'REFUND_STALE / REFUND_NOT_ALLOWED / IDEMPOTENCY_KEY_REUSED')
+  @ApiZodResponse(
+    409,
+    apiErrorResponseSchema,
+    'REFUND_STALE / REFUND_NOT_ALLOWED / IDEMPOTENCY_KEY_REUSED',
+  )
   @ApiZodResponse(422, apiErrorResponseSchema, 'REFUND_EXCEEDS_REFUNDABLE')
   refund(
     @CurrentUser() user: AuthUser,

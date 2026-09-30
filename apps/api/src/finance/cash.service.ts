@@ -49,7 +49,11 @@ export class CashService {
     @Inject(FINANCE_CONFIG) private readonly config: FinanceConfig,
   ) {}
 
-  async confirm(user: AuthUser, jobId: string, ipAddress: string | null): Promise<JobPaymentSummary> {
+  async confirm(
+    user: AuthUser,
+    jobId: string,
+    ipAddress: string | null,
+  ): Promise<JobPaymentSummary> {
     if (!this.config.cashEnabled) throw cashDisabled();
     await this.rateLimit.enforceWithCode('FINANCE_RATE_LIMITED', {
       bucket: 'cash-confirm',
@@ -84,8 +88,18 @@ export class CashService {
       if (decision.confirmed) {
         await this.bookFee(tx, settlement, p, null);
         await this.notifications.enqueueIn(tx, [
-          this.note(p, 'CUSTOMER', NotificationEvent.CASH_CONFIRMED, 'Nakit ödeme iki tarafça onaylandı.'),
-          this.note(p, 'PROVIDER', NotificationEvent.CASH_CONFIRMED, 'Nakit ödeme iki tarafça onaylandı.'),
+          this.note(
+            p,
+            'CUSTOMER',
+            NotificationEvent.CASH_CONFIRMED,
+            'Nakit ödeme iki tarafça onaylandı.',
+          ),
+          this.note(
+            p,
+            'PROVIDER',
+            NotificationEvent.CASH_CONFIRMED,
+            'Nakit ödeme iki tarafça onaylandı.',
+          ),
         ]);
       } else {
         const other = p.party === 'CUSTOMER' ? 'PROVIDER' : 'CUSTOMER';
@@ -187,7 +201,9 @@ export class CashService {
       const job = await tx.job.findUniqueOrThrow({
         where: { id: settlement.jobId },
         include: {
-          customer: { select: { userId: true, user: { select: { firstName: true, lastName: true } } } },
+          customer: {
+            select: { userId: true, user: { select: { firstName: true, lastName: true } } },
+          },
           provider: { select: { userId: true, displayName: true } },
           serviceRequest: { select: { title: true } },
         },

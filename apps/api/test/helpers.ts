@@ -254,7 +254,9 @@ async function purgeFinance(
     const txIds = ledgerTx.map((t) => t.id);
     await tx.ledgerEntry.deleteMany({ where: { transactionId: { in: txIds } } });
     // Reversals point at the transaction they reverse.
-    await tx.ledgerTransaction.deleteMany({ where: { id: { in: txIds }, reversesId: { not: null } } });
+    await tx.ledgerTransaction.deleteMany({
+      where: { id: { in: txIds }, reversesId: { not: null } },
+    });
     await tx.ledgerTransaction.deleteMany({ where: { id: { in: txIds } } });
     await tx.ledgerEntry.deleteMany({
       where: { account: { providerId: { in: providerIds } } },

@@ -37,7 +37,7 @@ describe('Finance: payment webhooks', () => {
     const attempt = await ctx.prisma.paymentTransaction.findFirstOrThrow({
       where: { paymentId },
     });
-    providerPaymentId = attempt.gatewayTransactionId!;
+    providerPaymentId = attempt.gatewayTransactionId ?? '';
   });
 
   afterAll(async () => {
@@ -59,7 +59,7 @@ describe('Finance: payment webhooks', () => {
     const event = succeeded();
     await post(event.rawBody, event.headers, 'iyzico').expect(404);
     await post(event.rawBody, { 'content-type': 'application/json' }).expect(401);
-    const [t] = event.headers[MOCK_SIGNATURE_HEADER]!.split(',');
+    const [t] = (event.headers[MOCK_SIGNATURE_HEADER] ?? '').split(',');
     await post(event.rawBody, {
       'content-type': 'application/json',
       [MOCK_SIGNATURE_HEADER]: `${t},v1=${'0'.repeat(64)}`,

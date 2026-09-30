@@ -73,11 +73,7 @@ export function feeFor(gross: bigint, policy: FeePolicy): bigint {
  * always add up to feeFor(job total): ₺2.200 then ₺500 at %15 → 330 + 75
  * = 405, the same as ₺2.700 at once (and a minimum fee is charged once).
  */
-export function incrementalFee(
-  capturedBefore: bigint,
-  amount: bigint,
-  policy: FeePolicy,
-): bigint {
+export function incrementalFee(capturedBefore: bigint, amount: bigint, policy: FeePolicy): bigint {
   assertPositiveMinor(amount);
   if (capturedBefore < 0n) throw new MoneyError('capturedBefore must not be negative');
   return feeFor(capturedBefore + amount, policy) - feeFor(capturedBefore, policy);

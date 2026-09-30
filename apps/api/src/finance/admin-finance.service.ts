@@ -187,7 +187,8 @@ export class AdminFinanceService {
   async listPayments(query: ListAdminPaymentsQuery): Promise<Paginated<AdminPaymentListItem>> {
     const createdAt: Prisma.DateTimeFilter = {};
     if (query.from) createdAt.gte = new Date(`${query.from}T00:00:00+03:00`);
-    if (query.to) createdAt.lt = new Date(new Date(`${query.to}T00:00:00+03:00`).getTime() + DAY_MS);
+    if (query.to)
+      createdAt.lt = new Date(new Date(`${query.to}T00:00:00+03:00`).getTime() + DAY_MS);
     const rows = await this.prisma.payment.findMany({
       where: {
         ...(query.status ? { status: query.status } : {}),
@@ -248,7 +249,9 @@ export class AdminFinanceService {
         where: {
           OR: [
             { entityType: 'payment', entityId: id },
-            ...(refundIds.length > 0 ? [{ entityType: 'refund', entityId: { in: refundIds } }] : []),
+            ...(refundIds.length > 0
+              ? [{ entityType: 'refund', entityId: { in: refundIds } }]
+              : []),
           ],
         },
         select: { action: true, entityType: true, createdAt: true },
@@ -279,21 +282,19 @@ export class AdminFinanceService {
         .sort((a, b) => a.attemptNumber - b.attemptNumber)
         .map(toAttempt),
       earning: p.earning ? toEarning(p.earning) : null,
-      refunds: p.refunds.map(
-        (r): AdminRefund => ({
-          id: r.id,
-          amount: money(r.amountMinor, r.currency),
-          feePortion: money(r.feePortionMinor, r.currency),
-          providerPortion: money(r.providerPortionMinor, r.currency),
-          status: r.status,
-          reason: r.reason,
-          internalNote: r.internalNote,
-          requestedBy: r.requestedBy ? shortName(r.requestedBy) : null,
-          failureCode: r.failureCode,
-          createdAt: r.createdAt.toISOString(),
-          completedAt: r.completedAt?.toISOString() ?? null,
-        }),
-      ),
+      refunds: p.refunds.map((r): AdminRefund => ({
+        id: r.id,
+        amount: money(r.amountMinor, r.currency),
+        feePortion: money(r.feePortionMinor, r.currency),
+        providerPortion: money(r.providerPortionMinor, r.currency),
+        status: r.status,
+        reason: r.reason,
+        internalNote: r.internalNote,
+        requestedBy: r.requestedBy ? shortName(r.requestedBy) : null,
+        failureCode: r.failureCode,
+        createdAt: r.createdAt.toISOString(),
+        completedAt: r.completedAt?.toISOString() ?? null,
+      })),
       ledger: ledger.map(toLedgerView),
       audit: audit.map((a) => ({
         action: a.action,

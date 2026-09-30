@@ -37,9 +37,7 @@ export function toPayment(
     lastFailureCode: p.lastFailureCode,
     createdAt: p.createdAt.toISOString(),
     succeededAt: p.succeededAt?.toISOString() ?? null,
-    attempts: [...p.transactions]
-      .sort((a, b) => a.attemptNumber - b.attemptNumber)
-      .map(toAttempt),
+    attempts: [...p.transactions].sort((a, b) => a.attemptNumber - b.attemptNumber).map(toAttempt),
   };
 }
 

@@ -28,7 +28,8 @@
     "db:deploy": "pnpm --filter @ustago/api prisma:deploy",
     "db:seed": "pnpm --filter @ustago/api prisma:seed",
     "db:reset": "pnpm --filter @ustago/api prisma:reset",
-    "db:validate": "pnpm --filter @ustago/api prisma:validate"
+    "db:validate": "pnpm --filter @ustago/api prisma:validate",
+    "finance:reconcile": "pnpm --filter @ustago/api finance:reconcile"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

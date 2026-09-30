@@ -95,7 +95,9 @@ export class RefundsService {
     });
 
     await tx.$queryRaw`SELECT id FROM provider_earnings WHERE payment_id = ${payment.id}::uuid FOR UPDATE`;
-    const earning = await tx.providerEarning.findUniqueOrThrow({ where: { paymentId: payment.id } });
+    const earning = await tx.providerEarning.findUniqueOrThrow({
+      where: { paymentId: payment.id },
+    });
     await this.ledger.lockProvider(tx, payment.providerId);
     const released = earning.status === 'AVAILABLE';
     const pendingBalance = released ? 0n : await this.ledger.earningPendingBalance(tx, earning.id);
@@ -237,7 +239,14 @@ export class RefundsService {
       });
       const payment = await t.payment.findUniqueOrThrow({
         where: { id: refund.paymentId },
-        include: { job: { select: { customer: { select: { userId: true } }, serviceRequest: { select: { title: true } } } } },
+        include: {
+          job: {
+            select: {
+              customer: { select: { userId: true } },
+              serviceRequest: { select: { title: true } },
+            },
+          },
+        },
       });
       const totals = await this.refundTotals(t, payment.id);
       await t.payment.update({
@@ -271,7 +280,12 @@ export class RefundsService {
   }
 
   /** Provider refused: the REQUESTED ledger effect is reversed, nothing else. */
-  async fail(refundId: string, failureCode: string, providerRefundId?: string, tx?: Tx): Promise<void> {
+  async fail(
+    refundId: string,
+    failureCode: string,
+    providerRefundId?: string,
+    tx?: Tx,
+  ): Promise<void> {
     const run = async (t: Tx) => {
       const refund = await this.lockRefund(t, refundId);
       if (refund.status !== 'REQUESTED') return;
@@ -309,7 +323,10 @@ export class RefundsService {
           });
           await t.providerEarning.updateMany({
             where: { id: requested.earningId, status: 'REVERSED' },
-            data: { status: job.status === 'DISPUTED' ? 'HELD' : 'PENDING', version: { increment: 1 } },
+            data: {
+              status: job.status === 'DISPUTED' ? 'HELD' : 'PENDING',
+              version: { increment: 1 },
+            },
           });
         }
       }

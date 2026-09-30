@@ -13,7 +13,7 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
-    seed: 'tsx src/seed/main.ts',
+    seed: 'node --import ./scripts/register-swc.mjs src/seed/main.ts',
   },
   datasource: {
     url: process.env['DATABASE_URL'],

@@ -73,7 +73,12 @@ export class EarningsService {
       select: { status: true },
     });
     if (
-      !canRelease({ status: earning.status, jobStatus: job.status, holdUntil: earning.holdUntil, now })
+      !canRelease({
+        status: earning.status,
+        jobStatus: job.status,
+        holdUntil: earning.holdUntil,
+        now,
+      })
     ) {
       return false;
     }
