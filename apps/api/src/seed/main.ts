@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../generated/prisma/client.js';
+import { recalculateAllScores, seedDemoHistory } from './seed-demo-history.js';
 import { seedDevData } from './seed-dev.js';
 import { seedReferenceData } from './seed-reference.js';
 
@@ -40,6 +41,10 @@ try {
         }).`,
       );
     }
+    const history = await seedDemoHistory(prisma);
+    console.warn(`DEMO job history: +${history} completed jobs with reviews.`);
+    const scored = await recalculateAllScores(prisma);
+    console.warn(`UstaScore V1 snapshots recomputed for ${scored} providers.`);
     if (dev.generatedPassword) {
       console.warn(
         `Generated password for the new demo accounts (shown once, not stored): ${dev.generatedPassword}`,

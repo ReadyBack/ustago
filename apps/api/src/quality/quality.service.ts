@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { toProviderRating } from '../reviews/domain/review-policy.js';
 import { severityOf } from './domain/penalty-policy.js';
 import { computeUstaScore, USTA_SCORE_VERSION } from './domain/usta-score.js';
+import { writeQualitySnapshots } from './quality-snapshots.js';
 import { QualityRepository } from './quality.repository.js';
 
 type Db = Prisma.TransactionClient | PrismaService;
@@ -32,33 +33,8 @@ export class QualityService {
     private readonly audit: AuditService,
   ) {}
 
-  async recalculateIn(db: Db, providerIds: readonly string[], now = new Date()): Promise<void> {
-    const inputs = await this.repo.load(db, providerIds);
-    for (const [providerId, input] of inputs) {
-      const result = computeUstaScore(input, now);
-      const data = {
-        score: (result.score ?? 0).toFixed(2),
-        sampleSize: result.sampleSize,
-        isNewProvider: result.isNewProvider,
-        components: {
-          factors: result.factors.map((f) => ({
-            key: f.key,
-            weight: f.weight,
-            effectiveWeight: f.effectiveWeight,
-            score: f.score,
-          })),
-          penaltyPoints: result.penaltyPoints,
-          available: result.score !== null,
-        },
-        algorithmVersion: USTA_SCORE_VERSION,
-        computedAt: now,
-      };
-      await db.providerScore.upsert({
-        where: { providerId },
-        create: { providerId, ...data },
-        update: data,
-      });
-    }
+  recalculateIn(db: Db, providerIds: readonly string[], now = new Date()): Promise<void> {
+    return writeQualitySnapshots(db, this.repo, providerIds, now);
   }
 
   /** Recomputes every provider (seed, or after an algorithm change). */

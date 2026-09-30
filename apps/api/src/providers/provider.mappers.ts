@@ -1,6 +1,7 @@
 import type {
   AdminProviderVerification,
   ProviderProfile,
+  ProviderRating,
   ProviderServiceAreaGroup,
   ProviderServiceItem,
   ProviderVerification,
@@ -13,6 +14,7 @@ import type {
   ProviderProfile as ProviderProfileRow,
   ProviderVerification as VerificationRow,
 } from '../generated/prisma/client.js';
+import { publicUstaScore } from '../quality/domain/usta-score.js';
 
 /** Categories and districts of a provider, for every view that lists them. */
 export const catalogInclude = {
@@ -165,7 +167,7 @@ export function toAdminVerification(v: AdminVerificationRow): AdminProviderVerif
 export const publicProviderInclude = {
   ...catalogInclude,
   verifications: { where: { status: 'APPROVED' }, select: { type: true } },
-  score: { select: { score: true, isNewProvider: true } },
+  score: { select: { score: true, isNewProvider: true, algorithmVersion: true } },
 } satisfies Prisma.ProviderProfileInclude;
 
 type PublicRow = Prisma.ProviderProfileGetPayload<{ include: typeof publicProviderInclude }>;
@@ -174,7 +176,12 @@ type PublicRow = Prisma.ProviderProfileGetPayload<{ include: typeof publicProvid
  * Customer-facing profile. Built field by field from an allow-list so a new
  * column (phone, documents, admin notes...) can never leak by accident.
  */
-export function toPublicProvider(p: PublicRow): PublicProviderProfile {
+export interface PublicProviderStats {
+  rating: ProviderRating | null;
+  completedJobCount: number;
+}
+
+export function toPublicProvider(p: PublicRow, stats: PublicProviderStats): PublicProviderProfile {
   const badges = [...new Set(p.verifications.map((v) => v.type))].sort() as VerificationType[];
   return {
     id: p.id,
@@ -185,7 +192,17 @@ export function toPublicProvider(p: PublicRow): PublicProviderProfile {
     services: toServiceItems(p.services),
     serviceAreas: toServiceAreaGroups(p.serviceAreas),
     verificationBadges: badges,
-    score: p.score ? Number(p.score.score) : null,
+    rating: stats.rating,
+    completedJobCount: stats.completedJobCount,
+    ustaScore: publicUstaScore(
+      p.score
+        ? {
+            score: Number(p.score.score),
+            isNewProvider: p.score.isNewProvider,
+            algorithmVersion: p.score.algorithmVersion,
+          }
+        : null,
+    ),
     isNewProvider: p.score?.isNewProvider ?? true,
     memberSince: (p.approvedAt ?? p.createdAt).toISOString(),
   };

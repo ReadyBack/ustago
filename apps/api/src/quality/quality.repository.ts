@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
-import { Prisma } from '../generated/prisma/client.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { Prisma, type PrismaClient } from '../generated/prisma/client.js';
 import type { PenaltyWindow } from './domain/penalty-policy.js';
 import type { QualityInputs } from './domain/usta-score.js';
 
-type Db = Prisma.TransactionClient | PrismaService;
+type Db = Prisma.TransactionClient | PrismaClient;
 
 export interface ProviderQualityInputs extends QualityInputs {
   providerId: string;
