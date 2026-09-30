@@ -1,53 +1,94 @@
 # Üretim sürüm kontrol listesi
 
-> **Durum:** Taslak. UstaGO henüz üretime alınmadı. Bu liste gerçek bir deploy için **gerekli
-> ama yeterli olmayan** adımları toplar; gerçek ödeme/KYC/SMS sağlayıcısı ve hukuki onay olmadan
-> üretim açılmaz ([ADR-0021](../adr/0021-uretim-hazirligi-seviyeleri.md)).
+> **Durum:** Taslak. UstaGO üretime alınmadı. Bu liste **gerekli ama yeterli olmayan** adımları
+> toplar. Kod hukuki karar vermez; hukuki maddeler "Legal review required" olarak işaretlidir.
+> Hazırlık seviyeleri: [ADR-0021](../adr/0021-uretim-hazirligi-seviyeleri.md).
 
-## 1. Kararlar (sürümden önce, bir kez)
+## Infrastructure
 
-- [ ] Ödeme sağlayıcısı seçildi ve sözleşme imzalandı ([karar](../decisions/payment-provider-selection.md)).
-- [ ] KYC yöntemi seçildi ([karar](../decisions/kyc-provider-selection.md)).
-- [ ] Özel nesne depolama seçildi ([karar](../decisions/private-object-storage.md)).
-- [ ] Ticari oran onaylandı ve bir komisyon politikası `SCHEDULED` olarak yayınlandı.
-- [ ] `FINANCE_EARNING_HOLD_HOURS`, `FINANCE_MIN_PAYOUT_MINOR` iş tarafından onaylandı.
-- [ ] `ACCOUNT_DELETION_GRACE_HOURS` ve saklama süreleri hukuken onaylandı (**Legal review required**).
-- [ ] KVKK aydınlatma metni, açık rıza ve kullanıcı sözleşmesi hazır (**Legal review required**).
+- [ ] Barındırma sağlayıcısı ve bölge seçildi (DECISION REQUIRED).
+- [ ] API, admin ve worker'lar ayrı süreçler olarak ölçeklenebiliyor; `APP_ENV=production`, `NODE_ENV=production`.
+- [ ] `pnpm config:check` üretim ortamıyla **"Config OK"** veriyor; açılış özetinde "Demo data: disabled", "Dev routes: disabled".
 
-## 2. Yapılandırma
+## Secrets
 
-- [ ] `APP_ENV=production`, `NODE_ENV=production`.
-- [ ] `pnpm --filter @ustago/api config:check` üretim ortam değişkenleriyle **"Config OK"** veriyor.
-- [ ] Sırlar bir sır yöneticisinden geliyor; hiçbiri repoda veya CI logunda değil.
-- [ ] `PAYMENT_PROVIDER`, `PAYOUT_PROVIDER` mock değil; `DEMO_SEED`, `ALLOW_TEST_KYC`,
-      `ALLOW_DEV_PAYMENT_SIMULATION` tanımsız veya `false`.
-- [ ] `API_CORS_ORIGINS` yalnız https üretim alan adları.
-- [ ] `METRICS_TOKEN` tanımlı; `/metrics` yalnız iç ağdan erişilebilir.
-- [ ] Açılış logundaki özet beklenen sağlayıcıları gösteriyor ("Demo data: disabled",
-      "Dev routes: disabled").
+- [ ] `JWT_ACCESS_SECRET`, `OTP_HASH_SECRET`, `STORAGE_SIGNING_SECRET`, `IP_HASH_SECRET`, `METRICS_TOKEN` sır yöneticisinde; repoda/CI logunda değil.
+- [ ] `pnpm security:secrets` temiz. Sır döndürme (rotation) prosedürü yazıldı.
 
-## 3. Veritabanı
+## Database
 
-- [ ] Yedek alındı ve geri yükleme denendi ([felaket kurtarma](disaster-recovery.md)).
-- [ ] `prisma migrate deploy` staging'de aynı veri hacmiyle denendi; migration'lar yalnız ekleme.
-- [ ] **Test temizleme bayrakları:** `ustago.ledger_test_purge` ve `ustago.audit_test_purge`
-      yalnız test fikstürleri içindir. Üretim uygulama rolünün `ledger_*`, `audit_logs`,
-      `provider_verification_events` tablolarında `DELETE` yetkisi **kaldırılır**
-      (`REVOKE DELETE ... FROM <app_role>`), böylece bayrak ayarlansa bile silme yapılamaz.
-      Migration rolü ile uygulama rolü ayrıdır.
-- [ ] Seed üretimde çalıştırılmaz (yalnız referans veri; demo seed katı ortamda zaten kapalı).
-- [ ] `platform_fee_policies` içinde `is_development = true` politika aktif değil.
+- [ ] Migration rolü ile uygulama rolü ayrı. `prisma migrate deploy` staging'de denendi; `pnpm db:migration-guard` temiz.
+- [ ] Uygulama rolünün `ledger_*`, `audit_logs`, `provider_verification_events` tablolarında `DELETE` yetkisi kaldırıldı (`ustago.*_test_purge` bayrakları yalnız test içindir).
+- [ ] Seed üretimde çalışmaz (demo seed katı ortamda zaten kapalı). `is_development` politika aktif değil.
 
-## 4. Uygulama
+## Redis
 
-- [ ] CI yeşil: lint, typecheck, birim, e2e, prettier, migration diff, bağımlılık denetimi.
-- [ ] Admin hesapları en az yetkiyle (ADMIN_SUPPORT / ADMIN_VERIFICATION / ADMIN_FINANCE).
-- [ ] Kill switch'ler (`payments`, `payouts`, `cash`, `new_jobs`) admin panelinden çalışıyor.
-- [ ] Planlı mutabakat açık ve ilk çalışması temiz.
-- [ ] Uyarı kanalı (e-posta/pager) bağlı. **Faz 6'da yok; engel.**
+- [ ] Kalıcılık/HA kararı verildi. Redis giderse para kaybı olmaz (ledger PostgreSQL'de), hız sınırları ve kuyruk hata verir.
 
-## 5. Sürüm sonrası
+## Object storage
 
-- [ ] `/health/ready` 200, `/metrics` akıyor, hata oranı normal.
-- [ ] İlk gerçek ödeme küçük tutarla ve iç hesapla denendi, mutabakat temiz.
-- [ ] Geri dönüş planı: önceki imaj + `payments`/`payouts` kill switch kapatma.
+- [ ] Özel kova, şifreleme, imzalı erişim ([karar](../decisions/private-object-storage.md)). `STORAGE_DRIVER=local` üretimde yasak.
+- [ ] Zararlı yazılım tarayıcısı bağlandı (bugün yok: belgeler `NOT_SCANNED`).
+
+## SMS
+
+- [ ] SMS sağlayıcısı sözleşmesi ve gönderici başlığı; OTP metni onaylı. `console`/`fake` yasak.
+
+## Push
+
+- [ ] Expo erişim token'ı; fiziksel cihazda iOS/Android push testi (Faz 6'da yapılmadı).
+
+## Payment provider
+
+- [ ] Sağlayıcı seçildi ve adaptör yazıldı ([karar](../decisions/payment-provider-selection.md)); `PAYMENT_PROVIDER=mock` yasak.
+- [ ] Webhook imzası, idempotency ve sandbox testleri geçti.
+
+## Payout provider
+
+- [ ] Payout adaptörü; banka hesabı doğrulama akışı gerçek referansla (`externalDestinationRef`).
+- [ ] Sonucu belirsiz payout runbook'u denendi ([runbook](payout-needs-reconciliation.md)).
+
+## KYC
+
+- [ ] Doğrulama yöntemi seçildi ([karar](../decisions/kyc-provider-selection.md)). Bugün elle inceleme.
+
+## Legal/privacy (Legal review required)
+
+- [ ] KVKK/privacy review, aydınlatma metni, açık rıza — **Legal review required**
+- [ ] Terms of Service — **Legal review required**
+- [ ] Provider agreement (usta sözleşmesi) — **Legal review required**
+- [ ] Payment provider agreement — **Legal review required**
+- [ ] Commission policy (ticari oran) — **Legal review required**
+- [ ] Refund/cancellation policy — **Legal review required**
+- [ ] Invoice/e-document (e-fatura/e-arşiv) — **Legal review required**
+- [ ] Tax/accounting — **Legal review required**
+- [ ] Document retention ([data-retention](../security/data-retention.md)) — **Legal review required**
+- [ ] Identity verification requirements (meslek bazlı belgeler) — **Legal review required**
+
+## Finance
+
+- [ ] Komisyon politikası `SCHEDULED` olarak yayınlandı; `FINANCE_EARNING_HOLD_HOURS`, `FINANCE_MIN_PAYOUT_MINOR` iş onaylı.
+- [ ] Planlı mutabakat açık (`RECONCILIATION_INTERVAL_MINUTES`) ve ilk çalışma temiz. Mutabakat otomatik düzeltme yapmaz.
+- [ ] Kill switch'ler (`payments`, `payouts`, `cash`, `new_jobs`) denendi.
+
+## Monitoring
+
+- [ ] `/metrics` toplanıyor (token ile), JSON loglar merkezi sisteme gidiyor, uyarı kanalı (pager/e-posta) bağlı — **Faz 6'da yok, engel**.
+- [ ] Hata raporlayıcı gerçek servise bağlı (`ERROR_REPORTER` bugün `console`).
+
+## Backup
+
+- [ ] Otomatik yedek + zaman noktasına geri dönüş; geri yükleme tatbikatı ([felaket kurtarma](disaster-recovery.md)). RPO/RTO iş kararıdır.
+
+## DNS/TLS
+
+- [ ] Alan adları, TLS sertifikaları, HSTS (API katı ortamda gönderir). Faz 6'da DNS yok.
+
+## Mobile builds
+
+- [ ] EAS üretim profili, `EXPO_PUBLIC_API_URL` üretim adresi, mağaza hesapları, gizlilik etiketleri. Faz 6'da mağaza işlemi yok.
+
+## Rollback
+
+- [ ] Önceki imaj hazır; migration'lar yalnız eklemeli olduğu için kod geri alınabilir.
+- [ ] Acil durumda önce `payments` / `payouts` kill switch'leri kapatılır, sonra geri alınır.

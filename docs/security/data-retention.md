@@ -1,17 +1,18 @@
 # Veri saklama
 
-> **Legal review required.** Aşağıdaki süreler **öneri değildir**; hukuki doğrulama yapılana kadar
-> hiçbir veri otomatik silinmez. Tabloda yalnız bugünkü teknik davranış yazılıdır.
+> **Legal review required.** Bu belge süre **belirlemez**. Hukuki doğrulama yapılana kadar
+> hiçbir veri otomatik silinmez; tabloda yalnız bugünkü teknik davranış vardır.
 
-| Veri                        | Bugünkü davranış                                         | Saklama süresi                         |
-| --------------------------- | -------------------------------------------------------- | -------------------------------------- |
-| Kullanıcı hesabı            | Silme talebinde bekleme süresi sonra kimliksizleştirilir | Policy TBD / legal validation required |
-| Doğrulama belgeleri         | Saklanır; hesap silmede silinmez                         | Legal review required                  |
-| Ödeme, iade, defter, payout | Silinmez (yalnız ekleme)                                 | Legal review required (vergi mevzuatı) |
-| Denetim kayıtları           | Silinmez (yalnız ekleme)                                 | Policy TBD                             |
-| Oturumlar, cihazlar         | İptal edilir, satır kalır                                | Policy TBD                             |
-| OTP kayıtları               | Süresi dolar, satır kalır                                | Policy TBD                             |
-| Risk sinyalleri             | İnceleme sonrası kalır                                   | Policy TBD                             |
-| Veri dışa aktarma talebi    | Yalnız talep kaydı (dosya üretilmez)                     | Policy TBD                             |
+| Veri                        | Sınıf     | Bugünkü davranış                                                | Saklama süresi                         |
+| --------------------------- | --------- | --------------------------------------------------------------- | -------------------------------------- |
+| Oturumlar (`auth_sessions`) | PERSONAL  | İptal/bitişte `revoked_at` yazılır, satır kalır                 | Policy TBD / legal validation required |
+| OTP kayıtları               | SENSITIVE | Kod özeti; süresi dolar, satır kalır                            | Policy TBD / legal validation required |
+| Webhook yükleri             | FINANCIAL | Olay kimliği, sonucu ve yükün tamamı (JSONB) saklanır; silinmez | Policy TBD / legal validation required |
+| Doğrulama belgeleri         | SENSITIVE | Özel depolamada kalır; hesap silmede silinmez                   | Legal review required                  |
+| Denetim kayıtları           | INTERNAL  | Yalnız eklemeli; API'den silinemez                              | Policy TBD / legal validation required |
+| Finansal defter ve kayıtlar | FINANCIAL | Yalnız eklemeli; asla silinmez                                  | Legal review required (vergi/muhasebe) |
+| Kullanıcı hesabı            | PERSONAL  | Silme talebinde bekleme sonrası takma adlandırılır              | Policy TBD / legal validation required |
+| Risk sinyalleri, uyarılar   | INTERNAL  | İnceleme/çözüm sonrası kalır                                    | Policy TBD                             |
+| Veri dışa aktarma talepleri | PERSONAL  | Yalnız talep kaydı; dosya üretilmez                             | Policy TBD                             |
 
-Saklama süreleri onaylandığında her biri için planlı bir temizlik işi ve runbook eklenecektir.
+Süreler onaylanınca her veri türü için planlı bir temizlik işi, testi ve runbook eklenecektir.

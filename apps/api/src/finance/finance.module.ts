@@ -90,6 +90,7 @@ import { WebhooksService } from './webhooks.service.js';
     ReconciliationService,
     PaymentsService,
     PayoutsService,
+    WalletService,
   ],
 })
 export class FinanceModule {}

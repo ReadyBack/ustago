@@ -1,20 +1,20 @@
 # Veri sınıflandırması
 
-> Bu sınıflandırma teknik bir başlangıçtır. **Legal review required** (KVKK "özel nitelikli
-> kişisel veri" kapsamı ve işleme şartları hukuken doğrulanmadı).
+> Teknik başlangıç sınıflandırmasıdır. **Legal review required** (KVKK kapsamındaki kategoriler ve
+> işleme şartları hukuken doğrulanmadı). Karar kaydı: [ADR-0027](../adr/0027-kisisel-veri-ve-veri-yasam-dongusu.md).
 
-| Sınıf          | Örnekler                                                  | Kurallar                                                                    |
-| -------------- | --------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Gizli          | Parola özeti, refresh token özeti, OTP özeti, API sırları | Asla loglanmaz, API'de dönmez, denetim metasında maskelenir.                |
-| Hassas kişisel | Kimlik belgesi görüntüsü, banka hesabı (IBAN), telefon    | Özel depolama, imzalı kısa URL, erişim denetlenir; IBAN maskeli gösterilir. |
-| Kişisel        | Ad, e-posta, adres, konum, cihaz bilgisi                  | Yalnız ilgili kullanıcı ve yetkili admin görür; loglarda maskelenir.        |
-| Finansal       | Ödeme, iade, defter, kazanç, payout                       | Yalnız eklemeli; silinmez; hesap silmede kimliksizleştirilir.               |
-| İç             | Denetim kaydı, risk sinyali, iç not                       | Yalnız admin; iç not kullanıcıya gösterilmez.                               |
-| Genel          | Kategori, il/ilçe, yayınlanmış yorum, usta vitrin bilgisi | Herkese açık.                                                               |
+| Sınıf       | Örnek alanlar                                                                                     | Kurallar                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `PUBLIC`    | Kategori, il/ilçe, yayınlanmış yorum, usta vitrin adı, puan, "Kimliği/hesabı doğrulanmıştır"      | Herkese açık API'de dönebilir.                                                                   |
+| `INTERNAL`  | Denetim kaydı, risk sinyali, operasyon uyarısı, admin iç notu, mutabakat çalışması                | Yalnız yetkili admin görür; iç not kullanıcıya/ustaya asla dönmez.                               |
+| `PERSONAL`  | Ad, telefon, e-posta, adres, konum, cihaz adı/platformu, oturum zamanları                         | Yalnız sahibi ve yetkili admin; loglarda ve denetim metasında maskelenir; metrik etiketi olamaz. |
+| `SENSITIVE` | Kimlik belgesi görüntüsü, belge depolama anahtarı, OTP özeti, parola/refresh token özeti, IP HMAC | Özel depolama, kısa ömürlü imzalı URL, erişim denetimi; asla loglanmaz, API'de dönmez.           |
+| `FINANCIAL` | Ödeme, iade, defter, kazanç, para çekme, nakit kaydı, maskeli IBAN, komisyon politikası           | Yalnız eklemeli; silinmez; hesap silmede kimliksizleştirilir; tam IBAN saklanmaz.                |
 
 ## Özel kurallar
 
-- **Ham TC Kimlik numarası saklanmaz.** Belge görüntüsü saklanır; numara ayrıca alan olarak tutulmaz.
-- IP adresi oturum tablosunda HMAC olarak saklanır; denetim kaydında admin işlemleri için ham IP
-  tutulur (saklama süresi Policy TBD).
-- Metrik etiketlerinde ve yapılandırılmış loglarda kişisel veri bulunmaz (`redact()`).
+- **Ham TC Kimlik numarası toplanmaz ve saklanmaz.**
+- Oturum tablosunda IP ham değil HMAC'tir. Admin işlemlerinin denetim kaydında ham IP tutulur;
+  süresi **Policy TBD**.
+- `redact()` anahtar adına göre maskeler (telefon, e-posta, IBAN, token, OTP, `code`, adres,
+  `Authorization`, çerez, depolama anahtarı, imza). İstek gövdesi loglanmaz.

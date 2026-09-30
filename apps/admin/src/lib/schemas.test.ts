@@ -96,6 +96,15 @@ describe('Faz 6 response schemas', () => {
       reviews: { published: 0, hidden: 0, average: null, recent: [] },
       quality: { ustaScore: null, sampleSize: 0, isNewProvider: true, computedAt: null },
       finance: {
+        balances: {
+          pending: TRY(0),
+          held: TRY(0),
+          available: TRY(1000),
+          reserved: TRY(0),
+          platformDebt: TRY(0),
+          withdrawable: TRY(1000),
+          paidOut: TRY(0),
+        },
         earningsByStatus: { AVAILABLE: TRY(1000) },
         recentPayouts: [],
         destination: null,

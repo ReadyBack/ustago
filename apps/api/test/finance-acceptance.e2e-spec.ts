@@ -1,4 +1,6 @@
-import { cleanup, createTestApp, resetRateLimits, type TestContext } from './helpers.js';
+import type { AdminProvider360 } from '@ustago/types';
+
+import { bearer, cleanup, createTestApp, resetRateLimits, type TestContext } from './helpers.js';
 import {
   answerChangeOrder,
   createChangeOrder,
@@ -105,6 +107,18 @@ describe('Finance: Faz 5 acceptance scenario', () => {
     expect(w.balances.available.amountMinor).toBe(29500);
     expect(w.balances.reserved.amountMinor).toBe(200000);
     await expectLedgerConsistent(ctx, [job.jobId]);
+  });
+
+  it('admin Provider 360 shows the same ledger-derived balances as the wallet', async () => {
+    const res = await ctx
+      .http()
+      .get(`/api/v1/admin/providers/${job.provider.providerId}/360`)
+      .set('Authorization', bearer(admin))
+      .expect(200);
+    const b = (res.body as AdminProvider360).finance.balances;
+    expect(b.available.amountMinor).toBe(29500);
+    expect(b.reserved.amountMinor).toBe(200000);
+    expect(b.platformDebt.amountMinor).toBe(0);
   });
 
   it('a 500 partial refund keeps the ledger balanced', async () => {

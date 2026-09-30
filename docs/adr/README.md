@@ -29,8 +29,8 @@
 | [0020](0020-platform-ucreti-ve-usta-kazanci.md)            | Platform ücreti, kazanç, nakit, iade, payout | Kabul edildi |
 | [0021](0021-uretim-hazirligi-seviyeleri.md)                | Üretim hazırlığı seviyeleri                  | Kabul edildi |
 | [0022](0022-ortam-ayrimi-ve-fail-closed-config.md)         | Ortam ayrımı ve fail-closed config           | Kabul edildi |
-| [0023](0023-usta-dogrulama-vakasi-ve-askiya-alma.md)       | Usta doğrulama vakası ve askıya alma         | Kabul edildi |
-| [0024](0024-admin-yetkileri-oturum-guvenligi-ve-risk.md)   | Admin yetkileri, oturum, risk                | Kabul edildi |
+| [0023](0023-usta-dogrulama-ve-guven.md)                    | Usta doğrulama ve güven                      | Kabul edildi |
+| [0024](0024-oturum-ve-kimlik-dogrulama-guvenligi.md)       | Oturum ve kimlik doğrulama güvenliği         | Kabul edildi |
 | [0025](0025-komisyon-politikasi-ve-finans-sertlestirme.md) | Komisyon politikası, finans sertleştirme     | Kabul edildi |
-| [0026](0026-operasyon-gozlemlenebilirlik-ve-mutabakat.md)  | Operasyon, gözlem, mutabakat                 | Kabul edildi |
-| [0027](0027-hesap-silme-ve-veri-disa-aktarma.md)           | Hesap silme ve veri dışa aktarma             | Kabul edildi |
+| [0026](0026-gozlemlenebilirlik-ve-operasyon-uyarilari.md)  | Gözlemlenebilirlik ve operasyon uyarıları    | Kabul edildi |
+| [0027](0027-kisisel-veri-ve-veri-yasam-dongusu.md)         | Kişisel veri ve veri yaşam döngüsü           | Kabul edildi |

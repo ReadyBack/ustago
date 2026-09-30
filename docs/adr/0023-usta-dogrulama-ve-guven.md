@@ -1,4 +1,4 @@
-# ADR-0023: Usta doğrulama vakası, belge güvenliği ve hesap durumu
+# ADR-0023: Usta doğrulama ve güven (PROVIDER VERIFICATION AND TRUST)
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-10-03
@@ -31,6 +31,14 @@ Gerçek bir KYC sağlayıcısı seçilmemiştir
 - **Askıya alma:** `provider_suspensions` (seviye, gerekçe kodu, kullanıcı gerekçesi, iç not,
   bitiş, otomatik kaldırma). Askıya alma sağlayıcı satırını `FOR UPDATE`, teklif oluşturma
   `FOR SHARE` kilitler; askıya alınan usta aynı anda teklif veremez. Kaldırma not ister.
+  Mevcut işler silinmez; usta devam eden işlerini tamamlayabilir.
+- **Süreli askıya alma:** `expiresAt` geldiğinde, `autoLift` seçilmişse askı `EXPIRED` olur ve
+  erişim geri gelir. Seçilmemişse otomatik geri açmak güvenli sayılmaz: askı
+  `EXPIRED_PENDING_REVIEW` olur ve bir admin kaldırana kadar hesap kısıtlı kalır.
+- Faz 4 cezaları (`ProviderPenalty`, sıralama/davranış sinyali) ile hesap askısı (ürün erişim
+  kontrolü) ayrı kavramlardır; biri diğerini yazmaz.
+- Doğrulama UstaScore'a küçük ve açıklanabilir bir sinyal olabilir, ama `VERIFIED` "kaliteli usta"
+  demek değildir; herkese açık ifade "Kimliği/hesabı doğrulanmıştır"dır.
 - Faz 5 kayıtlarından geri doldurma (migration) yalnız verinin kanıtladığını yazar: kimlik belgesi
   onaylı aktif usta `VERIFIED`, diğerleri daha düşük. Kanıtı olmayan aktif usta listelenmeye ve
   teklif vermeye devam eder, NOW ve para çekme için doğrulanması gerekir.

@@ -24,7 +24,7 @@ export function setupApp(app: INestApplication, env: ApiEnv): void {
   app.use(ipHashMiddleware(secretFor(env, 'ip-hash', env.IP_HASH_SECRET)));
   app.use(accessLogMiddleware);
   // The API only serves JSON: nothing may be framed, scripted or sniffed.
-  // HSTS is sent where TLS is guaranteed (staging/production), docs/adr/0027.
+  // HSTS is sent where TLS is guaranteed (staging/production), docs/adr/0024.
   app.use(
     helmet({
       contentSecurityPolicy: {

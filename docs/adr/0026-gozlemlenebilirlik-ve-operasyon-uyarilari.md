@@ -1,4 +1,4 @@
-# ADR-0026: Operasyon, gözlemlenebilirlik, mutabakat ve bildirim derin bağlantıları
+# ADR-0026: Gözlemlenebilirlik ve operasyon uyarıları (OBSERVABILITY AND OPERATIONAL ALERTS)
 
 - **Durum:** Kabul edildi
 - **Tarih:** 2026-10-03

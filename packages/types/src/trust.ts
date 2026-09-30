@@ -6,6 +6,7 @@
 import type { NamedRef } from './address.js';
 import type { AuditEvent } from './audit.js';
 import type { ProviderStatus } from './auth.js';
+import type { WalletBalances } from './finance.js';
 import type { Money } from './money.js';
 import type { ProviderVerification, VerificationType } from './provider.js';
 
@@ -284,6 +285,8 @@ export interface AdminProvider360 {
     computedAt: string | null;
   };
   finance: {
+    /** Ledger-derived; there is no stored balance to edit. */
+    balances: WalletBalances;
     earningsByStatus: Record<string, Money>;
     recentPayouts: { id: string; status: string; amount: Money; createdAt: string }[];
     destination: {

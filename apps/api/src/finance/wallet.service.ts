@@ -4,6 +4,7 @@ import type {
   Paginated,
   ProviderEarning,
   Wallet,
+  WalletBalances,
   WalletBucket,
   WalletLine,
   WalletStatement,
@@ -70,11 +71,25 @@ export class WalletService {
     @Inject(FINANCE_CONFIG) private readonly config: FinanceConfig,
   ) {}
 
-  async wallet(userId: string, now = new Date()): Promise<Wallet> {
-    const providerId = await this.payouts.providerIdOf(userId);
+  /** Ledger-derived balances of one provider (also used by the admin Provider 360). */
+  async balancesOf(providerId: string): Promise<WalletBalances> {
     const balances = await this.ledger.providerBalances(this.prisma, providerId);
     const held = await this.heldBalance(providerId);
     const paidOut = await this.paidOut(providerId);
+    return {
+      pending: money(balances.pending),
+      held: money(held),
+      available: money(balances.available),
+      reserved: money(balances.reserved),
+      platformDebt: money(balances.platformDebt),
+      withdrawable: money(withdrawable(balances.available, balances.platformDebt)),
+      paidOut: money(paidOut),
+    };
+  }
+
+  async wallet(userId: string, now = new Date()): Promise<Wallet> {
+    const providerId = await this.payouts.providerIdOf(userId);
+    const balances = await this.balancesOf(providerId);
     const startOfMonth = monthStartIstanbul(now);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
     const [thisMonth, last30] = await Promise.all([
@@ -96,15 +111,7 @@ export class WalletService {
     });
     const recent = await this.lines(providerId, { limit: 10 });
     return {
-      balances: {
-        pending: money(balances.pending),
-        held: money(held),
-        available: money(balances.available),
-        reserved: money(balances.reserved),
-        platformDebt: money(balances.platformDebt),
-        withdrawable: money(withdrawable(balances.available, balances.platformDebt)),
-        paidOut: money(paidOut),
-      },
+      balances,
       statements: [thisMonth, last30],
       nextReleaseAt: next?.holdUntil?.toISOString() ?? null,
       minPayout: money(this.config.minPayoutMinor),

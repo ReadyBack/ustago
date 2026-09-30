@@ -205,6 +205,15 @@ export const adminProvider360Schema = z.object({
     computedAt: nullableDate,
   }),
   finance: z.object({
+    balances: z.object({
+      pending: moneySchema,
+      held: moneySchema,
+      available: moneySchema,
+      reserved: moneySchema,
+      platformDebt: moneySchema,
+      withdrawable: moneySchema,
+      paidOut: moneySchema,
+    }),
     earningsByStatus: z.record(z.string(), moneySchema),
     recentPayouts: z.array(
       z.object({ id: z.string(), status: z.string(), amount: moneySchema, createdAt: date }),

@@ -311,12 +311,31 @@ async function Quality({ p }: { p: AdminProvider360 }) {
   );
 }
 
+const BALANCE_ROWS = [
+  ['pending', 'Bekleyen'],
+  ['held', 'Tutulan (anlaşmazlık)'],
+  ['available', 'Kullanılabilir'],
+  ['reserved', 'Ayrılan (para çekme)'],
+  ['platformDebt', 'Platform borcu'],
+  ['paidOut', 'Ödenen'],
+] as const satisfies readonly (readonly [keyof AdminProvider360['finance']['balances'], string])[];
+
 function Finance({ p }: { p: AdminProvider360 }) {
   const f = p.finance;
   return (
     <section className="grid-2">
       <div className="card">
-        <h2>Kazançlar (net)</h2>
+        <h2>Bakiye (defterden)</h2>
+        <p className="muted">Bakiyeler defter kayıtlarından hesaplanır; elle düzenlenemez.</p>
+        <dl>
+          {BALANCE_ROWS.map(([key, label]) => (
+            <div key={key} style={{ display: 'contents' }}>
+              <dt>{label}</dt>
+              <dd>{formatMoney(f.balances[key])}</dd>
+            </div>
+          ))}
+        </dl>
+        <h3>Kazançlar (net)</h3>
         {Object.keys(f.earningsByStatus).length === 0 ? <p>Kazanç kaydı yok.</p> : null}
         <dl>
           {Object.entries(f.earningsByStatus).map(([status, money]) => (

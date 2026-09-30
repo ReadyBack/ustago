@@ -33,7 +33,7 @@ doğrulanmamış banka hesabına para göndermemek.
 - **Kill switch:** `payments`, `payouts`, `cash`, `new_jobs`
   ([ADR-0022](0022-ortam-ayrimi-ve-fail-closed-config.md)).
 - **Finans bildirimleri:** ödeme, iade, kazanç, payout olayları derin bağlantılı bildirim üretir
-  ([ADR-0026](0026-operasyon-gozlemlenebilirlik-ve-mutabakat.md)).
+  ([ADR-0026](0026-gozlemlenebilirlik-ve-operasyon-uyarilari.md)).
 
 ## Sonuçlar
 

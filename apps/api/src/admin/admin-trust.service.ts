@@ -9,6 +9,7 @@ import { toMoney } from '../common/money.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { providerPolicy } from '../providers/domain/provider-policy.js';
+import { WalletService } from '../finance/wallet.service.js';
 import { SuspensionsService } from '../providers/suspensions.service.js';
 import { AdminAuditService } from './admin-audit.service.js';
 
@@ -26,6 +27,7 @@ export class AdminTrustService {
     private readonly audit: AuditService,
     private readonly auditLog: AdminAuditService,
     private readonly suspensions: SuspensionsService,
+    private readonly wallet: WalletService,
   ) {}
 
   async provider360(providerId: string): Promise<AdminProvider360> {
@@ -51,6 +53,7 @@ export class AdminTrustService {
       destination,
       penalties,
       audit,
+      balances,
     ] = await Promise.all([
       this.suspensions.list(providerId),
       this.prisma.job.groupBy({ by: ['status'], where: { providerId }, _count: { _all: true } }),
@@ -114,6 +117,7 @@ export class AdminTrustService {
         },
       }),
       this.auditLog.list({ entityId: providerId, limit: 20 }),
+      this.wallet.balancesOf(providerId),
     ]);
 
     const verificationStatus = profile.verificationCase?.status ?? 'NOT_STARTED';
@@ -175,6 +179,7 @@ export class AdminTrustService {
         computedAt: profile.score?.computedAt.toISOString() ?? null,
       },
       finance: {
+        balances,
         earningsByStatus,
         recentPayouts: recentPayouts.map((p) => ({
           id: p.id,

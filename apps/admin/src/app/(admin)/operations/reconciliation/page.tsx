@@ -95,7 +95,7 @@ export default async function ReconciliationRunsPage(
                         <summary style={{ cursor: 'pointer', color: colors.emergency }}>
                           {r.mismatchCount} uyumsuzluk
                           {r.snapshotMismatchCount > 0
-                            ? `, ${r.snapshotMismatchCount} komisyon kaydı uyumsuz`
+                            ? `, ${r.snapshotMismatchCount} hesap özeti (snapshot) defterle uyumsuz`
                             : ''}
                         </summary>
                         <ul style={{ marginTop: spacing.xs }}>
@@ -112,7 +112,9 @@ export default async function ReconciliationRunsPage(
                         {r.alertId ? <Link href="/operations/alerts">İlgili uyarı</Link> : null}
                       </details>
                     )}
-                    <div className="muted">{r.snapshotsChecked} komisyon kaydı kontrol edildi</div>
+                    <div className="muted">
+                      {r.snapshotsChecked} hesap özeti (snapshot) kontrol edildi
+                    </div>
                   </td>
                   <td>
                     {r.totals ? (
