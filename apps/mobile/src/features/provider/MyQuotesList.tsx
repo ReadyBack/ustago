@@ -3,19 +3,18 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { type ProviderQuoteFilter, providerApi } from '../../src/api/services';
-import { Badge } from '../../src/components/Badge';
-import { Card } from '../../src/components/Card';
-import { Chip } from '../../src/components/Chip';
-import { ProviderGate } from '../../src/components/ProviderGate';
-import { Screen } from '../../src/components/Screen';
-import { EmptyState, ErrorState, LoadingState } from '../../src/components/States';
-import { Small } from '../../src/components/Text';
-import { useApi } from '../../src/hooks/useApi';
-import { categoryIcon } from '../../src/lib/categories';
-import { formatBudget, formatMoney, timeAgo } from '../../src/lib/format';
-import { quoteStatusLabel } from '../../src/lib/labels';
-import { colors, spacing } from '../../src/lib/theme';
+import { type ProviderQuoteFilter, providerApi } from '../../api/services';
+import { Badge } from '../../components/Badge';
+import { Card } from '../../components/Card';
+import { Chip } from '../../components/Chip';
+import { Screen } from '../../components/Screen';
+import { EmptyState, ErrorState, LoadingState } from '../../components/States';
+import { Small } from '../../components/Text';
+import { useApi } from '../../hooks/useApi';
+import { categoryIcon } from '../../lib/categories';
+import { formatBudget, formatMoney, timeAgo } from '../../lib/format';
+import { quoteStatusLabel } from '../../lib/labels';
+import { colors, spacing } from '../../lib/theme';
 
 const FILTERS: { value: ProviderQuoteFilter | 'ALL'; label: string }[] = [
   { value: 'ALL', label: 'Tümü' },
@@ -25,15 +24,8 @@ const FILTERS: { value: ProviderQuoteFilter | 'ALL'; label: string }[] = [
   { value: 'CLOSED', label: 'Kapanan' },
 ];
 
-export default function MyQuotes() {
-  return (
-    <ProviderGate>
-      <QuoteList />
-    </ProviderGate>
-  );
-}
-
-function QuoteList() {
+/** "Tekliflerim" (the former Teklifler tab), now a segment of İşler. */
+export function MyQuotesList() {
   const router = useRouter();
   const [filter, setFilter] = useState<ProviderQuoteFilter | 'ALL'>('ALL');
   const list = useApi<Paginated<ProviderQuoteListItem>>(
@@ -66,7 +58,7 @@ function QuoteList() {
         <EmptyState
           icon="💬"
           title="Teklif yok"
-          body="İşler sekmesinden uygun bir işe teklif verin."
+          body="Sana Uygun İşler bölümünden bir işe teklif verebilirsin."
         />
       ) : (
         list.data?.items.map((q) => {
