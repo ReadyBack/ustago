@@ -38,6 +38,13 @@ bağlı değil ve bu fazda bağlanmayacak; yol mesafesi hesaplanamaz.
   merkezi yalnız "Seyhan merkezli 20 km" gibi bir etiket ve kabalaştırılmış nokta olarak çıkar.
 - Hizmet merkezi bir **ilçedir**, ev adresi değildir.
 
+### Harita pinleri
+
+Harita yoktur. İleride eklenirse pin **yalnız kabalaştırılmış nokta** (talep için 2 ondalık ya da
+ilçe merkezi, usta için hizmet merkezi ilçesinin merkezi) olur; kesin adres pin'i anlaşmadan önce
+hiç gösterilmez. Tam adres, işin izin verilen durumlarında yalnız işin ustasına açılır (Faz 3
+kuralları değişmedi).
+
 ### Lansman durumu
 
 İl başına `ACTIVE` (açık), `WAITLIST` (talep kabul edilir, dağıtım il açılınca), `DISABLED`

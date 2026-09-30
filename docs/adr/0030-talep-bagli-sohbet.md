@@ -29,6 +29,10 @@ provider_id)`), teklif ya da iş üzerinden açılır. Katılımcılar yalnız o
 - Yenileme **yoklama (polling)** iledir: açık sohbet 5 saniyede, liste 30 saniyede bir. "Yazıyor…"
   ve "çevrimiçi" yoktur; sahte gerçek zamanlılık gösterilmez.
 - Okundu bilgisi katılımcı başına son okunan mesaj zamanıdır.
+- Görseller özel depolamadadır; yalnız katılımcıya (ve şikâyet üzerinden admin'e) kısa ömürlü imzalı
+  URL ile verilir.
+- **Saklama süresi: Policy TBD / legal validation required** (ADR-0027). Bugün mesajlar silinmez;
+  kullanıcı bir sohbeti yalnız kendi listesinden gizleyebilir. Otomatik silme işi yoktur.
 
 ## Sonuçlar
 
