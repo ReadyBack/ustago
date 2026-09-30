@@ -88,6 +88,10 @@ function Navigator() {
         <Stack.Screen name="addresses/index" options={{ title: 'Adreslerim' }} />
         <Stack.Screen name="addresses/edit" options={{ title: 'Adres' }} />
         <Stack.Screen name="provider-onboarding" options={{ title: 'Usta Başvurusu' }} />
+        <Stack.Screen name="payments/index" options={{ title: 'Ödemelerim' }} />
+        <Stack.Screen name="payments/[id]" options={{ title: 'Ödeme Özeti' }} />
+        <Stack.Screen name="earnings/[id]" options={{ title: 'Kazanç Detayı' }} />
+        <Stack.Screen name="payouts" options={{ title: 'Para Çek' }} />
       </Stack>
     </>
   );

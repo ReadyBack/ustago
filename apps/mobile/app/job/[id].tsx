@@ -21,6 +21,7 @@ import { DISPUTE_REASONS, DISPUTE_STATUS, JOB_STATUS } from '../../src/lib/label
 import { colors } from '../../src/lib/theme';
 import { ChangeOrders } from '../../src/screens/job/ChangeOrders';
 import { DisputeForm } from '../../src/screens/job/DisputeForm';
+import { PaymentCard } from '../../src/screens/job/PaymentCard';
 import { ReviewSection } from '../../src/screens/job/ReviewForm';
 import { useJobAction } from '../../src/screens/job/useJobAction';
 
@@ -69,6 +70,7 @@ export default function JobDetail() {
 
       <ActionsPanel job={job} />
       <ChangeOrders job={job} />
+      <PaymentCard job={j} />
       <ReviewSection job={job} />
 
       <Card>

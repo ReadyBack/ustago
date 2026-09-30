@@ -235,3 +235,51 @@ Kurallar ve eşzamanlılık: [ADR-0014](../adr/0014-talep-teklif-pazarlik-ve-now
 Kurallar: [ADR-0015](../adr/0015-is-yasam-dongusu-ve-ek-is.md),
 [ADR-0016](../adr/0016-ustascore-v1-ve-usta-kalite-modeli.md),
 [ADR-0017](../adr/0017-bildirim-outbox-ve-expo-push.md).
+
+## Ödeme, nakit, kazanç, iade ve para çekme (Faz 5)
+
+Bu fazda **gerçek para hareketi yoktur**: `PAYMENT_PROVIDER=mock` test sağlayıcısıdır ve üretimde
+açılamaz. Tüm tutarlar kuruş (`amountMinor`, tamsayı); tutarı hep sunucu hesaplar.
+
+| Uç nokta                                                                    | Kim            | Not                                                                   |
+| --------------------------------------------------------------------------- | -------------- | --------------------------------------------------------------------- |
+| `GET /jobs/:id/payment-summary`                                             | İşin tarafları | Toplam, ödenen, kalan, yöntem, nakit durumu, `actions`, usta kırılımı |
+| `PUT /jobs/:id/payment-method` `{ method: IN_APP \| CASH }`                 | Müşteri        | Ödeme yapılınca kilitlenir (`PAYMENT_METHOD_LOCKED`)                  |
+| `POST /jobs/:id/payments` + `Idempotency-Key`                               | Müşteri        | Kalan tutar için ödeme; aynı anahtar aynı sonucu döner                |
+| `POST /jobs/:id/cash/confirm`, `POST /jobs/:id/cash/dispute`                | İşin tarafları | İki taraflı nakit onayı / anlaşmazlık                                 |
+| `GET /me/payments`, `GET /me/payments/:id`                                  | Müşteri        | Ödemelerim, Ödeme Özeti (fatura değildir)                             |
+| `GET /me/wallet`, `/me/wallet/transactions`, `/me/earnings[/:id]`           | Usta           | Kazançlarım (bakiyeler defterden hesaplanır)                          |
+| `GET/PUT /me/payout-destination`                                            | Usta           | TEST banka hesabı; yalnız maskeli IBAN döner                          |
+| `GET/POST /me/payouts` (+ `Idempotency-Key`), `POST /me/payouts/:id/cancel` | Usta           | Para Çek                                                              |
+| `POST /webhooks/payments/:provider`                                         | Sağlayıcı      | İmzalı ham gövde; token yok                                           |
+| `POST /dev/payments/:id/simulate` `{ outcome }`                             | Ödeyen (dev)   | Yalnız geliştirme + mock; aksi halde 404                              |
+| `GET /admin/finance/summary?range=today\|7d\|30d`                           | Admin          | Gerçek DB toplamları                                                  |
+| `GET /admin/finance/payments[/:id]`, `POST …/:id/refunds` + key             | Admin          | Liste, detay (denemeler, iadeler, defter, denetim), iade              |
+| `GET /admin/finance/ledger[/:id]`                                           | Admin          | Defter (salt okunur)                                                  |
+| `GET /admin/finance/payouts`, `POST …/:id/approve \| cancel`                | Admin          | Para çekme talepleri                                                  |
+| `POST /admin/dev/payouts/:id/mark-paid \| mark-failed`                      | Admin (dev)    | TEST; üretimde yok                                                    |
+| `GET /admin/finance/cash-settlements`, `POST …/:id/resolve`                 | Admin          | Nakit anlaşmazlığı sonucu (kayıt)                                     |
+| `GET /admin/finance/reconciliation`                                         | Admin          | Mutabakat raporu; hiçbir şeyi düzeltmez                               |
+
+Faz 5 hata kodları:
+
+| HTTP | code                                                                                                         | Anlamı                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| 400  | `IDEMPOTENCY_KEY_REQUIRED`                                                                                   | Para hareketi başlatan istekte geçerli `Idempotency-Key` yok        |
+| 400  | `WEBHOOK_MALFORMED`                                                                                          | Webhook gövdesi okunamadı                                           |
+| 401  | `WEBHOOK_SIGNATURE_INVALID`, `WEBHOOK_TIMESTAMP_OUT_OF_RANGE`                                                | İmza hatalı / zaman penceresi dışında (tekrar oynatma)              |
+| 403  | `PAYMENT_WRONG_PARTY`, `PROVIDER_ONLY`                                                                       | İşlem diğer tarafın / yalnız usta hesabının                         |
+| 404  | `PAYMENT_NOT_FOUND`, `EARNING_NOT_FOUND`, `PAYOUT_NOT_FOUND`, `CASH_SETTLEMENT_NOT_FOUND`, `ROUTE_NOT_FOUND` | Yok veya başkasına ait; dev uçları kapalı                           |
+| 409  | `PAYMENT_NOT_ALLOWED`, `PAYMENT_NOTHING_DUE`, `PAYMENT_METHOD_IS_CASH`, `PAYMENT_METHOD_LOCKED`              | Ödeme bu durumda yapılamaz                                          |
+| 409  | `IDEMPOTENCY_KEY_REUSED`                                                                                     | Anahtar başka bir işlem için kullanılmış                            |
+| 409  | `CASH_NOT_SELECTED`, `CASH_NOT_ALLOWED`, `CASH_INVALID_STATE`                                                | Nakit akışı kuralı                                                  |
+| 409  | `REFUND_NOT_ALLOWED`, `REFUND_STALE`                                                                         | İade edilemez / ekrandaki tutar değişti (`details.refundableMinor`) |
+| 409  | `PAYOUT_DESTINATION_REQUIRED`, `PAYOUT_INVALID_STATE`                                                        | Hesap yok / talep bu durumda değiştirilemez                         |
+| 422  | `REFUND_EXCEEDS_REFUNDABLE`, `INSUFFICIENT_AVAILABLE_BALANCE`, `PAYOUT_BELOW_MINIMUM`                        | Tutar sınırı                                                        |
+| 422  | `DISPUTE_FINANCIAL_ACTION_REQUIRED`                                                                          | Para tutulan anlaşmazlıkta finansal karar seçilmedi                 |
+| 429  | `FINANCE_RATE_LIMITED`, `WEBHOOK_RATE_LIMITED`                                                               | Hız sınırı                                                          |
+| 503  | `PAYMENTS_DISABLED`, `CASH_DISABLED`, `PAYOUTS_DISABLED`, `FEE_POLICY_MISSING`                               | Özellik kapalı / ücret politikası tanımlı değil                     |
+
+Kurallar: [ADR-0018](../adr/0018-finansal-defter-mimarisi.md),
+[ADR-0019](../adr/0019-odeme-saglayici-soyutlamasi.md),
+[ADR-0020](../adr/0020-platform-ucreti-ve-usta-kazanci.md).

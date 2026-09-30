@@ -74,13 +74,35 @@ export function ProfileScreen({ mode }: { mode: 'customer' | 'provider' }) {
 
       <Card>
         {mode === 'customer' ? (
-          <Button title="Adreslerim" variant="ghost" onPress={() => router.push('/addresses')} />
+          <>
+            <Button title="Adreslerim" variant="ghost" onPress={() => router.push('/addresses')} />
+            <Button
+              testID="open-my-payments"
+              title="Ödemelerim"
+              variant="ghost"
+              onPress={() => router.push('/payments')}
+            />
+          </>
         ) : (
-          <Button
-            title="Başvuru ve hizmet bilgilerim"
-            variant="ghost"
-            onPress={() => router.push('/provider-onboarding')}
-          />
+          <>
+            <Button
+              title="Başvuru ve hizmet bilgilerim"
+              variant="ghost"
+              onPress={() => router.push('/provider-onboarding')}
+            />
+            <Button
+              testID="open-earnings"
+              title="Kazançlarım"
+              variant="ghost"
+              onPress={() => router.push('/provider/earnings')}
+            />
+            <Button
+              testID="open-payouts"
+              title="Para Çek"
+              variant="ghost"
+              onPress={() => router.push('/payouts')}
+            />
+          </>
         )}
         <Button
           title="Taleplerim / İşlerim"

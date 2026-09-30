@@ -109,6 +109,13 @@ model User {
   disputesResolved   Dispute[]               @relation("DisputeResolvedBy")
   evidence           Evidence[]
   auditLogs          AuditLog[]
+  refundsRequested   Refund[]                @relation("RefundRequestedBy")
+  feePoliciesCreated PlatformFeePolicy[]     @relation("FeePolicyCreatedBy")
+  cashDisputed       CashSettlement[]        @relation("CashDisputedBy")
+  cashResolved       CashSettlement[]        @relation("CashResolvedBy")
+  payoutsRequested   Payout[]                @relation("PayoutRequestedBy")
+  payoutsDecided     Payout[]                @relation("PayoutDecidedBy")
+  ledgerTransactions LedgerTransaction[]     @relation("LedgerTransactionCreatedBy")
 
   @@index([status])
   @@map("users")
@@ -391,16 +398,22 @@ model ProviderProfile {
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt         DateTime?      @map("deleted_at") @db.Timestamptz(3)
 
-  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reviewedBy     User?                    @relation("ProviderReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
-  services       ProviderService[]
-  serviceAreas   ProviderServiceArea[]
-  verifications  ProviderVerification[]
-  score          ProviderScore?
-  quotes         Quote[]
-  jobs           Job[]
-  dispatchOffers EmergencyDispatchOffer[]
-  ledgerAccounts LedgerAccount[]
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy         User?                    @relation("ProviderReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  services           ProviderService[]
+  serviceAreas       ProviderServiceArea[]
+  verifications      ProviderVerification[]
+  score              ProviderScore?
+  quotes             Quote[]
+  jobs               Job[]
+  dispatchOffers     EmergencyDispatchOffer[]
+  ledgerAccounts     LedgerAccount[]
+  payments           Payment[]                @relation("PaymentProvider")
+  earnings           ProviderEarning[]
+  cashSettlements    CashSettlement[]
+  payoutDestinations PayoutDestination[]
+  payouts            Payout[]
+  ledgerTransactions LedgerTransaction[]      @relation("LedgerTransactionProvider")
 
   @@index([status, nowEnabled, isAvailableNow])
   @@index([status, submittedAt])
@@ -815,7 +828,14 @@ model Job {
   /// accepted ChangeOrder, in the same transaction.
   currentTotalMinor     BigInt         @map("current_total_minor")
   currency              CurrencyCode   @default(TRY)
+  /// Chosen by the customer (IN_APP = "Uygulamadan öde", CASH = "Ustaya
+  /// doğrudan öde"). Payment lifecycle is separate from the job lifecycle.
   paymentMethod         PaymentMethod? @map("payment_method")
+  /// Fee policy snapshot taken when the deal was made (docs/adr/0020): a
+  /// later rate change never affects this job. Null for jobs created
+  /// before Faz 5; filled on their first financial event.
+  platformFeePolicyId   String?        @map("platform_fee_policy_id") @db.Uuid
+  platformFeeBps        Int?           @map("platform_fee_bps")
   scheduledStartAt      DateTime?      @map("scheduled_start_at") @db.Timestamptz(3)
   /// Step timestamps (docs/adr/0015): written once by the job state
   /// machine, never changed afterwards (a database trigger refuses it).
@@ -835,19 +855,24 @@ model Job {
   createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  serviceRequest   ServiceRequest     @relation(fields: [serviceRequestId], references: [id], onDelete: Restrict)
-  quote            Quote?             @relation(fields: [quoteId], references: [id], onDelete: Restrict)
-  acceptedRevision QuoteRevision?     @relation(fields: [acceptedRevisionId], references: [id], onDelete: Restrict)
-  customer         CustomerProfile    @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  provider         ProviderProfile    @relation(fields: [providerId], references: [id], onDelete: Restrict)
-  category         ServiceCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  cancelledBy      User?              @relation("JobCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
-  statusHistory    JobStatusHistory[]
-  changeOrders     ChangeOrder[]
-  payments         Payment[]
-  reviews          Review[]
-  disputes         Dispute[]
-  ledgerEntries    LedgerEntry[]
+  serviceRequest     ServiceRequest      @relation(fields: [serviceRequestId], references: [id], onDelete: Restrict)
+  quote              Quote?              @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  acceptedRevision   QuoteRevision?      @relation(fields: [acceptedRevisionId], references: [id], onDelete: Restrict)
+  customer           CustomerProfile     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  provider           ProviderProfile     @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  category           ServiceCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  cancelledBy        User?               @relation("JobCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  feePolicy          PlatformFeePolicy?  @relation(fields: [platformFeePolicyId], references: [id], onDelete: Restrict)
+  statusHistory      JobStatusHistory[]
+  changeOrders       ChangeOrder[]
+  payments           Payment[]
+  reviews            Review[]
+  disputes           Dispute[]
+  ledgerEntries      LedgerEntry[]
+  ledgerTransactions LedgerTransaction[]
+  refunds            Refund[]
+  earnings           ProviderEarning[]
+  cashSettlement     CashSettlement?
 
   @@index([customerId, createdAt])
   @@index([customerId, status])
@@ -916,55 +941,85 @@ model ChangeOrder {
 }
 
 // ============================================================================
-// Payments (provider-agnostic) and ledger
+// Payments, refunds, cash settlements, provider earnings, payouts and the
+// double-entry ledger (Faz 5, docs/adr/0018-0020)
 // ============================================================================
 
 enum PaymentStatus {
+  /// Waiting for a successful attempt (the provider has not confirmed money).
   PENDING
   AUTHORIZED
-  CAPTURED
+  /// The payment provider confirmed the money (server-side, never the client).
+  SUCCEEDED
   PARTIALLY_REFUNDED
   REFUNDED
+  /// Gave up after the maximum number of failed attempts.
   FAILED
   CANCELLED
+  /// Reserved for chargebacks (not used in Faz 5).
   DISPUTED
-  /// Direct (cash / bank transfer) payment confirmed by both sides.
+  /// Reserved (Faz 1). Cash is tracked in `cash_settlements`, not here.
   SETTLED_OFFLINE
 }
 
-/// One payment intent for a job. For IN_APP payments `gateway` names the
-/// licensed payment institution adapter (e.g. "mock", later iyzico/PayTR);
-/// the domain never depends on a specific provider.
+/// One payment of a job ("Uygulamadan öde"). The amount is always computed
+/// by the server from the job's current total minus what is already paid
+/// or in flight; clients never send an amount. A job may have several
+/// payments: the agreed price and, after an accepted change order, the
+/// difference (docs/adr/0019). For IN_APP payments `gateway` names the
+/// payment provider adapter ("mock" in development).
 model Payment {
   id               String        @id @default(uuid(7)) @db.Uuid
   jobId            String        @map("job_id") @db.Uuid
   payerId          String        @map("payer_id") @db.Uuid
+  /// The job's provider, copied for finance queries without a join.
+  providerId       String?       @map("provider_id") @db.Uuid
   method           PaymentMethod
   status           PaymentStatus @default(PENDING)
   amountMinor      BigInt        @map("amount_minor")
+  /// Platform fee assessed on this payment when it succeeded (0 before).
   platformFeeMinor BigInt        @default(0) @map("platform_fee_minor")
+  /// Fee rate snapshot (basis points) taken from the job's policy snapshot.
+  platformFeeBps   Int?          @map("platform_fee_bps")
   currency         CurrencyCode  @default(TRY)
   gateway          String?       @db.VarChar(40)
+  /// Provider id of the successful attempt. Never shown as the payment id.
   gatewayReference String?       @map("gateway_reference") @db.VarChar(120)
-  /// Client-supplied key: retrying the same request never charges twice.
+  /// Client-supplied key of the request that created it.
   idempotencyKey   String        @unique @map("idempotency_key") @db.VarChar(80)
+  lastFailureCode  String?       @map("last_failure_code") @db.VarChar(60)
+  succeededAt      DateTime?     @map("succeeded_at") @db.Timestamptz(3)
+  failedAt         DateTime?     @map("failed_at") @db.Timestamptz(3)
+  cancelledAt      DateTime?     @map("cancelled_at") @db.Timestamptz(3)
   version          Int           @default(0)
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  job           Job                  @relation(fields: [jobId], references: [id], onDelete: Restrict)
-  payer         User                 @relation(fields: [payerId], references: [id], onDelete: Restrict)
-  transactions  PaymentTransaction[]
-  ledgerEntries LedgerEntry[]
-  disputes      Dispute[]
+  job                Job                  @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  payer              User                 @relation(fields: [payerId], references: [id], onDelete: Restrict)
+  provider           ProviderProfile?     @relation("PaymentProvider", fields: [providerId], references: [id], onDelete: Restrict)
+  transactions       PaymentTransaction[]
+  ledgerEntries      LedgerEntry[]
+  ledgerTransactions LedgerTransaction[]
+  disputes           Dispute[]
+  refunds            Refund[]
+  earning            ProviderEarning?
 
   @@unique([gateway, gatewayReference])
+  /// At most one payment in flight per job: two taps (or two devices)
+  /// can never start two payments for the same amount.
+  @@unique([jobId], map: "payments_one_in_flight_per_job_key", where: raw("status = ANY (ARRAY['PENDING'::\"PaymentStatus\", 'AUTHORIZED'::\"PaymentStatus\"])"))
   @@index([jobId])
+  @@index([payerId, createdAt])
+  @@index([providerId, createdAt])
+  @@index([status, createdAt])
+  @@index([createdAt])
   @@map("payments")
 }
 
 enum PaymentTransactionType {
   AUTHORIZE
+  /// One-step sale attempt (authorise + capture).
   CAPTURE
   VOID
   REFUND
@@ -975,9 +1030,12 @@ enum PaymentTransactionStatus {
   PENDING
   SUCCEEDED
   FAILED
+  CANCELLED
 }
 
-/// Each call to (or webhook from) the payment gateway.
+/// A payment attempt: one call to the payment provider for a payment
+/// ("ilk kart reddedildi, ikinci deneme başarılı"). The payment is the
+/// financial identity; attempts are the provider-side tries.
 model PaymentTransaction {
   id                   String                   @id @default(uuid(7)) @db.Uuid
   paymentId            String                   @map("payment_id") @db.Uuid
@@ -985,34 +1043,314 @@ model PaymentTransaction {
   status               PaymentTransactionStatus @default(PENDING)
   amountMinor          BigInt                   @map("amount_minor")
   currency             CurrencyCode             @default(TRY)
+  gateway              String?                  @db.VarChar(40)
+  /// The provider's id for this attempt (webhooks refer to it).
   gatewayTransactionId String?                  @map("gateway_transaction_id") @db.VarChar(120)
-  /// Webhook deliveries are de-duplicated on this key.
+  /// Idempotency-Key of the request that started the attempt.
   idempotencyKey       String                   @unique @map("idempotency_key") @db.VarChar(120)
+  attemptNumber        Int                      @default(1) @map("attempt_number") @db.SmallInt
   failureCode          String?                  @map("failure_code") @db.VarChar(60)
+  completedAt          DateTime?                @map("completed_at") @db.Timestamptz(3)
   createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
 
+  @@unique([gateway, gatewayTransactionId])
+  @@unique([paymentId, attemptNumber])
   @@index([paymentId])
   @@map("payment_transactions")
 }
 
-enum LedgerAccountType {
-  /// Provider earnings not yet released (job not confirmed / hold period).
-  PROVIDER_PENDING
-  /// Provider earnings released and payable.
-  PROVIDER_AVAILABLE
-  /// Paid out to the provider's bank account.
-  PROVIDER_PAID_OUT
-  /// Money held by the licensed payment institution for the platform.
-  PLATFORM_CLEARING
-  PLATFORM_FEE_REVENUE
-  REFUNDS
+enum RefundStatus {
+  /// Ledger effect recorded, waiting for the payment provider.
+  REQUESTED
+  SUCCEEDED
+  /// The provider refused; the ledger effect was reversed.
+  FAILED
 }
 
-/// Double-entry bookkeeping of what UstaGO owes whom. This is not a wallet
-/// holding money: funds stay at the licensed payment institution (ADR-0008).
+enum RefundReason {
+  JOB_CANCELLED
+  DISPUTE_RESOLUTION
+  SERVICE_ISSUE
+  CUSTOMER_REQUEST
+  DUPLICATE_PAYMENT
+  OTHER
+}
+
+/// A (full or partial) refund of one payment. The amount is checked
+/// server-side against what is still refundable, under the payment's row
+/// lock; `fee_portion + provider_portion = amount`.
+model Refund {
+  id                   String       @id @default(uuid(7)) @db.Uuid
+  paymentId            String       @map("payment_id") @db.Uuid
+  jobId                String       @map("job_id") @db.Uuid
+  amountMinor          BigInt       @map("amount_minor")
+  /// Part taken back from the platform fee / from the provider's earning.
+  feePortionMinor      BigInt       @map("fee_portion_minor")
+  providerPortionMinor BigInt       @map("provider_portion_minor")
+  currency             CurrencyCode @default(TRY)
+  status               RefundStatus @default(REQUESTED)
+  reason               RefundReason
+  /// Internal note (admin); never shown to the customer verbatim.
+  internalNote         String?      @map("internal_note") @db.VarChar(1000)
+  /// Null when the system refunds (eligible cancellation).
+  requestedById        String?      @map("requested_by_id") @db.Uuid
+  gatewayRefundId      String?      @map("gateway_refund_id") @db.VarChar(120)
+  idempotencyKey       String       @unique @map("idempotency_key") @db.VarChar(120)
+  failureCode          String?      @map("failure_code") @db.VarChar(60)
+  completedAt          DateTime?    @map("completed_at") @db.Timestamptz(3)
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  payment            Payment             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  job                Job                 @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  requestedBy        User?               @relation("RefundRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  ledgerTransactions LedgerTransaction[]
+
+  @@index([paymentId, status])
+  @@index([status, createdAt])
+  @@map("refunds")
+}
+
+/// Versioned platform fee policy. Rows are never edited: a new rate is a
+/// new row with a later `effective_from`. Jobs keep the policy that was
+/// in force when the deal was made (jobs.platform_fee_policy_id).
+model PlatformFeePolicy {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  code          String       @unique @db.VarChar(60)
+  /// 1500 = %15. 0..10000.
+  bps           Int
+  fixedFeeMinor BigInt       @default(0) @map("fixed_fee_minor")
+  minFeeMinor   BigInt?      @map("min_fee_minor")
+  maxFeeMinor   BigInt?      @map("max_fee_minor")
+  currency      CurrencyCode @default(TRY)
+  effectiveFrom DateTime     @map("effective_from") @db.Timestamptz(3)
+  /// True for development/demo policies: not a commercial decision.
+  isDevelopment Boolean      @default(false) @map("is_development")
+  note          String?      @db.VarChar(500)
+  createdById   String?      @map("created_by_id") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  createdBy User? @relation("FeePolicyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  jobs      Job[]
+
+  @@index([currency, effectiveFrom])
+  @@map("platform_fee_policies")
+}
+
+enum ProviderEarningStatus {
+  /// Captured; waits for job completion and the hold period.
+  PENDING
+  /// Frozen by an open dispute; only an admin decision releases it.
+  HELD
+  /// Released to the provider's available balance.
+  AVAILABLE
+  /// Fully refunded before release; nothing left to release.
+  REVERSED
+}
+
+/// What a provider earns from one successful online payment: gross, the
+/// platform fee and the net. Amounts are fixed at capture; balances live in
+/// the ledger (earnings carry no balance of their own).
+model ProviderEarning {
+  id         String                @id @default(uuid(7)) @db.Uuid
+  providerId String                @map("provider_id") @db.Uuid
+  jobId      String                @map("job_id") @db.Uuid
+  paymentId  String                @unique @map("payment_id") @db.Uuid
+  grossMinor BigInt                @map("gross_minor")
+  feeMinor   BigInt                @map("fee_minor")
+  netMinor   BigInt                @map("net_minor")
+  feeBps     Int                   @map("fee_bps")
+  currency   CurrencyCode          @default(TRY)
+  status     ProviderEarningStatus @default(PENDING)
+  /// Set when the job is completed (and the payment captured): completion
+  /// time + FINANCE_EARNING_HOLD_HOURS.
+  holdUntil  DateTime?             @map("hold_until") @db.Timestamptz(3)
+  releasedAt DateTime?             @map("released_at") @db.Timestamptz(3)
+  heldAt     DateTime?             @map("held_at") @db.Timestamptz(3)
+  version    Int                   @default(0)
+  createdAt  DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  provider           ProviderProfile     @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  job                Job                 @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  payment            Payment             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  ledgerTransactions LedgerTransaction[]
+
+  @@index([providerId, createdAt])
+  @@index([status, holdUntil])
+  @@index([jobId])
+  @@map("provider_earnings")
+}
+
+enum CashSettlementStatus {
+  AWAITING_CONFIRMATION
+  CUSTOMER_CONFIRMED
+  PROVIDER_CONFIRMED
+  /// Both sides confirmed (or an admin recorded it after a dispute).
+  CONFIRMED
+  /// One side says the money did not change hands.
+  DISPUTED
+  /// Admin recorded that the cash was not paid. UstaGO moves no money.
+  RESOLVED_UNPAID
+}
+
+/// "Ustaya doğrudan ödeme". UstaGO never holds this money: the record is
+/// the two sides' confirmation, and (if the policy says so) the platform
+/// fee the provider owes, booked as provider platform debt in the ledger.
+model CashSettlement {
+  id                  String               @id @default(uuid(7)) @db.Uuid
+  jobId               String               @unique @map("job_id") @db.Uuid
+  providerId          String               @map("provider_id") @db.Uuid
+  amountMinor         BigInt               @map("amount_minor")
+  /// Fee the provider owes (0 when cash commission is off).
+  feeMinor            BigInt               @default(0) @map("fee_minor")
+  feeBps              Int                  @map("fee_bps")
+  currency            CurrencyCode         @default(TRY)
+  status              CashSettlementStatus @default(AWAITING_CONFIRMATION)
+  customerConfirmedAt DateTime?            @map("customer_confirmed_at") @db.Timestamptz(3)
+  providerConfirmedAt DateTime?            @map("provider_confirmed_at") @db.Timestamptz(3)
+  confirmedAt         DateTime?            @map("confirmed_at") @db.Timestamptz(3)
+  disputedAt          DateTime?            @map("disputed_at") @db.Timestamptz(3)
+  disputedById        String?              @map("disputed_by_id") @db.Uuid
+  disputeNote         String?              @map("dispute_note") @db.VarChar(1000)
+  resolvedById        String?              @map("resolved_by_id") @db.Uuid
+  resolvedAt          DateTime?            @map("resolved_at") @db.Timestamptz(3)
+  resolutionNote      String?              @map("resolution_note") @db.VarChar(1000)
+  version             Int                  @default(0)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  job                Job                 @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  provider           ProviderProfile     @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  disputedBy         User?               @relation("CashDisputedBy", fields: [disputedById], references: [id], onDelete: SetNull)
+  resolvedBy         User?               @relation("CashResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  ledgerTransactions LedgerTransaction[]
+
+  @@index([status, createdAt])
+  @@index([providerId, createdAt])
+  @@map("cash_settlements")
+}
+
+enum PayoutDestinationType {
+  /// Demo destination: validated IBAN format, only masked digits stored.
+  TEST_BANK_ACCOUNT
+}
+
+/// Where a provider's payouts go. Faz 5 stores no full IBAN at all: the
+/// masked form and the last four digits only. A real provider will hold
+/// the account behind a token.
+model PayoutDestination {
+  id            String                @id @default(uuid(7)) @db.Uuid
+  providerId    String                @map("provider_id") @db.Uuid
+  type          PayoutDestinationType @default(TEST_BANK_ACCOUNT)
+  holderName    String                @map("holder_name") @db.VarChar(120)
+  maskedIban    String                @map("masked_iban") @db.VarChar(40)
+  last4         String                @db.VarChar(4)
+  isTest        Boolean               @default(true) @map("is_test")
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  deactivatedAt DateTime?             @map("deactivated_at") @db.Timestamptz(3)
+
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  payouts  Payout[]
+
+  @@unique([providerId], map: "payout_destinations_one_active_key", where: raw("deactivated_at IS NULL"))
+  @@map("payout_destinations")
+}
+
+enum PayoutStatus {
+  REQUESTED
+  APPROVED
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+/// A provider's withdrawal request ("Para Çek"). Requesting reserves the
+/// amount in the ledger (available → reserved) under a lock on the
+/// provider's accounts, so the same money can never be requested twice.
+model Payout {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  providerId       String       @map("provider_id") @db.Uuid
+  destinationId    String       @map("destination_id") @db.Uuid
+  amountMinor      BigInt       @map("amount_minor")
+  currency         CurrencyCode @default(TRY)
+  status           PayoutStatus @default(REQUESTED)
+  idempotencyKey   String       @unique @map("idempotency_key") @db.VarChar(120)
+  gateway          String?      @db.VarChar(40)
+  gatewayReference String?      @map("gateway_reference") @db.VarChar(120)
+  failureCode      String?      @map("failure_code") @db.VarChar(60)
+  statusNote       String?      @map("status_note") @db.VarChar(500)
+  requestedById    String       @map("requested_by_id") @db.Uuid
+  decidedById      String?      @map("decided_by_id") @db.Uuid
+  approvedAt       DateTime?    @map("approved_at") @db.Timestamptz(3)
+  processingAt     DateTime?    @map("processing_at") @db.Timestamptz(3)
+  paidAt           DateTime?    @map("paid_at") @db.Timestamptz(3)
+  failedAt         DateTime?    @map("failed_at") @db.Timestamptz(3)
+  cancelledAt      DateTime?    @map("cancelled_at") @db.Timestamptz(3)
+  version          Int          @default(0)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  provider           ProviderProfile     @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  destination        PayoutDestination   @relation(fields: [destinationId], references: [id], onDelete: Restrict)
+  requestedBy        User                @relation("PayoutRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  decidedBy          User?               @relation("PayoutDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  ledgerTransactions LedgerTransaction[]
+
+  @@unique([gateway, gatewayReference])
+  @@index([providerId, createdAt])
+  @@index([status, createdAt])
+  @@map("payouts")
+}
+
+enum WebhookEventOutcome {
+  PROCESSED
+  /// Older than what we already know (out of order): state not moved back.
+  IGNORED_STALE
+  /// Refers to nothing we know.
+  IGNORED_UNKNOWN
+}
+
+/// Every verified provider webhook, once. The unique key makes a replayed
+/// event (same provider event id) a no-op. Payloads are stored redacted.
+model WebhookEvent {
+  id         String              @id @default(uuid(7)) @db.Uuid
+  provider   String              @db.VarChar(40)
+  eventId    String              @map("event_id") @db.VarChar(120)
+  type       String              @db.VarChar(60)
+  outcome    WebhookEventOutcome
+  payload    Json
+  occurredAt DateTime            @map("occurred_at") @db.Timestamptz(3)
+  receivedAt DateTime            @default(now()) @map("received_at") @db.Timestamptz(3)
+
+  @@unique([provider, eventId])
+  @@index([receivedAt])
+  @@map("processed_webhook_events")
+}
+
+enum LedgerAccountType {
+  /// Owed to the provider, not yet releasable (job not done / hold / dispute).
+  PROVIDER_PENDING
+  /// Owed to the provider and withdrawable.
+  PROVIDER_AVAILABLE
+  /// Owed to the provider, set aside for a requested payout.
+  PROVIDER_RESERVED
+  /// Money held for the platform at the payment institution.
+  PLATFORM_CLEARING
+  PLATFORM_FEE_REVENUE
+  /// Refunds accepted but not yet confirmed by the payment provider.
+  REFUND_LIABILITY
+  /// What the provider owes the platform (cash commission, refund after payout).
+  PROVIDER_PLATFORM_DEBT
+}
+
+/// Application ledger accounts (not a statutory chart of accounts). This is
+/// not a wallet holding money: funds stay at the licensed payment
+/// institution (ADR-0008, ADR-0018).
 model LedgerAccount {
   id         String            @id @default(uuid(7)) @db.Uuid
   type       LedgerAccountType
@@ -1034,31 +1372,94 @@ model LedgerAccount {
   @@map("ledger_accounts")
 }
 
+enum LedgerTransactionType {
+  PAYMENT_CAPTURED
+  EARNING_RELEASED
+  CASH_FEE_ASSESSED
+  REFUND_REQUESTED
+  REFUND_COMPLETED
+  PAYOUT_RESERVED
+  PAYOUT_PAID
+  /// Payout failed or cancelled: reserved money back to available.
+  PAYOUT_RELEASED
+  /// Mirror image of an earlier transaction (reverses_id).
+  REVERSAL
+  ADJUSTMENT
+}
+
+/// One financial event. Append-only (a database trigger refuses UPDATE and
+/// DELETE); its entries balance: total debit = total credit (checked by a
+/// deferred constraint trigger at commit). `source_key` is unique, so one
+/// business event can be booked only once.
+model LedgerTransaction {
+  id               String                @id @default(uuid(7)) @db.Uuid
+  type             LedgerTransactionType
+  currency         CurrencyCode          @default(TRY)
+  sourceKey        String                @unique @map("source_key") @db.VarChar(160)
+  description      String?               @db.VarChar(300)
+  jobId            String?               @map("job_id") @db.Uuid
+  paymentId        String?               @map("payment_id") @db.Uuid
+  refundId         String?               @map("refund_id") @db.Uuid
+  payoutId         String?               @map("payout_id") @db.Uuid
+  cashSettlementId String?               @map("cash_settlement_id") @db.Uuid
+  earningId        String?               @map("earning_id") @db.Uuid
+  providerId       String?               @map("provider_id") @db.Uuid
+  /// Set on a REVERSAL; unique, so a transaction is reversed at most once.
+  reversesId       String?               @unique @map("reverses_id") @db.Uuid
+  createdById      String?               @map("created_by_id") @db.Uuid
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  job            Job?               @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  payment        Payment?           @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  refund         Refund?            @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  payout         Payout?            @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  cashSettlement CashSettlement?    @relation(fields: [cashSettlementId], references: [id], onDelete: Restrict)
+  earning        ProviderEarning?   @relation(fields: [earningId], references: [id], onDelete: Restrict)
+  provider       ProviderProfile?   @relation("LedgerTransactionProvider", fields: [providerId], references: [id], onDelete: Restrict)
+  reverses       LedgerTransaction? @relation("LedgerReversal", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversedBy     LedgerTransaction? @relation("LedgerReversal")
+  createdBy      User?              @relation("LedgerTransactionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  entries        LedgerEntry[]
+
+  @@index([type, createdAt])
+  @@index([providerId, createdAt])
+  @@index([jobId])
+  @@index([paymentId])
+  @@index([refundId])
+  @@index([payoutId])
+  @@index([cashSettlementId])
+  @@index([earningId])
+  @@index([createdAt])
+  @@map("ledger_transactions")
+}
+
 enum LedgerDirection {
   DEBIT
   CREDIT
 }
 
-/// Append-only. All entries sharing a `journalId` balance to zero.
+/// Append-only. All entries of one transaction balance to zero.
 model LedgerEntry {
-  id          String          @id @default(uuid(7)) @db.Uuid
-  journalId   String          @map("journal_id") @db.Uuid
-  accountId   String          @map("account_id") @db.Uuid
-  direction   LedgerDirection
-  /// Always positive; `direction` carries the sign.
-  amountMinor BigInt          @map("amount_minor")
-  currency    CurrencyCode    @default(TRY)
-  paymentId   String?         @map("payment_id") @db.Uuid
-  jobId       String?         @map("job_id") @db.Uuid
-  description String?         @db.VarChar(300)
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  id            String          @id @default(uuid(7)) @db.Uuid
+  /// The ledger transaction (column name kept from Faz 1: journal).
+  transactionId String          @map("journal_id") @db.Uuid
+  accountId     String          @map("account_id") @db.Uuid
+  direction     LedgerDirection
+  /// Always positive (DB check); `direction` carries the sign.
+  amountMinor   BigInt          @map("amount_minor")
+  currency      CurrencyCode    @default(TRY)
+  paymentId     String?         @map("payment_id") @db.Uuid
+  jobId         String?         @map("job_id") @db.Uuid
+  description   String?         @db.VarChar(300)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  account LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  payment Payment?      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  job     Job?          @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  transaction LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  account     LedgerAccount     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  payment     Payment?          @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  job         Job?              @relation(fields: [jobId], references: [id], onDelete: Restrict)
 
   @@index([accountId, createdAt])
-  @@index([journalId])
+  @@index([transactionId])
   @@map("ledger_entries")
 }
 

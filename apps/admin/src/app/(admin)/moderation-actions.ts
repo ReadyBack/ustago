@@ -10,6 +10,7 @@ import {
 import { revalidatePath } from 'next/cache';
 
 import { apiAction } from '@/lib/api';
+import { parseFinancialAction } from '@/lib/finance';
 import { istanbulDayStart } from '@/lib/job-filters';
 
 export interface ModerationState {
@@ -21,6 +22,10 @@ const MESSAGES: Record<string, string> = {
   DISPUTE_ALREADY_RESOLVED:
     'Bu sorun bildirimi başka bir yönetici tarafından zaten sonuçlandırıldı.',
   DISPUTE_NOT_FOUND: 'Sorun bildirimi bulunamadı.',
+  DISPUTE_FINANCIAL_ACTION_REQUIRED:
+    'Bu işte bekletilen ödeme var: iade veya ustaya aktarım kararı seçin.',
+  REFUND_EXCEEDS_REFUNDABLE: 'İade tutarı iade edilebilir tutarı aşıyor.',
+  REFUND_NOT_ALLOWED: 'Bu ödeme şu anki durumunda iade edilemez.',
   REVIEW_MODERATION_CONFLICT: 'Değerlendirmenin durumu değişmiş; sayfayı yenileyin.',
   REVIEW_NOT_FOUND: 'Değerlendirme bulunamadı.',
   PENALTY_NOT_ACTIVE: 'Bu yaptırım artık yürürlükte değil.',
@@ -46,22 +51,30 @@ async function send(path: string, body: unknown, revalidate: string[]): Promise<
   return { ok: true };
 }
 
-/** Resolve a dispute with an outcome and a note (the job stays DISPUTED). */
+/**
+ * Resolve a dispute with an outcome and a note (the job stays DISPUTED),
+ * plus what happens to held money when the job was paid online.
+ */
 export async function resolveDispute(
   _prev: ModerationState,
   form: FormData,
 ): Promise<ModerationState> {
   const id = uuidSchema.safeParse(form.get('id'));
   if (!id.success) return INVALID;
+  const financial = parseFinancialAction(text(form, 'financialAction'), text(form, 'refundAmount'));
+  if (!financial.ok) return { error: financial.error };
   const body = resolveDisputeSchema.safeParse({
     outcome: text(form, 'outcome'),
     note: text(form, 'note'),
+    ...(financial.value ? { financialAction: financial.value } : {}),
   });
   if (!body.success) return { error: firstIssue(body.error) };
   return send(`/admin/disputes/${id.data}/resolve`, body.data, [
     '/disputes',
     `/disputes/${id.data}`,
     '/jobs',
+    '/finance',
+    '/finance/payments',
   ]);
 }
 

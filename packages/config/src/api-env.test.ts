@@ -121,7 +121,48 @@ describe('apiEnvSchema', () => {
       PUSH_PROVIDER: 'expo',
       OTP_HASH_SECRET: 'x'.repeat(40),
       STORAGE_SIGNING_SECRET: 'y'.repeat(40),
+      PAYMENT_PROVIDER: 'disabled',
+      PAYOUT_PROVIDER: 'disabled',
+      FINANCE_EARNING_HOLD_HOURS: '72',
+      FINANCE_MIN_PAYOUT_MINOR: '10000',
     });
     expect(result.success).toBe(true);
+  });
+
+  it('applies finance defaults (test money, no production values)', () => {
+    const env = parseEnv(apiEnvSchema, validEnv);
+    expect(env.PAYMENT_PROVIDER).toBe('mock');
+    expect(env.PAYOUT_PROVIDER).toBe('mock');
+    expect(env.PAYMENTS_ENABLED).toBe(true);
+    expect(env.CASH_ENABLED).toBe(true);
+    expect(env.PAYOUTS_ENABLED).toBe(true);
+    expect(env.FINANCE_CASH_COMMISSION_ENABLED).toBe(true);
+    expect(env.FINANCE_EARNING_HOLD_HOURS).toBeUndefined();
+    expect(env.FINANCE_MIN_PAYOUT_MINOR).toBeUndefined();
+  });
+
+  it('refuses to boot production with the mock payment or payout provider', () => {
+    const result = apiEnvSchema.safeParse({
+      ...validEnv,
+      NODE_ENV: 'production',
+      API_CORS_ORIGINS: 'https://admin.ustago.example',
+      SMS_PROVIDER: 'disabled',
+      STORAGE_DRIVER: 'disabled',
+      PUSH_PROVIDER: 'expo',
+      OTP_HASH_SECRET: 'x'.repeat(40),
+      STORAGE_SIGNING_SECRET: 'y'.repeat(40),
+      PAYMENT_PROVIDER: 'mock',
+      PAYOUT_PROVIDER: 'mock',
+    });
+    expect(result.success).toBe(false);
+    const paths = result.error?.issues.map((issue) => issue.path.join('.'));
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        'PAYMENT_PROVIDER',
+        'PAYOUT_PROVIDER',
+        'FINANCE_EARNING_HOLD_HOURS',
+        'FINANCE_MIN_PAYOUT_MINOR',
+      ]),
+    );
   });
 });

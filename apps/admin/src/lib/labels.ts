@@ -7,6 +7,10 @@ import type {
   JobActor,
   JobStatus,
   JobStep,
+  LedgerAccountType,
+  LedgerTransactionType,
+  PaymentAttemptStatus,
+  PaymentMethodChoice,
   PenaltySeverity,
   QualityFactorKey,
   ReviewStatus,
@@ -14,6 +18,8 @@ import type {
   ProviderStatus,
   QuoteRevisionKind,
   QuoteStatus,
+  RefundReason,
+  RefundStatus,
   ServiceRequestStatus,
   ServiceRequestType,
   VerificationStatus,
@@ -202,4 +208,92 @@ export const QUALITY_FACTOR_LABELS: Record<QualityFactorKey, string> = {
   RESPONSE: 'Yanıt hızı',
   VERIFICATION: 'Doğrulamalar',
   EXPERIENCE: 'Deneyim',
+};
+
+// ---------------------------------------------------------------------------
+// Finans (Faz 5). Payment / cash / payout / earning status labels are shared
+// from @ustago/validation so every app says the same thing.
+// ---------------------------------------------------------------------------
+
+export {
+  CASH_STATUS_LABELS,
+  EARNING_STATUS_LABELS,
+  PAYMENT_STATUS_LABELS,
+  PAYOUT_STATUS_LABELS,
+} from '@ustago/validation';
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethodChoice, string> = {
+  IN_APP: 'Uygulamadan',
+  CASH: 'Ustaya doğrudan',
+};
+
+export const ATTEMPT_STATUS_LABELS: Record<PaymentAttemptStatus, string> = {
+  PENDING: 'Bekliyor',
+  SUCCEEDED: 'Başarılı',
+  FAILED: 'Başarısız',
+  CANCELLED: 'İptal edildi',
+};
+
+export const REFUND_STATUS_LABELS: Record<RefundStatus, string> = {
+  REQUESTED: 'İşleniyor',
+  SUCCEEDED: 'Tamamlandı',
+  FAILED: 'Başarısız',
+};
+
+export const REFUND_REASON_LABELS: Record<RefundReason, string> = {
+  JOB_CANCELLED: 'İş iptal edildi',
+  DISPUTE_RESOLUTION: 'Sorun bildirimi kararı',
+  SERVICE_ISSUE: 'Hizmet sorunu',
+  CUSTOMER_REQUEST: 'Müşteri talebi',
+  DUPLICATE_PAYMENT: 'Mükerrer ödeme',
+  OTHER: 'Diğer',
+};
+
+/** Reasons an admin picks by hand (the other two are set by the system). */
+export const ADMIN_REFUND_REASONS = [
+  'SERVICE_ISSUE',
+  'CUSTOMER_REQUEST',
+  'DUPLICATE_PAYMENT',
+  'OTHER',
+] as const satisfies readonly RefundReason[];
+
+export const LEDGER_ACCOUNT_LABELS: Record<LedgerAccountType, string> = {
+  PROVIDER_PENDING: 'Usta bekleyen bakiye',
+  PROVIDER_AVAILABLE: 'Usta kullanılabilir bakiye',
+  PROVIDER_RESERVED: 'Usta ayrılmış bakiye (çekim)',
+  PLATFORM_CLEARING: 'Platform tahsilat hesabı',
+  PLATFORM_FEE_REVENUE: 'Platform hizmet bedeli geliri',
+  REFUND_LIABILITY: 'İade yükümlülüğü',
+  PROVIDER_PLATFORM_DEBT: 'Ustanın platforma borcu',
+};
+
+export const LEDGER_TRANSACTION_LABELS: Record<LedgerTransactionType, string> = {
+  PAYMENT_CAPTURED: 'Ödeme tahsil edildi',
+  EARNING_RELEASED: 'Kazanç serbest bırakıldı',
+  CASH_FEE_ASSESSED: 'Nakit iş hizmet bedeli',
+  REFUND_REQUESTED: 'İade talep edildi',
+  REFUND_COMPLETED: 'İade tamamlandı',
+  PAYOUT_RESERVED: 'Para çekme için ayrıldı',
+  PAYOUT_PAID: 'Para çekme ödendi',
+  PAYOUT_RELEASED: 'Para çekme geri bırakıldı',
+  REVERSAL: 'Ters kayıt',
+  ADJUSTMENT: 'Düzeltme',
+};
+
+export type DisputeFinancialActionType =
+  | 'NO_FINANCIAL_ACTION'
+  | 'FULL_CUSTOMER_REFUND'
+  | 'PARTIAL_CUSTOMER_REFUND'
+  | 'RELEASE_PROVIDER_FUNDS';
+
+export const DISPUTE_FINANCIAL_ACTION_LABELS: Record<DisputeFinancialActionType, string> = {
+  NO_FINANCIAL_ACTION: 'Finansal işlem yok',
+  FULL_CUSTOMER_REFUND: 'Müşteriye tam iade',
+  PARTIAL_CUSTOMER_REFUND: 'Müşteriye kısmi iade',
+  RELEASE_PROVIDER_FUNDS: 'Ustaya aktar',
+};
+
+export const CASH_RESOLVE_LABELS: Record<'CONFIRM_PAID' | 'MARK_UNPAID', string> = {
+  CONFIRM_PAID: 'Ödendi olarak onayla',
+  MARK_UNPAID: 'Ödenmedi olarak kaydet',
 };

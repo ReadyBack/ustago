@@ -13,9 +13,10 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { setupApp } from '../src/app.setup.js';
 import { API_ENV, type ApiEnv, loadApiEnv } from '../src/config/env.js';
-import type { Role } from '../src/generated/prisma/client.js';
+import type { Prisma, Role } from '../src/generated/prisma/client.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { RedisService } from '../src/redis/redis.service.js';
+import { ensureDevFeePolicy } from '../src/seed/seed-finance.js';
 import { seedReferenceData } from '../src/seed/seed-reference.js';
 import { FakeSmsProvider } from '../src/sms/fake-sms.provider.js';
 import { SMS_PROVIDER } from '../src/sms/sms-provider.js';
@@ -59,11 +60,12 @@ export async function createTestApp(
     .overrideProvider(API_ENV)
     .useValue(env)
     .compile();
-  const app = moduleRef.createNestApplication({ logger: ['error'] });
+  const app = moduleRef.createNestApplication({ logger: ['error'], rawBody: true });
   setupApp(app, app.get<ApiEnv>(API_ENV));
   await app.init();
   const prisma = app.get(PrismaService);
   await seedReferenceData(prisma);
+  await ensureDevFeePolicy(prisma);
   return { app, prisma, http: () => request(app.getHttpServer()) };
 }
 
@@ -200,6 +202,7 @@ export async function cleanup(ctx: TestContext): Promise<void> {
   await ctx.prisma.disciplinaryAction.deleteMany({
     where: { OR: [{ subjectId: { in: ids } }, { decidedById: { in: ids } }] },
   });
+  await purgeFinance(ctx, jobWhere, ids);
   await ctx.prisma.review.deleteMany({ where: { job: jobWhere } });
   await ctx.prisma.dispute.deleteMany({ where: { job: jobWhere } });
   await ctx.prisma.job.deleteMany({ where: jobWhere });
@@ -222,4 +225,51 @@ export async function cleanup(ctx: TestContext): Promise<void> {
     where: { slug: { startsWith: `e2e-${RUN_ID}` }, parentId: { not: null } },
   });
   await ctx.prisma.serviceCategory.deleteMany({ where: { slug: { startsWith: `e2e-${RUN_ID}` } } });
+}
+
+/**
+ * Faz 5 rows of the run's jobs and providers. The ledger is append-only
+ * (DB trigger); tests may delete only inside a transaction that sets the
+ * `ustago.ledger_test_purge` flag.
+ */
+async function purgeFinance(
+  ctx: TestContext,
+  jobWhere: Prisma.JobWhereInput,
+  userIds: string[],
+): Promise<void> {
+  const jobs = await ctx.prisma.job.findMany({ where: jobWhere, select: { id: true } });
+  const jobIds = jobs.map((j) => j.id);
+  const providers = await ctx.prisma.providerProfile.findMany({
+    where: { userId: { in: userIds } },
+    select: { id: true },
+  });
+  const providerIds = providers.map((p) => p.id);
+  if (jobIds.length === 0 && providerIds.length === 0) return;
+  await ctx.prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SET LOCAL ustago.ledger_test_purge = 'on'`);
+    const txWhere: Prisma.LedgerTransactionWhereInput = {
+      OR: [{ jobId: { in: jobIds } }, { providerId: { in: providerIds } }],
+    };
+    const ledgerTx = await tx.ledgerTransaction.findMany({ where: txWhere, select: { id: true } });
+    const txIds = ledgerTx.map((t) => t.id);
+    await tx.ledgerEntry.deleteMany({ where: { transactionId: { in: txIds } } });
+    // Reversals point at the transaction they reverse.
+    await tx.ledgerTransaction.deleteMany({
+      where: { id: { in: txIds }, reversesId: { not: null } },
+    });
+    await tx.ledgerTransaction.deleteMany({ where: { id: { in: txIds } } });
+    await tx.ledgerEntry.deleteMany({
+      where: { account: { providerId: { in: providerIds } } },
+    });
+    await tx.ledgerAccount.deleteMany({ where: { providerId: { in: providerIds } } });
+    await tx.refund.deleteMany({ where: { jobId: { in: jobIds } } });
+    await tx.providerEarning.deleteMany({
+      where: { OR: [{ jobId: { in: jobIds } }, { providerId: { in: providerIds } }] },
+    });
+    await tx.paymentTransaction.deleteMany({ where: { payment: { jobId: { in: jobIds } } } });
+    await tx.payment.deleteMany({ where: { jobId: { in: jobIds } } });
+    await tx.cashSettlement.deleteMany({ where: { jobId: { in: jobIds } } });
+    await tx.payout.deleteMany({ where: { providerId: { in: providerIds } } });
+    await tx.payoutDestination.deleteMany({ where: { providerId: { in: providerIds } } });
+  });
 }

@@ -4,15 +4,22 @@
  * - Reference data (81 provinces, pilot districts, starting categories) is
  *   seeded in every environment.
  * - Demo accounts are seeded only when NODE_ENV is not production.
+ * - DEMO finance data (TEST money, mock provider) likewise; it runs through
+ *   the real API services in a Nest application context.
  */
+import 'reflect-metadata';
+
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import type { INestApplicationContext } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../generated/prisma/client.js';
+import { seedDemoFinance } from './seed-demo-finance.js';
 import { recalculateAllScores, seedDemoHistory } from './seed-demo-history.js';
 import { seedDevData } from './seed-dev.js';
+import { ensureDevFeePolicy } from './seed-finance.js';
 import { seedReferenceData } from './seed-reference.js';
 
 const rootEnv = resolve(import.meta.dirname, '../../../../.env');
@@ -20,6 +27,18 @@ if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) throw new Error('DATABASE_URL is not set.');
+
+/** The API's services without HTTP, for seed steps that must use them. */
+async function withAppContext<T>(fn: (app: INestApplicationContext) => Promise<T>): Promise<T> {
+  const { NestFactory } = await import('@nestjs/core');
+  const { AppModule } = await import('../app.module.js');
+  const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
+  try {
+    return await fn(app);
+  } finally {
+    await app.close();
+  }
+}
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
 
@@ -45,6 +64,15 @@ try {
     console.warn(`DEMO job history: +${history} completed jobs with reviews.`);
     const scored = await recalculateAllScores(prisma);
     console.warn(`UstaScore V1 snapshots recomputed for ${scored} providers.`);
+    const policy = await ensureDevFeePolicy(prisma);
+    console.warn(
+      `Development fee policy (15 %, not a commercial rate): ${policy ? 'created' : 'already present'}.`,
+    );
+    const finance = await withAppContext((app) => seedDemoFinance(prisma, app));
+    console.warn(
+      `DEMO finance (TEST money only, idempotent — present after this run): ${finance.jobs} jobs, ${finance.payments} online payments, ` +
+        `${finance.cash} cash, ${finance.refunds} refund, ${finance.payouts} payout.`,
+    );
     if (dev.generatedPassword) {
       console.warn(
         `Generated password for the new demo accounts (shown once, not stored): ${dev.generatedPassword}`,

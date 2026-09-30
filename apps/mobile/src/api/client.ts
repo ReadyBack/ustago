@@ -49,6 +49,8 @@ export interface RequestOptions {
   /** Send the access token (default true). */
   auth?: boolean;
   signal?: AbortSignal;
+  /** Extra headers, e.g. Idempotency-Key. */
+  headers?: Record<string, string>;
 }
 
 type Fetch = typeof fetch;
@@ -139,7 +141,7 @@ export class ApiClient {
     options: RequestOptions,
     accessToken: string | undefined,
   ): Promise<Response> {
-    const headers: Record<string, string> = { Accept: 'application/json' };
+    const headers: Record<string, string> = { ...options.headers, Accept: 'application/json' };
     if (options.body !== undefined) headers['Content-Type'] = 'application/json';
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
     try {

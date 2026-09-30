@@ -6,6 +6,7 @@ import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
 import { ConfigModule } from './config/config.module.js';
+import { FinanceModule } from './finance/finance.module.js';
 import { HealthModule } from './health/health.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { LocationsModule } from './locations/locations.module.js';
@@ -47,6 +48,7 @@ import { UsersModule } from './users/users.module.js';
     NotificationsModule,
     ServiceRequestsModule,
     JobsModule,
+    FinanceModule,
     QuotesModule,
     ReviewsModule,
   ],

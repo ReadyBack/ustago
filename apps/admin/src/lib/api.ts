@@ -16,6 +16,8 @@ interface RequestOptions<S extends z.ZodType | undefined> {
   schema?: S;
   /** Uses this token instead of the session cookie (login, logout). */
   accessToken?: string | null;
+  /** Extra request headers, e.g. `Idempotency-Key` for money-moving calls. */
+  headers?: Record<string, string>;
 }
 
 type Data<S> = S extends z.ZodType ? z.infer<S> : undefined;
@@ -40,6 +42,7 @@ export async function apiRequest<S extends z.ZodType | undefined = undefined>(
         Accept: 'application/json',
         ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: AbortSignal.timeout(10_000),
