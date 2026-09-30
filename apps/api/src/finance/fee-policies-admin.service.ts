@@ -89,8 +89,9 @@ export class FeePoliciesAdminService {
           entityType: 'platform_fee_policy',
           entityId: created.id,
           ipAddress,
+          // `policyCode`: a bare `code` key is redacted as a possible OTP.
           metadata: {
-            code: input.code,
+            policyCode: input.code,
             bps: input.bps,
             effectiveFrom: input.effectiveFrom.toISOString(),
           },
@@ -142,7 +143,7 @@ export class FeePoliciesAdminService {
           entityId: id,
           ipAddress,
           metadata: {
-            code: current.code,
+            policyCode: current.code,
             bps: current.bps,
             effectiveFrom: current.effectiveFrom.toISOString(),
           },
@@ -188,7 +189,7 @@ export class FeePoliciesAdminService {
         entityType: 'platform_fee_policy',
         entityId: id,
         ipAddress,
-        metadata: { code: current.code },
+        metadata: { policyCode: current.code },
       });
     });
     return this.one(id);
@@ -209,7 +210,7 @@ export class FeePoliciesAdminService {
         entityType: 'platform_fee_policy',
         entityId: id,
         ipAddress,
-        metadata: { code: current.code },
+        metadata: { policyCode: current.code },
       });
     });
   }

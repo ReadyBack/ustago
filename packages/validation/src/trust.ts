@@ -35,12 +35,6 @@ export const adminPermissionSchema = z.enum([
   'ADMIN_SUPER',
 ]) satisfies z.ZodType<AdminPermission>;
 
-/** Machine-readable reason codes; free text goes in the note fields. */
-const reasonCodeSchema = z
-  .string()
-  .trim()
-  .regex(/^[A-Z][A-Z0-9_]{2,59}$/, { message: 'Geçerli bir gerekçe kodu seçin.' });
-
 /** Shown to the provider. */
 const userVisibleReasonSchema = z.string().trim().min(5).max(500);
 /** Admins only; never returned to the provider. */
