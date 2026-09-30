@@ -2,10 +2,13 @@ import { Tabs } from 'expo-router/js-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TabIcon } from '../../src/components/TabIcon';
+import { badgeText, useBadges } from '../../src/features/customer/useBadges';
 import { colors } from '../../src/lib/theme';
 
 export default function CustomerTabs() {
   const insets = useSafeAreaInsets();
+  const badges = useBadges();
+  const unreadLabel = (title: string, n: number) => (n > 0 ? `${title}, ${n} okunmamış` : title);
   return (
     <Tabs
       screenOptions={{
@@ -13,6 +16,7 @@ export default function CustomerTabs() {
         tabBarInactiveTintColor: colors.textSecondary,
         headerTitleStyle: { fontWeight: '700' },
         tabBarLabelStyle: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
+        tabBarBadgeStyle: { backgroundColor: colors.emergency, fontSize: 11 },
         // Room for the emoji icon and the label, above the home indicator.
         tabBarStyle: {
           height: 70 + insets.bottom,
@@ -20,6 +24,8 @@ export default function CustomerTabs() {
           paddingBottom: 6 + insets.bottom,
         },
       }}
+      // Switching tabs is a natural moment to refresh the counts (throttled in the hook).
+      screenListeners={{ focus: badges.reload }}
     >
       <Tabs.Screen
         name="index"
@@ -32,7 +38,7 @@ export default function CustomerTabs() {
       <Tabs.Screen
         name="requests"
         options={{
-          title: 'Taleplerim',
+          title: 'İşlerim',
           tabBarIcon: ({ focused }) => <TabIcon emoji="📋" focused={focused} />,
         }}
       />
@@ -40,7 +46,18 @@ export default function CustomerTabs() {
         name="messages"
         options={{
           title: 'Mesajlar',
+          tabBarBadge: badgeText(badges.messages),
+          tabBarAccessibilityLabel: unreadLabel('Mesajlar', badges.messages),
           tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Bildirimler',
+          tabBarBadge: badgeText(badges.notifications),
+          tabBarAccessibilityLabel: unreadLabel('Bildirimler', badges.notifications),
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🔔" focused={focused} />,
         }}
       />
       <Tabs.Screen

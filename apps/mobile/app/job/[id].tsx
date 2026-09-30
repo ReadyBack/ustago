@@ -72,6 +72,9 @@ export default function JobDetail() {
       <ChangeOrders job={job} />
       <PaymentCard job={j} />
       <ReviewSection job={job} />
+      {j.viewerRole === 'CUSTOMER' && j.status === 'COMPLETED' ? (
+        <RehireButton jobId={j.id} />
+      ) : null}
 
       <Card>
         <Heading>İş adımları</Heading>
@@ -101,6 +104,20 @@ export default function JobDetail() {
         {j.address.instructions ? <Small>Tarif: {j.address.instructions}</Small> : null}
       </Card>
     </Screen>
+  );
+}
+
+/** Faz 7: a new request prefilled from this job (GET /jobs/:id/rehire); this job is untouched. */
+function RehireButton({ jobId }: { jobId: string }) {
+  const router = useRouter();
+  return (
+    <Button
+      testID="rehire-job"
+      title="🔁 Bu ustayı tekrar çağır"
+      variant="secondary"
+      accessibilityHint="Aynı usta ve hizmet için yeni bir talep başlatır"
+      onPress={() => router.push({ pathname: '/request/new', params: { rehireJobId: jobId } })}
+    />
   );
 }
 
