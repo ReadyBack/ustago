@@ -205,6 +205,7 @@ export class ReviewsService {
       include: {
         author: { select: { firstName: true, lastName: true } },
         job: { select: { category: { select: { name: true } } } },
+        reply: { select: { body: true, createdAt: true } },
       },
       orderBy: { id: 'desc' },
       take: query.limit + 1,
@@ -222,6 +223,7 @@ export class ReviewsService {
         authorName: maskPersonName(r.author.firstName, r.author.lastName),
         categoryName: r.job.category.name,
         createdAt: r.createdAt.toISOString(),
+        reply: r.reply ? { body: r.reply.body, createdAt: r.reply.createdAt.toISOString() } : null,
       })),
       nextCursor: rows.length > query.limit ? (page.at(-1)?.id ?? null) : null,
     };

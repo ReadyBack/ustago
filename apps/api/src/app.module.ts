@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 
 import { AddressesModule } from './addresses/addresses.module.js';
+import { AnalyticsModule } from './analytics/analytics.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { FinanceModule } from './finance/finance.module.js';
+import { GeoModule } from './geo/geo.module.js';
 import { HealthModule } from './health/health.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { LocationsModule } from './locations/locations.module.js';
@@ -33,6 +35,8 @@ import { UsersModule } from './users/users.module.js';
     ConfigModule,
     PrismaModule,
     RedisModule,
+    GeoModule,
+    AnalyticsModule,
     AuditModule,
     OpsCoreModule,
     SecurityModule,

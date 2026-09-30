@@ -347,3 +347,13 @@ export {
 } from './finance.js';
 export * from './trust.js';
 export * from './ops.js';
+export * from './analytics.js';
+export * from './chat.js';
+export * from './discovery.js';
+export * from './provider-ops.js';
+export * from './search-text.js';
+export {
+  notificationCategorySchema,
+  type ReplyToReview,
+  replyToReviewSchema,
+} from './lifecycle.js';

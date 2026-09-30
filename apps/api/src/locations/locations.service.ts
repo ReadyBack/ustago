@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { District, Province, ProvinceCategorySetting } from '@ustago/types';
+import type {
+  District,
+  Province,
+  ProvinceCategorySetting,
+  ProvinceLaunchStatus,
+} from '@ustago/types';
 import type { UpdateProvinceCategoryRequest } from '@ustago/validation';
 
 import { AuditService } from '../audit/audit.service.js';
@@ -7,7 +12,41 @@ import { notFound, unprocessable } from '../common/http/errors.js';
 import { effectiveProvinceCategory } from '../providers/domain/now-availability.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
-const PROVINCE_SELECT = { id: true, name: true, slug: true, isActive: true } as const;
+const PROVINCE_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  isActive: true,
+  waitlistOpen: true,
+  countryCode: true,
+} as const;
+
+/** Launch status (docs/adr/0029): open, waitlist or closed. */
+export function launchStatusOf(p: {
+  isActive: boolean;
+  waitlistOpen: boolean;
+}): ProvinceLaunchStatus {
+  if (p.isActive) return 'ACTIVE';
+  return p.waitlistOpen ? 'WAITLIST' : 'DISABLED';
+}
+
+function toProvince(p: {
+  id: number;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  waitlistOpen: boolean;
+  countryCode: string;
+}): Province {
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    isActive: p.isActive,
+    launchStatus: launchStatusOf(p),
+    countryCode: p.countryCode,
+  };
+}
 const NOT_FOUND = () => notFound('PROVINCE_NOT_FOUND', 'İl bulunamadı.');
 const CATEGORY_SELECT = {
   id: true,
@@ -58,12 +97,13 @@ export class LocationsService {
   ) {}
 
   /** All 81 provinces by plate code; `onlyActive` limits to open markets. */
-  listProvinces(onlyActive: boolean): Promise<Province[]> {
-    return this.prisma.province.findMany({
+  async listProvinces(onlyActive: boolean): Promise<Province[]> {
+    const rows = await this.prisma.province.findMany({
       where: onlyActive ? { isActive: true } : {},
       orderBy: { id: 'asc' },
       select: PROVINCE_SELECT,
     });
+    return rows.map(toProvince);
   }
 
   async listDistricts(provinceId: number, includeInactive = false): Promise<District[]> {
@@ -78,14 +118,18 @@ export class LocationsService {
   async setProvinceActive(
     actorId: string,
     provinceId: number,
-    isActive: boolean,
+    input: { isActive?: boolean | undefined; waitlistOpen?: boolean | undefined },
     ipAddress: string | null,
   ): Promise<Province> {
+    const data = {
+      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+      ...(input.waitlistOpen !== undefined ? { waitlistOpen: input.waitlistOpen } : {}),
+    };
     if (!(await this.prisma.province.findUnique({ where: { id: provinceId } }))) throw NOT_FOUND();
     return this.prisma.$transaction(async (tx) => {
       const province = await tx.province.update({
         where: { id: provinceId },
-        data: { isActive },
+        data,
         select: PROVINCE_SELECT,
       });
       await this.audit.recordIn(tx, {
@@ -94,9 +138,9 @@ export class LocationsService {
         entityType: 'province',
         entityId: String(provinceId),
         ipAddress,
-        metadata: { isActive },
+        metadata: data,
       });
-      return province;
+      return toProvince(province);
     });
   }
 

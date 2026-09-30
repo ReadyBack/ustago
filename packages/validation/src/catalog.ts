@@ -44,6 +44,8 @@ export const updateCategoryRequestSchema = z
     isActive: z.boolean().optional(),
     supportsNow: z.boolean().optional(),
     supportsQuote: z.boolean().optional(),
+    /** Faz 7: how the request wizard treats photos for this category. */
+    requestPhotoPolicy: z.enum(['OPTIONAL', 'RECOMMENDED', 'REQUIRED']).optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, { message: 'En az bir alan gönderin.' });
@@ -54,6 +56,8 @@ export const provinceSchema = z.object({
   name: z.string(),
   slug: z.string(),
   isActive: z.boolean(),
+  launchStatus: z.enum(['ACTIVE', 'WAITLIST', 'DISABLED']),
+  countryCode: z.string().length(2),
 }) satisfies z.ZodType<Province>;
 
 export const districtSchema = z.object({
@@ -70,7 +74,16 @@ export const listProvincesQuerySchema = z.object({
   active: z.enum(['true', 'false']).optional(),
 });
 
-export const updateProvinceRequestSchema = z.object({ isActive: z.boolean() }).strict();
+/**
+ * Province launch control (Faz 7, docs/adr/0029). `isActive` opens the
+ * marketplace; while closed, `waitlistOpen` decides WAITLIST (requests are
+ * accepted and wait for supply) or DISABLED. Provinces are reference data
+ * and can never be deleted.
+ */
+export const updateProvinceRequestSchema = z
+  .object({ isActive: z.boolean().optional(), waitlistOpen: z.boolean().optional() })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, { message: 'En az bir alan gönderin.' });
 export type UpdateProvinceRequest = z.infer<typeof updateProvinceRequestSchema>;
 
 export const listDistrictsQuerySchema = z.object({

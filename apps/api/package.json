@@ -21,7 +21,8 @@
     "prisma:validate": "prisma validate",
     "prisma:reset": "prisma migrate reset && prisma db seed",
     "finance:reconcile": "tsx src/finance/reconcile.cli.ts",
-    "config:check": "tsx src/config-check.cli.ts"
+    "config:check": "tsx src/config-check.cli.ts",
+    "db:checksum": "tsx src/migration-checksum.cli.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

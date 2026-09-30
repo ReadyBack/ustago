@@ -35,9 +35,18 @@ describe('notification events', () => {
   });
 
   it('always pushes job events; quote pushes follow the preference', () => {
-    const off = { quoteUpdatesPush: false };
+    const prefs = {
+      quoteUpdatesPush: false,
+      newMessagePush: true,
+      newJobAlerts: 'ON' as const,
+      quietHoursStart: null,
+      quietHoursEnd: null,
+    };
+    const off = prefs;
     expect(wantsPush(NotificationEvent.JOB_EN_ROUTE, off)).toBe(true);
     expect(wantsPush(NotificationEvent.QUOTE_COUNTERED, off)).toBe(false);
-    expect(wantsPush(NotificationEvent.QUOTE_COUNTERED, { quoteUpdatesPush: true })).toBe(true);
+    expect(wantsPush(NotificationEvent.QUOTE_COUNTERED, { ...prefs, quoteUpdatesPush: true })).toBe(
+      true,
+    );
   });
 });

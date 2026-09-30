@@ -7,6 +7,14 @@ import type {
   JobTimelineEntry,
   Review,
 } from './lifecycle.js';
+import type {
+  ApproxDistance,
+  CategoryAnswerSnapshot,
+  DispatchSummary,
+  QuoteComparisonLabel,
+  QuoteEta,
+  ScheduleOption,
+} from './discovery.js';
 import type { Money } from './money.js';
 
 /** NOW = UstaGO NOW / Acil Usta; QUOTE = Teklif Al (docs/adr/0014). */
@@ -114,6 +122,14 @@ export interface ServiceRequest {
   actions: ServiceRequestActions;
   createdAt: string;
   updatedAt: string;
+  // Faz 7
+  /** Upper end of a budget range; null for a single amount or no budget. */
+  budgetMax: Money | null;
+  scheduleOption: ScheduleOption | null;
+  answers: CategoryAnswerSnapshot[];
+  /** Null for drafts. */
+  dispatch: DispatchSummary | null;
+  rehireOfJobId: string | null;
 }
 
 /** Row of GET /me/service-requests ("Taleplerim"). */
@@ -155,6 +171,17 @@ export interface Opportunity {
   photos: ServiceRequestPhoto[];
   /** The caller's own quote on this request, if any. */
   myQuoteId: string | null;
+  // Faz 7 ("Sana Uygun İşler")
+  budgetMax: Money | null;
+  scheduleOption: ScheduleOption | null;
+  answers: CategoryAnswerSnapshot[];
+  photoCount: number;
+  /** Straight-line, district-centre based ("Yaklaşık 8 km"). */
+  distance: ApproxDistance | null;
+  /** Set when the request was dispatched to the caller (wave and time). */
+  dispatch: { wave: number; dispatchedAt: string; viewedAt: string | null } | null;
+  /** The customer asked for this provider by name (rehire / profile). */
+  isPreferredForMe: boolean;
 }
 
 /** One immutable step of a negotiation. */
@@ -168,6 +195,11 @@ export interface QuoteRevision {
   labor: Money | null;
   material: Money | null;
   materialsIncluded: boolean | null;
+  /** Faz 7 optional lines; `total` stays the only binding amount. */
+  service: Money | null;
+  other: Money | null;
+  /** Provider's own arrival estimate; never computed by the platform. */
+  arrivalEta: QuoteEta | null;
   note: string | null;
   estimatedDurationMinutes: number | null;
   availableFrom: string | null;
@@ -221,6 +253,15 @@ export interface Quote {
   actions: QuoteActions;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Faz 7 offer comparison (customer only): objective labels derived from
+   * real data when one open quote is the unique best on that axis.
+   */
+  comparisonLabels: QuoteComparisonLabel[];
+  /** Approximate provider distance for the customer; null for the provider. */
+  distance: ApproxDistance | null;
+  /** Conversation with this provider about the request, if one exists. */
+  conversationId: string | null;
 }
 
 /** Row of GET /providers/me/quotes ("Tekliflerim"). */
@@ -316,6 +357,8 @@ export interface AppNotification {
    * checks ownership, so a deep link never grants access (Faz 6).
    */
   deepLink: string | null;
+  /** Faz 7 notification centre tab. */
+  category: 'JOBS' | 'MESSAGES' | 'FINANCE' | 'ACCOUNT';
   readAt: string | null;
   createdAt: string;
 }

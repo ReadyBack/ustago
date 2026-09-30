@@ -106,7 +106,7 @@ export class LocationsController {
     @Body(new ZodValidationPipe(updateProvinceRequestSchema)) body: UpdateProvinceRequest,
     @Req() req: Request,
   ): Promise<Province> {
-    return this.locations.setProvinceActive(actor.id, id, body.isActive, clientIp(req));
+    return this.locations.setProvinceActive(actor.id, id, body, clientIp(req));
   }
 }
 

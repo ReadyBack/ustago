@@ -55,7 +55,7 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: data
 try {
   const reference = await seedReferenceData(prisma);
   console.warn(
-    `Reference data: +${reference.provinces} provinces, +${reference.districts} districts, +${reference.categories} categories.`,
+    `Reference data: +${reference.provinces} provinces, +${reference.districts} districts, +${reference.categories} categories, ${reference.coordinates} coordinates filled.`,
   );
 
   if (!demo) {
