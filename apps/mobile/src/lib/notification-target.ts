@@ -17,11 +17,16 @@ export function notificationTarget(n: {
     const value = d[key];
     return typeof value === 'string' && value.length > 0 ? value : null;
   };
+  // Faz 7: message.* notifications carry the conversation id.
+  const conversationId = id('conversationId');
+  const isMessage = typeof d.type === 'string' && d.type.startsWith('message.');
+  if (conversationId && isMessage) return `/messages/${conversationId}`;
   const jobId = id('jobId');
   if (jobId) return `/job/${jobId}`;
   const quoteId = id('quoteId');
   if (quoteId) return `/quote/${quoteId}`;
   const requestId = id('serviceRequestId');
   if (requestId) return `/request/${requestId}`;
+  if (conversationId) return `/messages/${conversationId}`;
   return null;
 }

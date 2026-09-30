@@ -112,6 +112,36 @@ export function ProfileScreen({ mode }: { mode: 'customer' | 'provider' }) {
               onPress={() => router.push('/provider-onboarding')}
             />
             <Button
+              testID="open-provider-photo"
+              title="Profil fotoğrafı"
+              variant="ghost"
+              onPress={() => router.push('/provider-settings/photo')}
+            />
+            <Button
+              testID="open-availability"
+              title="Müsaitlik ve çalışma saatleri"
+              variant="ghost"
+              onPress={() => router.push('/provider-settings/availability')}
+            />
+            <Button
+              testID="open-coverage"
+              title="Hizmet bölgeleri"
+              variant="ghost"
+              onPress={() => router.push('/provider-settings/coverage')}
+            />
+            <Button
+              testID="open-portfolio"
+              title="Portföy"
+              variant="ghost"
+              onPress={() => router.push('/provider-settings/portfolio')}
+            />
+            <Button
+              testID="open-reviews"
+              title="Değerlendirmelerim"
+              variant="ghost"
+              onPress={() => router.push('/provider-settings/reviews')}
+            />
+            <Button
               testID="open-earnings"
               title="Kazançlarım"
               variant="ghost"
