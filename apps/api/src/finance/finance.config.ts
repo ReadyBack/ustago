@@ -1,3 +1,5 @@
+import { isStrictEnv } from '@ustago/config';
+
 import type { ApiEnv } from '../config/env.js';
 import { secretFor } from '../common/crypto/secrets.js';
 
@@ -35,7 +37,7 @@ const DEV_HOLD_HOURS = 0;
 const DEV_MIN_PAYOUT_MINOR = 10_000n;
 
 export function financeConfigFrom(env: ApiEnv): FinanceConfig {
-  const production = env.NODE_ENV === 'production';
+  const production = isStrictEnv(env.APP_ENV);
   const mock = env.PAYMENT_PROVIDER === 'mock' || env.PAYOUT_PROVIDER === 'mock';
   if (production && mock) {
     // Defence in depth: the env schema already refuses this.
@@ -49,7 +51,9 @@ export function financeConfigFrom(env: ApiEnv): FinanceConfig {
     paymentProvider: env.PAYMENT_PROVIDER,
     payoutProvider: env.PAYOUT_PROVIDER,
     testMode: env.PAYMENT_PROVIDER === 'mock',
-    devRoutesEnabled: !production && mock,
+    // Faz 6: an explicit switch as well (ALLOW_DEV_PAYMENT_SIMULATION),
+    // off outside development/test and refused there by the env schema.
+    devRoutesEnabled: !production && mock && env.ALLOW_DEV_PAYMENT_SIMULATION,
     earningHoldHours: env.FINANCE_EARNING_HOLD_HOURS ?? DEV_HOLD_HOURS,
     cashCommissionEnabled: env.FINANCE_CASH_COMMISSION_ENABLED,
     debtOffsetEnabled: env.FINANCE_DEBT_OFFSET_ENABLED,

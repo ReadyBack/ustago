@@ -186,7 +186,10 @@ export interface QuoteProviderCard {
   id: string;
   displayName: string;
   yearsOfExperience: number | null;
-  /** Identity document approved by an admin. */
+  /**
+   * The provider's account verification is VERIFIED and the account is not
+   * suspended (Faz 6, docs/adr/0023). Never derived from demo data alone.
+   */
   identityVerified: boolean;
   rating: ProviderRating | null;
   completedJobCount: number;
@@ -305,6 +308,14 @@ export interface AppNotification {
   title: string;
   body: string;
   data: Record<string, string> | null;
+  /** The record the notification is about, e.g. PAYMENT / payment id. */
+  entityType: string | null;
+  entityId: string | null;
+  /**
+   * In-app route to open, e.g. "/payments/<id>". The target endpoint still
+   * checks ownership, so a deep link never grants access (Faz 6).
+   */
+  deepLink: string | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -374,7 +385,7 @@ export interface AdminServiceRequestDetail {
 }
 
 export interface AdminSystemStatus {
-  environment: 'development' | 'test' | 'production';
+  environment: 'development' | 'test' | 'staging' | 'production';
   version: string;
   database: 'up' | 'down';
   redis: 'up' | 'down';

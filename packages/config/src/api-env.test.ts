@@ -125,8 +125,18 @@ describe('apiEnvSchema', () => {
       PAYOUT_PROVIDER: 'disabled',
       FINANCE_EARNING_HOLD_HOURS: '72',
       FINANCE_MIN_PAYOUT_MINOR: '10000',
+      // Faz 6 production requirements (docs/adr/0022).
+      IP_HASH_SECRET: 'z'.repeat(40),
+      API_SWAGGER_ENABLED: 'false',
+      RECONCILIATION_INTERVAL_MINUTES: '1440',
+      METRICS_TOKEN: 'm'.repeat(40),
+      ACCOUNT_DELETION_GRACE_HOURS: '720',
     });
     expect(result.success).toBe(true);
+    expect(result.data?.APP_ENV).toBe('production');
+    expect(result.data?.DEMO_SEED).toBe(false);
+    expect(result.data?.ALLOW_DEV_PAYMENT_SIMULATION).toBe(false);
+    expect(result.data?.LOG_FORMAT).toBe('json');
   });
 
   it('applies finance defaults (test money, no production values)', () => {

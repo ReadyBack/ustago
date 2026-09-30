@@ -203,6 +203,11 @@ export interface PayoutDestination {
   /** "TR** **** **** **** **** **12 34": the full IBAN is never stored. */
   maskedIban: string;
   isTest: boolean;
+  /**
+   * Payouts need VERIFIED. Faz 6 verifies manually (finance admin); a real
+   * account-ownership check is a provider decision (docs/decisions).
+   */
+  verificationStatus: 'UNVERIFIED' | 'PENDING_VERIFICATION' | 'VERIFIED';
 }
 
 export interface Payout {

@@ -1,14 +1,23 @@
 import { z } from 'zod';
 
+import { productionSafetyIssues, resolveAppEnv } from './production-safety.js';
+
+
 const booleanString = z.enum(['true', 'false']).transform((value) => value === 'true');
 
-/** Placeholder used in .env.example; never acceptable in production. */
-const EXAMPLE_SECRET_MARKER = 'change-me';
+/**
+ * Application environment (docs/adr/0022). NODE_ENV only says how the code
+ * was built; APP_ENV says where it runs, so staging can run a production
+ * build with its own rules. Unset, it follows NODE_ENV.
+ */
+export const APP_ENVIRONMENTS = ['development', 'test', 'staging', 'production'] as const;
+export type AppEnvironment = (typeof APP_ENVIRONMENTS)[number];
 
 export const apiEnvSchema = z
   .object({
     APP_VERSION: z.string().min(1).default('0.0.0-dev'),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    APP_ENV: z.enum(APP_ENVIRONMENTS).optional(),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     API_CORS_ORIGINS: z
       .string()
@@ -173,6 +182,73 @@ export const apiEnvSchema = z
     /** Seconds between earning-release / refund-retry sweeps; 0 turns it off (tests). */
     FINANCE_SWEEP_SECONDS: z.coerce.number().int().min(0).max(3600).default(15),
 
+    // --- Faz 6: production safety switches (docs/adr/0022) ---
+    /**
+     * Development conveniences that must never exist in staging or
+     * production. Unset, they are on in development/test and off elsewhere;
+     * setting any of them to true in staging/production refuses to boot.
+     */
+    /** /dev/payments/* simulate and /admin/dev/payouts/* mark-paid/failed. */
+    ALLOW_DEV_PAYMENT_SIMULATION: booleanString.optional(),
+    /** The seed may write DEMO verification decisions (no real review happened). */
+    ALLOW_TEST_KYC: booleanString.optional(),
+    /** The seed may write DEMO accounts, jobs and TEST money. */
+    DEMO_SEED: booleanString.optional(),
+    /**
+     * manual: admins review documents by hand (the only option: no KYC
+     * provider has been chosen, docs/decisions/kyc-provider-selection.md).
+     * disabled: verification uploads answer 503.
+     */
+    KYC_PROVIDER: z.enum(['manual', 'disabled']).default('manual'),
+    /**
+     * none: no antivirus is connected; documents stay NOT_SCANNED (never
+     * reported as clean). A real scanner adapter is a release blocker.
+     */
+    MALWARE_SCANNER: z.enum(['none']).default('none'),
+    /** Keyed hash for IP addresses in sessions and risk signals. */
+    IP_HASH_SECRET: z.string().min(32, 'must be at least 32 characters').optional(),
+    /** Staff sessions: absolute lifetime and inactivity limit. */
+    ADMIN_SESSION_MAX_HOURS: z.coerce.number().int().min(1).max(72).default(12),
+    ADMIN_IDLE_TIMEOUT_MINUTES: z.coerce.number().int().min(5).max(24 * 60).default(60),
+    /** New quotes one provider may send (anti-spam, generous for real work). */
+    QUOTE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(10),
+    QUOTE_RATE_LIMIT_PER_HOUR: z.coerce.number().int().min(1).max(10000).default(120),
+    /** Kill switch for creating new service requests (env ceiling). */
+    NEW_JOBS_ENABLED: booleanString.default(true),
+    /**
+     * Minutes between scheduled finance reconciliations; 0 = manual only
+     * (development default). Staging/production must schedule it.
+     */
+    RECONCILIATION_INTERVAL_MINUTES: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(7 * 24 * 60)
+      .default(0),
+    /** Seconds between operations sweeps (suspension expiry, alert checks); 0 = off. */
+    OPS_WORKER_INTERVAL_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
+    /** Push deliveries FAILED in the last hour that raise PUSH_FAILURE_SPIKE. */
+    PUSH_FAILURE_ALERT_THRESHOLD: z.coerce.number().int().min(1).default(20),
+    /** A pending push older than this raises QUEUE_BACKLOG. */
+    QUEUE_BACKLOG_ALERT_MINUTES: z.coerce.number().int().min(1).default(15),
+    /** Prometheus text metrics at /api/v1/metrics (needs METRICS_TOKEN outside dev). */
+    METRICS_ENABLED: booleanString.default(true),
+    METRICS_TOKEN: z.string().min(32, 'must be at least 32 characters').optional(),
+    /** pretty: Nest's console format (development). json: one JSON object per line. */
+    LOG_FORMAT: z.enum(['pretty', 'json']).optional(),
+    /** console: errors to the log only (no external provider such as Sentry is connected). */
+    ERROR_REPORTER: z.enum(['console', 'none']).default('console'),
+    /**
+     * Hours between an account deletion request and anonymisation. A
+     * legal/business decision: no production default.
+     */
+    ACCOUNT_DELETION_GRACE_HOURS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(24 * 90)
+      .optional(),
+
     /** IANA zone for business "today" in admin statistics (data stays UTC). */
     MARKETPLACE_TIME_ZONE: z
       .string()
@@ -194,84 +270,28 @@ export const apiEnvSchema = z
         message: 'must be greater than or equal to AUTH_REFRESH_TTL_DAYS',
       });
     }
-    if (env.NODE_ENV !== 'production') return;
-    if (env.JWT_ACCESS_SECRET.includes(EXAMPLE_SECRET_MARKER)) {
+    if ((env.APP_ENV === 'staging' || env.APP_ENV === 'production') && env.NODE_ENV !== 'production') {
       ctx.addIssue({
         code: 'custom',
-        path: ['JWT_ACCESS_SECRET'],
-        message: 'uses the example placeholder; set a real secret in production',
+        path: ['APP_ENV'],
+        message: 'staging and production need a production build (NODE_ENV=production)',
       });
     }
-    for (const key of ['OTP_HASH_SECRET', 'STORAGE_SIGNING_SECRET'] as const) {
-      const value = env[key];
-      if (!value || value.includes(EXAMPLE_SECRET_MARKER)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: [key],
-          message: 'must be set to a real secret in production',
-        });
-      }
+    for (const issue of productionSafetyIssues(env)) {
+      ctx.addIssue({ code: 'custom', path: [issue.key], message: issue.message });
     }
-    // Development adapters must never run in production (codes in logs,
-    // files on local disk).
-    if (env.SMS_PROVIDER === 'console' || env.SMS_PROVIDER === 'fake') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['SMS_PROVIDER'],
-        message: 'console/fake SMS providers are not allowed in production',
-      });
-    }
-    if (env.PUSH_PROVIDER === 'console') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['PUSH_PROVIDER'],
-        message: 'the console push provider is not allowed in production',
-      });
-    }
-    if (env.STORAGE_DRIVER === 'local') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['STORAGE_DRIVER'],
-        message: 'the local storage driver is not allowed in production',
-      });
-    }
-    // Test money must never be possible in production: the API refuses to
-    // boot with the mock payment or payout provider (docs/adr/0019).
-    if (env.PAYMENT_PROVIDER === 'mock') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['PAYMENT_PROVIDER'],
-        message: 'the mock payment provider is not allowed in production',
-      });
-    }
-    if (env.PAYOUT_PROVIDER === 'mock') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['PAYOUT_PROVIDER'],
-        message: 'the mock payout provider is not allowed in production',
-      });
-    }
-    if (env.FINANCE_EARNING_HOLD_HOURS === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['FINANCE_EARNING_HOLD_HOURS'],
-        message: 'must be set explicitly in production (a business decision)',
-      });
-    }
-    if (env.FINANCE_MIN_PAYOUT_MINOR === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['FINANCE_MIN_PAYOUT_MINOR'],
-        message: 'must be set explicitly in production (a business decision)',
-      });
-    }
-    if (env.API_CORS_ORIGINS.includes('*')) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['API_CORS_ORIGINS'],
-        message: 'must list explicit origins in production',
-      });
-    }
+  })
+  .transform((env) => {
+    const appEnv = resolveAppEnv(env);
+    const devLike = appEnv === 'development' || appEnv === 'test';
+    return {
+      ...env,
+      APP_ENV: appEnv,
+      ALLOW_DEV_PAYMENT_SIMULATION: env.ALLOW_DEV_PAYMENT_SIMULATION ?? devLike,
+      ALLOW_TEST_KYC: env.ALLOW_TEST_KYC ?? devLike,
+      DEMO_SEED: env.DEMO_SEED ?? devLike,
+      LOG_FORMAT: env.LOG_FORMAT ?? (devLike ? ('pretty' as const) : ('json' as const)),
+    };
   });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

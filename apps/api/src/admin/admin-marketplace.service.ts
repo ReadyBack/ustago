@@ -183,7 +183,7 @@ export class AdminMarketplaceService {
   async systemStatus(): Promise<AdminSystemStatus> {
     const health = await this.health.check();
     return {
-      environment: this.env.NODE_ENV,
+      environment: this.env.APP_ENV,
       version: this.env.APP_VERSION,
       database: health.checks.database.status === 'up' ? 'up' : 'down',
       redis: health.checks.redis.status === 'up' ? 'up' : 'down',

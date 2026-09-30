@@ -371,6 +371,7 @@ export const payoutDestinationSchema = z.object({
   holderName: z.string(),
   maskedIban: z.string(),
   isTest: z.boolean(),
+  verificationStatus: z.enum(['UNVERIFIED', 'PENDING_VERIFICATION', 'VERIFIED']),
 }) satisfies z.ZodType<PayoutDestination>;
 
 export const payoutSchema = z.object({

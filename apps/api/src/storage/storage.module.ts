@@ -1,5 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 
+import { isStrictEnv } from '@ustago/config';
+
 import { secretFor } from '../common/crypto/secrets.js';
 import { API_ENV, type ApiEnv } from '../config/env.js';
 import { DisabledObjectStorage } from './disabled-object-storage.js';
@@ -10,8 +12,8 @@ import { OBJECT_STORAGE, type ObjectStorage } from './object-storage.js';
 export function createObjectStorage(env: ApiEnv): ObjectStorage {
   switch (env.STORAGE_DRIVER) {
     case 'local':
-      if (env.NODE_ENV === 'production') {
-        throw new Error('The local storage driver must not be used in production.');
+      if (isStrictEnv(env.APP_ENV)) {
+        throw new Error(`The local storage driver must not be used in ${env.APP_ENV}.`);
       }
       return new LocalObjectStorage(
         env.STORAGE_LOCAL_DIR,

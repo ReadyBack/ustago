@@ -10,7 +10,7 @@ import { PushWorkerService } from './push-worker.service.js';
 export function createPushProvider(env: ApiEnv): PushProvider {
   switch (env.PUSH_PROVIDER) {
     case 'console':
-      return new ConsolePushProvider(env.NODE_ENV);
+      return new ConsolePushProvider(env.APP_ENV);
     case 'expo':
       return new ExpoPushProvider(env.EXPO_ACCESS_TOKEN);
     case 'disabled':

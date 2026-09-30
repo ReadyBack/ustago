@@ -13,8 +13,8 @@ export class ConsoleSmsProvider implements SmsProvider {
   private readonly logger = new Logger('ConsoleSms');
 
   constructor(nodeEnv: string) {
-    if (nodeEnv === 'production') {
-      throw new Error('ConsoleSmsProvider must not be used in production.');
+    if (nodeEnv === 'production' || nodeEnv === 'staging') {
+      throw new Error('ConsoleSmsProvider must not be used in staging or production.');
     }
   }
 

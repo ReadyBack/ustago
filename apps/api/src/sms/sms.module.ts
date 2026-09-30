@@ -9,9 +9,9 @@ import { SMS_PROVIDER, type SmsProvider } from './sms-provider.js';
 export function createSmsProvider(env: ApiEnv): SmsProvider {
   switch (env.SMS_PROVIDER) {
     case 'console':
-      return new ConsoleSmsProvider(env.NODE_ENV);
+      return new ConsoleSmsProvider(env.APP_ENV);
     case 'fake':
-      return new FakeSmsProvider(env.NODE_ENV);
+      return new FakeSmsProvider(env.APP_ENV);
     case 'disabled':
       return new DisabledSmsProvider();
   }

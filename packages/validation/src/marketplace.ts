@@ -497,6 +497,9 @@ export const appNotificationSchema = z.object({
   title: z.string(),
   body: z.string(),
   data: z.record(z.string(), z.string()).nullable(),
+  entityType: z.string().nullable(),
+  entityId: z.string().nullable(),
+  deepLink: z.string().nullable(),
   readAt: nullableDate,
   createdAt: z.iso.datetime(),
 }) satisfies z.ZodType<AppNotification>;
@@ -560,7 +563,7 @@ export const adminServiceRequestDetailSchema = z.object({
 }) satisfies z.ZodType<AdminServiceRequestDetail>;
 
 export const adminSystemStatusSchema = z.object({
-  environment: z.enum(['development', 'test', 'production']),
+  environment: z.enum(['development', 'test', 'staging', 'production']),
   version: z.string(),
   database: z.enum(['up', 'down']),
   redis: z.enum(['up', 'down']),
