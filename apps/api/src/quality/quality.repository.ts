@@ -28,35 +28,38 @@ export class QualityRepository {
     });
     const userIds = providers.map((p) => p.userId);
 
-    const [reviews, jobs, disputes, verifications, responses, penalties] = await Promise.all([
-      db.review.groupBy({
-        by: ['targetId'],
-        where: { targetId: { in: userIds }, direction: 'CUSTOMER_TO_PROVIDER', status: 'PUBLISHED' },
-        _count: { _all: true },
-        _sum: { rating: true },
-      }),
-      db.job.groupBy({
-        by: ['providerId', 'status', 'cancellationActor'],
-        where: { providerId: { in: ids } },
-        _count: { _all: true },
-      }),
-      db.$queryRaw<{ providerId: string; status: string; jobs: number }[]>`
+    // Sequential on purpose: `db` is often an interactive transaction, and
+    // one connection runs one query at a time anyway.
+    const reviews = await db.review.groupBy({
+      by: ['targetId'],
+      where: { targetId: { in: userIds }, direction: 'CUSTOMER_TO_PROVIDER', status: 'PUBLISHED' },
+      _count: { _all: true },
+      _sum: { rating: true },
+    });
+    const jobs = await db.job.groupBy({
+      by: ['providerId', 'status', 'cancellationActor'],
+      where: { providerId: { in: ids } },
+      _count: { _all: true },
+    });
+    const disputes = await db.$queryRaw<{ providerId: string; status: string; jobs: number }[]>`
         SELECT j.provider_id AS "providerId", d.status::text AS status,
                COUNT(DISTINCT d.job_id)::int AS jobs
         FROM disputes d JOIN jobs j ON j.id = d.job_id
         WHERE j.provider_id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
-        GROUP BY j.provider_id, d.status`,
-      db.providerVerification.findMany({
-        where: {
-          providerId: { in: ids },
-          status: 'APPROVED',
-          type: { in: ['IDENTITY', 'PROFESSIONAL_CERTIFICATE'] },
-        },
-        select: { providerId: true, type: true },
-      }),
-      // Real replies only: the provider's next move after a customer's
-      // counter offer, either a counter of their own or accepting it.
-      db.$queryRaw<{ providerId: string; median: number | null; samples: number }[]>`
+        GROUP BY j.provider_id, d.status`;
+    const verifications = await db.providerVerification.findMany({
+      where: {
+        providerId: { in: ids },
+        status: 'APPROVED',
+        type: { in: ['IDENTITY', 'PROFESSIONAL_CERTIFICATE'] },
+      },
+      select: { providerId: true, type: true },
+    });
+    // Real replies only: the provider's next move after a customer's
+    // counter offer, either a counter of their own or accepting it.
+    const responses = await db.$queryRaw<
+      { providerId: string; median: number | null; samples: number }[]
+    >`
         WITH replies AS (
           SELECT q.provider_id, EXTRACT(EPOCH FROM (nxt.created_at - cur.created_at)) AS seconds
           FROM quote_revisions cur
@@ -75,12 +78,11 @@ export class QualityRepository {
                COUNT(*)::int AS samples
         FROM replies
         WHERE provider_id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
-        GROUP BY provider_id`,
-      db.disciplinaryAction.findMany({
-        where: { subjectId: { in: userIds }, subjectRole: 'PROVIDER' },
-        select: { subjectId: true, type: true, status: true, startsAt: true, endsAt: true },
-      }),
-    ]);
+        GROUP BY provider_id`;
+    const penalties = await db.disciplinaryAction.findMany({
+      where: { subjectId: { in: userIds }, subjectRole: 'PROVIDER' },
+      select: { subjectId: true, type: true, status: true, startsAt: true, endsAt: true },
+    });
 
     const reviewsBy = new Map(reviews.map((r) => [r.targetId, r]));
     const responsesBy = new Map(responses.map((r) => [r.providerId, r]));

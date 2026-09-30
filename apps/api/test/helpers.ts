@@ -188,15 +188,21 @@ export async function cleanup(ctx: TestContext): Promise<void> {
       { quotes: { some: { provider: { userId: { in: ids } } } } },
     ],
   };
-  await ctx.prisma.job.deleteMany({
-    where: {
-      OR: [
-        { customer: { userId: { in: ids } } },
-        { provider: { userId: { in: ids } } },
-        { serviceRequest: requestWhere },
-      ],
-    },
+  const jobWhere = {
+    OR: [
+      { customer: { userId: { in: ids } } },
+      { provider: { userId: { in: ids } } },
+      { serviceRequest: requestWhere },
+    ],
+  };
+  // Faz 4 rows that restrict deleting a job or a user (change orders and
+  // status history cascade with the job).
+  await ctx.prisma.disciplinaryAction.deleteMany({
+    where: { OR: [{ subjectId: { in: ids } }, { decidedById: { in: ids } }] },
   });
+  await ctx.prisma.review.deleteMany({ where: { job: jobWhere } });
+  await ctx.prisma.dispute.deleteMany({ where: { job: jobWhere } });
+  await ctx.prisma.job.deleteMany({ where: jobWhere });
   await ctx.prisma.quote.updateMany({
     where: { OR: [{ provider: { userId: { in: ids } } }, { serviceRequest: requestWhere }] },
     data: { acceptedRevisionId: null, acceptedAt: null, status: 'EXPIRED' },

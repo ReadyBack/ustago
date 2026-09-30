@@ -188,7 +188,8 @@ export class AdminJobsController {
   @ApiZodBody(createPenaltySchema)
   @ApiZodResponse(201, providerPenaltySchema)
   @ApiZodResponse(404, apiErrorResponseSchema, 'PROVIDER_NOT_FOUND / DISPUTE_NOT_FOUND')
-  @ApiZodResponse(422, apiErrorResponseSchema, 'PENALTY_INVALID_WINDOW / VALIDATION_ERROR')
+  @ApiZodResponse(400, apiErrorResponseSchema, 'VALIDATION_FAILED')
+  @ApiZodResponse(422, apiErrorResponseSchema, 'PENALTY_INVALID_WINDOW')
   createPenalty(
     @CurrentUser() user: AuthUser,
     @Param('id', idPipe) id: string,

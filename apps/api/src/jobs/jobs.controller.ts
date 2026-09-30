@@ -135,7 +135,8 @@ export class JobsController {
     ' / DISPUTE_ALREADY_OPEN',
   )
   @ApiZodBody(openDisputeSchema)
-  @ApiZodResponse(422, apiErrorResponseSchema, 'DISPUTE_REASON_NOT_ALLOWED / VALIDATION_ERROR')
+  @ApiZodResponse(400, apiErrorResponseSchema, 'VALIDATION_FAILED')
+  @ApiZodResponse(422, apiErrorResponseSchema, 'DISPUTE_REASON_NOT_ALLOWED')
   dispute(
     @CurrentUser() user: AuthUser,
     @Param('id', idPipe) id: string,
@@ -187,7 +188,8 @@ export class JobsController {
     apiErrorResponseSchema,
     'CHANGE_ORDER_NOT_ALLOWED / CHANGE_ORDER_ALREADY_PENDING',
   )
-  @ApiZodResponse(422, apiErrorResponseSchema, 'CHANGE_ORDER_INVALID_AMOUNT / VALIDATION_ERROR')
+  @ApiZodResponse(400, apiErrorResponseSchema, 'VALIDATION_FAILED (tutar pozitif tam sayı kuruş)')
+  @ApiZodResponse(422, apiErrorResponseSchema, 'CHANGE_ORDER_INVALID_AMOUNT (toplam üst sınırı aşıyor)')
   createChangeOrder(
     @CurrentUser() user: AuthUser,
     @Param('id', idPipe) id: string,
