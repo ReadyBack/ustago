@@ -37,7 +37,9 @@ const jobInclude = {
       },
     },
   },
-  customer: { select: { user: { select: { id: true, firstName: true, lastName: true, phone: true } } } },
+  customer: {
+    select: { user: { select: { id: true, firstName: true, lastName: true, phone: true } } },
+  },
   provider: {
     select: { id: true, displayName: true, user: { select: { id: true, phone: true } } },
   },
@@ -138,8 +140,7 @@ export class JobsService {
         title: j.serviceRequest.title,
         category: toCategoryRef(j.category),
         location: toLocation(j.serviceRequest),
-        counterpart:
-          query.role === 'CUSTOMER' ? j.provider.displayName : fullName(j.customer.user),
+        counterpart: query.role === 'CUSTOMER' ? j.provider.displayName : fullName(j.customer.user),
         scheduledStartAt: j.scheduledStartAt?.toISOString() ?? null,
         createdAt: j.createdAt.toISOString(),
       })),

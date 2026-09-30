@@ -19,8 +19,7 @@ import { isOpen } from './domain/service-request-lifecycle.js';
 
 type Tx = Prisma.TransactionClient;
 
-export const requestNotFound = () =>
-  notFound('SERVICE_REQUEST_NOT_FOUND', 'Talep bulunamadı.');
+export const requestNotFound = () => notFound('SERVICE_REQUEST_NOT_FOUND', 'Talep bulunamadı.');
 
 export const invalidRequestState = (status: ServiceRequestStatus, message?: string) =>
   conflict('INVALID_REQUEST_STATE', message ?? 'Talebin şu anki durumunda bu işlem yapılamaz.', {
@@ -158,8 +157,7 @@ export class RequestStore {
    * dispatch wave. Notifications never leave before the commit.
    */
   async onPublished(tx: Tx, request: ServiceRequest, actorId: string): Promise<void> {
-    const wave =
-      request.type === 'NOW' ? this.env.NOW_DISPATCH_WAVE_SIZE : QUOTE_NOTIFY_LIMIT;
+    const wave = request.type === 'NOW' ? this.env.NOW_DISPATCH_WAVE_SIZE : QUOTE_NOTIFY_LIMIT;
     const providers = await this.matching.eligibleProviders(tx, request.id, wave);
     const category = await tx.serviceCategory.findUniqueOrThrow({
       where: { id: request.categoryId },
@@ -169,7 +167,8 @@ export class RequestStore {
       where: { id: request.districtId },
       select: { name: true },
     });
-    const budget = request.budgetMinor === null ? '' : ` · Bütçe ${formatMoney(Number(request.budgetMinor))}`;
+    const budget =
+      request.budgetMinor === null ? '' : ` · Bütçe ${formatMoney(Number(request.budgetMinor))}`;
 
     if (request.type === 'NOW') {
       if (providers.length > 0) {

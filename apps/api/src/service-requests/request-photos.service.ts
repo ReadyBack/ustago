@@ -140,11 +140,19 @@ export class RequestPhotosService {
       const detected = detectMimeType(
         await this.storage.readPrefix(intent.storageKey, SIGNATURE_BYTES),
       );
-      if ((detected !== 'image/jpeg' && detected !== 'image/png') || detected !== intent.declaredMimeType) {
+      if (
+        (detected !== 'image/jpeg' && detected !== 'image/png') ||
+        detected !== intent.declaredMimeType
+      ) {
         await this.deleteQuietly(intent.storageKey);
         throw invalidPhoto('Fotoğraf JPEG veya PNG olmalı.');
       }
-      result.push({ uploadId: id, storageKey: intent.storageKey, mimeType: detected, sizeBytes: info.size });
+      result.push({
+        uploadId: id,
+        storageKey: intent.storageKey,
+        mimeType: detected,
+        sizeBytes: info.size,
+      });
     }
     return result;
   }

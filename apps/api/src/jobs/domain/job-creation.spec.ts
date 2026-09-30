@@ -40,9 +40,7 @@ describe('job creation', () => {
   });
 
   it("schedules at the provider's availability, else the customer's preference", () => {
-    expect(jobFromAcceptedDeal(deal).scheduledStartAt).toEqual(
-      new Date('2026-10-01T09:00:00Z'),
-    );
+    expect(jobFromAcceptedDeal(deal).scheduledStartAt).toEqual(new Date('2026-10-01T09:00:00Z'));
     const at = new Date('2026-10-02T12:00:00Z');
     expect(
       jobFromAcceptedDeal({ ...deal, revision: { ...deal.revision, availableFrom: at } })

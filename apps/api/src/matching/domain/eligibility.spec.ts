@@ -48,7 +48,11 @@ describe('opportunity eligibility', () => {
 
   it.each([
     ['inactive provider', { provider: { status: 'SUSPENDED' as const } }, 'PROVIDER_NOT_ACTIVE'],
-    ['pending provider', { provider: { status: 'PENDING_REVIEW' as const } }, 'PROVIDER_NOT_ACTIVE'],
+    [
+      'pending provider',
+      { provider: { status: 'PENDING_REVIEW' as const } },
+      'PROVIDER_NOT_ACTIVE',
+    ],
     ['wrong district', { request: { districtId: 'yuregir' } }, 'DISTRICT_NOT_SERVED'],
     ['wrong category', { request: { categoryId: 'elektrik' } }, 'CATEGORY_NOT_SERVED'],
     ['agreed request', { request: { status: 'MATCHED' as const } }, 'REQUEST_NOT_OPEN'],

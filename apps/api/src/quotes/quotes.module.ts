@@ -11,7 +11,13 @@ import { ProviderMarketplaceController, QuotesController } from './quotes.contro
 import { QuotesService } from './quotes.service.js';
 
 @Module({
-  imports: [ServiceRequestsModule, JobsModule, MatchingModule, NotificationsModule, ProvidersModule],
+  imports: [
+    ServiceRequestsModule,
+    JobsModule,
+    MatchingModule,
+    NotificationsModule,
+    ProvidersModule,
+  ],
   controllers: [QuotesController, ProviderMarketplaceController],
   providers: [QuotesService, OpportunitiesService, ProviderCardsService],
 })

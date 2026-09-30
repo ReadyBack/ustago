@@ -52,7 +52,9 @@ export class OpportunitiesService {
   async get(user: AuthUser, requestId: string): Promise<Opportunity> {
     const provider = await this.providers.findByUserId(user.id);
     const myQuote = await this.prisma.quote.findUnique({
-      where: { serviceRequestId_providerId: { serviceRequestId: requestId, providerId: provider.id } },
+      where: {
+        serviceRequestId_providerId: { serviceRequestId: requestId, providerId: provider.id },
+      },
       select: { id: true },
     });
     if (!myQuote) {

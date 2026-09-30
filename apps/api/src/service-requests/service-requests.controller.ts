@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type {
   Paginated,
@@ -167,7 +178,8 @@ export class MyServiceRequestsController {
   @ApiZodResponse(200, paginatedSchema(serviceRequestListItemSchema))
   list(
     @CurrentUser() user: AuthUser,
-    @Query(new ZodValidationPipe(listMyServiceRequestsQuerySchema)) query: ListMyServiceRequestsQuery,
+    @Query(new ZodValidationPipe(listMyServiceRequestsQuerySchema))
+    query: ListMyServiceRequestsQuery,
   ): Promise<Paginated<ServiceRequestListItem>> {
     return this.requests.listMine(user.id, query);
   }

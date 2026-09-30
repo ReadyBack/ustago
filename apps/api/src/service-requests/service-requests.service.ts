@@ -232,7 +232,9 @@ export class ServiceRequestsService {
         );
       }
       const start =
-        input.preferredStartAt !== undefined ? toDate(input.preferredStartAt) : request.preferredStartAt;
+        input.preferredStartAt !== undefined
+          ? toDate(input.preferredStartAt)
+          : request.preferredStartAt;
       const end =
         input.preferredEndAt !== undefined ? toDate(input.preferredEndAt) : request.preferredEndAt;
       if (start && end && end < start) {

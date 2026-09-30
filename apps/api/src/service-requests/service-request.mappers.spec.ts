@@ -27,7 +27,12 @@ const base = {
   version: 1,
   createdAt: now,
   updatedAt: now,
-  category: { id: '0192f4c1-0000-7000-8000-000000000003', slug: 'klima', name: 'Klima', icon: null },
+  category: {
+    id: '0192f4c1-0000-7000-8000-000000000003',
+    slug: 'klima',
+    name: 'Klima',
+    icon: null,
+  },
   province: { id: 1, name: 'Adana' },
   district: { id: '0192f4c1-0000-7000-8000-000000000005', name: 'Seyhan' },
   photos: [],
@@ -59,7 +64,11 @@ describe('request privacy mappers', () => {
   it('shows providers only district and province, never the street, door or directions', () => {
     // Even when the row happens to carry address and customer data, the
     // opportunity view is built from an allow-list.
-    const row = { ...base, address: privateAddress, customer: { userId: 'u', phone: '+905321234567' } };
+    const row = {
+      ...base,
+      address: privateAddress,
+      customer: { userId: 'u', phone: '+905321234567' },
+    };
     const view = toOpportunity(row, null);
     const json = JSON.stringify(view);
     for (const secret of ['Atatürk', 'Kapı kodu', '01120', 'Reşatbey', '+90532', '"7"']) {
@@ -73,7 +82,10 @@ describe('request privacy mappers', () => {
   });
 
   it('keeps the customer budget as money, not a ceiling', () => {
-    expect(toOpportunity({ ...base }, null).budget).toEqual({ amountMinor: 150000, currency: 'TRY' });
+    expect(toOpportunity({ ...base }, null).budget).toEqual({
+      amountMinor: 150000,
+      currency: 'TRY',
+    });
     expect(toOpportunity({ ...base, budgetMinor: null }, null).budget).toBeNull();
   });
 

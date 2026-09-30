@@ -78,7 +78,9 @@ type CustomerRow = Prisma.ServiceRequestGetPayload<{ include: typeof customerReq
 type ListRow = Prisma.ServiceRequestGetPayload<{ include: typeof listRequestInclude }>;
 type OpportunityRow = Prisma.ServiceRequestGetPayload<{ include: typeof opportunityInclude }>;
 type LocationRow = Prisma.ServiceRequestGetPayload<{ include: typeof locationInclude }>;
-type JobSummaryRow = NonNullable<Prisma.ServiceRequestGetPayload<{ include: typeof jobSummaryInclude }>['job']>;
+type JobSummaryRow = NonNullable<
+  Prisma.ServiceRequestGetPayload<{ include: typeof jobSummaryInclude }>['job']
+>;
 type AddressRow = CustomerRow['address'];
 
 export function toCategoryRef(c: CategoryRef): CategoryRef {

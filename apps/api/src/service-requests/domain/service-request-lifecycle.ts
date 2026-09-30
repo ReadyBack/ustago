@@ -1,7 +1,4 @@
-import type {
-  ServiceRequestStatus,
-  ServiceRequestType,
-} from '../../generated/prisma/client.js';
+import type { ServiceRequestStatus, ServiceRequestType } from '../../generated/prisma/client.js';
 
 /**
  * Service request lifecycle (docs/adr/0014). Every status change goes
@@ -30,7 +27,11 @@ export type ServiceRequestEvent =
   | 'JOB_COMPLETED';
 
 /** Statuses in which providers can still quote and customers can accept. */
-export const OPEN_STATUSES = ['PUBLISHED', 'MATCHING', 'QUOTED'] as const satisfies readonly ServiceRequestStatus[];
+export const OPEN_STATUSES = [
+  'PUBLISHED',
+  'MATCHING',
+  'QUOTED',
+] as const satisfies readonly ServiceRequestStatus[];
 
 type Rule = {
   from: readonly ServiceRequestStatus[];

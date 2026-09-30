@@ -26,7 +26,10 @@ import { MatchingRepository } from '../matching/matching.repository.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProviderStore } from '../providers/provider.store.js';
-import { sourceStatuses, transitionFor } from '../service-requests/domain/service-request-lifecycle.js';
+import {
+  sourceStatuses,
+  transitionFor,
+} from '../service-requests/domain/service-request-lifecycle.js';
 import { RequestStore } from '../service-requests/request.store.js';
 import {
   categoryRefSelect,
@@ -35,6 +38,7 @@ import {
 } from '../service-requests/service-request.mappers.js';
 import {
   acceptAction,
+  authorOf,
   canCounter,
   counterAction,
   isQuoteOpen,
@@ -57,8 +61,7 @@ const providerNotActive = () =>
     'PROVIDER_NOT_ACTIVE',
     'Bu özelliği kullanabilmek için usta hesabınızın onaylanması gerekiyor.',
   );
-const notYourTurn = () =>
-  conflict('NOT_YOUR_TURN', 'Karşı tarafın yanıtı bekleniyor.');
+const notYourTurn = () => conflict('NOT_YOUR_TURN', 'Karşı tarafın yanıtı bekleniyor.');
 const quoteClosed = (status: QuoteStatus) =>
   conflict('QUOTE_CLOSED', 'Bu teklif artık açık değil.', { status });
 
@@ -273,6 +276,10 @@ export class QuotesService {
 
       await this.moveQuote(tx, quote, to);
       const revisionNo = latest.revisionNo + 1;
+      const ownLast =
+        party === 'PROVIDER'
+          ? revisions.findLast((r) => authorOf(r.kind) === 'PROVIDER')
+          : undefined;
       await tx.quoteRevision.create({
         data: {
           quoteId,
@@ -282,12 +289,12 @@ export class QuotesService {
           totalMinor: toMinor(input.totalMinor),
           currency: quote.currency,
           note: input.note ?? null,
-          // A provider's counter keeps the work details of their offer.
-          ...(party === 'PROVIDER'
+          // A provider's counter keeps the work details of their own last move.
+          ...(ownLast
             ? {
-                materialsIncluded: latest.materialsIncluded,
-                estimatedDurationMinutes: latest.estimatedDurationMinutes,
-                availableFrom: latest.availableFrom,
+                materialsIncluded: ownLast.materialsIncluded,
+                estimatedDurationMinutes: ownLast.estimatedDurationMinutes,
+                availableFrom: ownLast.availableFrom,
               }
             : {}),
         },
@@ -327,8 +334,11 @@ export class QuotesService {
   ): Promise<Quote> {
     try {
       await this.prisma.$transaction(async (tx) => {
-        const { request, quote, party, customerUserId, providerUserId } =
-          await this.lockForParty(tx, quoteId, user.id);
+        const { request, quote, party, customerUserId, providerUserId } = await this.lockForParty(
+          tx,
+          quoteId,
+          user.id,
+        );
         if (request.status === 'MATCHED') {
           throw conflict('REQUEST_ALREADY_AGREED', 'Bu talep için zaten anlaşma sağlandı.');
         }

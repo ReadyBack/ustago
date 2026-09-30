@@ -213,7 +213,12 @@ export function counter(
     .send({ totalMinor, expectedRevisionNo });
 }
 
-export function accept(ctx: TestContext, actor: Actor, quoteId: string, expectedRevisionNo: number) {
+export function accept(
+  ctx: TestContext,
+  actor: Actor,
+  quoteId: string,
+  expectedRevisionNo: number,
+) {
   return ctx
     .http()
     .post(`/api/v1/quotes/${quoteId}/accept`)

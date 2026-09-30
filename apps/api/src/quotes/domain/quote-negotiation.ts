@@ -33,7 +33,10 @@ export type QuoteAction =
   | 'CUSTOMER_REJECT'
   | 'PROVIDER_WITHDRAW';
 
-export const OPEN_QUOTE_STATUSES = ['PENDING_CUSTOMER', 'PENDING_PROVIDER'] as const satisfies readonly QuoteStatus[];
+export const OPEN_QUOTE_STATUSES = [
+  'PENDING_CUSTOMER',
+  'PENDING_PROVIDER',
+] as const satisfies readonly QuoteStatus[];
 
 const TRANSITIONS: Record<QuoteAction, { from: readonly QuoteStatus[]; to: QuoteStatus }> = {
   CUSTOMER_COUNTER: { from: ['PENDING_CUSTOMER'], to: 'PENDING_PROVIDER' },
