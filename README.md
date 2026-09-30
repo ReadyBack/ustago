@@ -217,8 +217,8 @@ düzeltmez. Ayrıntı: ADR-0018, 0019, 0020 ve [docs/api](docs/api/README.md) Fa
 ## FAZ 6 LOCAL DEMO
 
 **Bu faz üretime hazırlık mimarisidir; üretim kurulumu değildir.** Gerçek KYC, gerçek belge
-deposu, gerçek SMS, gerçek ödeme veya banka bağlantısı yoktur. Yerelde belgeler `.local-storage/`
-altında tutulur (git'e girmez), kimlik doğrulama "TEST KYC" olarak admin incelemesiyle yapılır. TC
+deposu, gerçek SMS, gerçek ödeme veya banka bağlantısı yoktur. Yerelde belgeler `apps/api/.data/storage/`
+altında tutulur (git'e girmez); kimlik doğrulama yalnız admin incelemesiyle (TEST) yapılır. TC
 Kimlik numarası ham hâliyle saklanmaz.
 
 Seed'e ek hesaplar (şifre `DemoPass2026!`): `destek@`, `finans@`, `dogrulama@ustago.test` (rollerine
