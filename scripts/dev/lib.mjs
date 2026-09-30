@@ -136,7 +136,7 @@ export function startInfra() {
     'docker',
     ['compose', 'up', '-d', '--wait', 'postgres', 'redis'],
     'Docker servisleri başlatılamadı.',
-    'Port 5432 veya 6379 başka bir uygulama tarafından kullanılıyor olabilir. README > Sorun giderme bölümüne bakın.',
+    'Port 5432 veya 6379 başka bir uygulama tarafından kullanılıyor olabilir. README > Troubleshooting bölümüne bakın.',
   );
   ok('PostgreSQL (5432) ve Redis (6379) hazır');
 }
@@ -148,7 +148,7 @@ export function migrateAndSeed() {
     'pnpm',
     ['--filter', '@ustago/api', 'exec', 'prisma', 'migrate', 'deploy'],
     'Migration uygulanamadı.',
-    'PostgreSQL çalışıyor mu? "pnpm dev:infra" ile başlatın. Şifre uyuşmazlığı için README > Sorun giderme > PostgreSQL.',
+    'PostgreSQL çalışıyor mu? "pnpm dev:infra" ile başlatın. Şifre hatası (P1000) için README > Troubleshooting.',
   );
   ok('Şema güncel');
   step('Demo verisi yükleniyor (Adana, DEMO DATA)');

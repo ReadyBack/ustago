@@ -27,6 +27,11 @@ import {
 } from './lib.mjs';
 
 const skipDocker = process.argv.includes('--skip-docker');
+
+/** docker-compose.yml names the project "ustago", so its volume is ustago_postgres-data. */
+function postgresVolumeExists() {
+  return run('docker', ['volume', 'inspect', 'ustago_postgres-data'], { quiet: true }) === 0;
+}
 const secret = (bytes = 32) => randomBytes(bytes).toString('base64url');
 
 step('Araçlar kontrol ediliyor');
@@ -55,13 +60,23 @@ const PLACEHOLDER = /change-me/;
 
 if (!existsSync(ENV_PATH)) {
   let text = readFileSync(ENV_EXAMPLE_PATH, 'utf8');
-  const dbPassword = `local${secret(12).replace(/[^A-Za-z0-9]/g, '')}`;
-  text = text
-    .replace(/^POSTGRES_PASSWORD=.*$/m, `POSTGRES_PASSWORD=${dbPassword}`)
-    .replace(
-      /^DATABASE_URL=(postgresql:\/\/[^:]+):[^@]*@/m,
-      (_, user) => `DATABASE_URL=${user}:${dbPassword}@`,
+  // PostgreSQL keeps the password it was first created with. When a UstaGO
+  // database volume already exists (an earlier checkout), a new random
+  // password would lock us out, so the .env.example value is kept.
+  if (postgresVolumeExists()) {
+    warn(
+      'Mevcut bir UstaGO PostgreSQL verisi bulundu; .env.example’daki veritabanı şifresi kullanılıyor. ' +
+        'Farklı bir şifreyle oluşturduysanız .env’deki POSTGRES_PASSWORD ve DATABASE_URL’i ona göre düzeltin.',
     );
+  } else {
+    const dbPassword = `local${secret(12).replace(/[^A-Za-z0-9]/g, '')}`;
+    text = text
+      .replace(/^POSTGRES_PASSWORD=.*$/m, `POSTGRES_PASSWORD=${dbPassword}`)
+      .replace(
+        /^DATABASE_URL=(postgresql:\/\/[^:]+):[^@]*@/m,
+        (_, user) => `DATABASE_URL=${user}:${dbPassword}@`,
+      );
+  }
   for (const [key, make] of Object.entries(GENERATED)) {
     text = text.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${make()}`);
   }
