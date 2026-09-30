@@ -1,10 +1,17 @@
-import type { JobListItem, Opportunity, Paginated, ProviderProfile } from '@ustago/types';
+import type {
+  JobListItem,
+  Opportunity,
+  Paginated,
+  ProviderProfile,
+  ProviderVerificationCaseView,
+} from '@ustago/types';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
 
 import { jobApi, providerApi } from '../../src/api/services';
 import { useAuth } from '../../src/auth/AuthContext';
+import { AccountStatusCard } from '../../src/components/AccountStatusCard';
 import { ActiveJobCard } from '../../src/components/ActiveJobCard';
 import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
@@ -38,6 +45,12 @@ export default function ProviderJobsFeed() {
 function Feed() {
   const router = useRouter();
   const profile = useApi<ProviderProfile>('provider:me', providerApi.me);
+  // Account status can change while the app is open (suspension, review decision).
+  const account = useApi<ProviderVerificationCaseView>(
+    'provider:verification',
+    providerApi.verificationCase,
+    { pollMs: 60_000 },
+  );
   const feed = useApi<Paginated<Opportunity>>('opportunities', () => providerApi.opportunities(), {
     pollMs: 10_000,
   });
@@ -56,12 +69,18 @@ function Feed() {
     a.type === b.type ? 0 : a.type === 'NOW' ? -1 : 1,
   );
   const p = profile.data;
+  const acc = account.data;
+  // Unverified or restricted accounts cannot take NOW jobs; the switch says so instead of failing.
+  const nowBlocked = acc ? !acc.capabilities.canTakeNowJobs : false;
 
   return (
     <Screen
-      onRefresh={() => void Promise.all([profile.refresh(), feed.refresh(), active.refresh()])}
+      onRefresh={() =>
+        void Promise.all([profile.refresh(), feed.refresh(), active.refresh(), account.refresh()])
+      }
       refreshing={feed.refreshing}
     >
+      {acc ? <AccountStatusCard view={acc} /> : null}
       {(active.data?.items ?? []).map((job) => (
         <ActiveJobCard key={job.id} job={job} viewer="PROVIDER" />
       ))}
@@ -77,13 +96,15 @@ function Feed() {
                 <Small>
                   {p.isAvailableNow
                     ? 'Bölgenizdeki acil işler bu listede en üstte görünür.'
-                    : 'Açtığınızda acil (NOW) işleri de görürsünüz.'}
+                    : nowBlocked
+                      ? 'Acil iş almak için hesabınızın doğrulanmış ve aktif olması gerekir.'
+                      : 'Açtığınızda acil (NOW) işleri de görürsünüz.'}
                 </Small>
               </View>
               <Switch
                 testID="availability-switch"
                 value={p.isAvailableNow}
-                disabled={toggle.busy}
+                disabled={toggle.busy || (nowBlocked && !p.isAvailableNow)}
                 onValueChange={(v) => void toggle.submit({ isAvailableNow: v })}
                 accessibilityLabel="Müsaitim"
               />

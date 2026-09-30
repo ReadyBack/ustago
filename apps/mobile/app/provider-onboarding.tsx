@@ -29,18 +29,11 @@ import { Body, Heading, Small, Title } from '../src/components/Text';
 import { useApi } from '../src/hooks/useApi';
 import { useSubmit } from '../src/hooks/useSubmit';
 import { categoryIcon } from '../src/lib/categories';
-import { PROVIDER_STATUS } from '../src/lib/labels';
+import { PROVIDER_STATUS, VERIFICATION_TYPE_LABEL } from '../src/lib/labels';
 import { colors, radii, spacing } from '../src/lib/theme';
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const DOC_TYPES = ['image/jpeg', 'image/png', 'application/pdf'] as const;
-const VERIFICATION_LABELS: Record<VerificationType, string> = {
-  IDENTITY: 'Kimlik belgesi',
-  PROFESSIONAL_CERTIFICATE: 'Ustalık / mesleki yeterlilik belgesi',
-  TAX_REGISTRATION: 'Vergi levhası',
-  BUSINESS_LICENSE: 'İşyeri ruhsatı',
-  CRIMINAL_RECORD: 'Adli sicil kaydı',
-};
 
 /** Provider application: create → profile → services → areas → documents → submit; status afterwards. */
 export default function ProviderOnboarding() {
@@ -471,7 +464,7 @@ function DocumentsSection({
         return (
           <View key={type} style={styles.doc}>
             <View style={styles.flex}>
-              <Text style={styles.docTitle}>{VERIFICATION_LABELS[type]}</Text>
+              <Text style={styles.docTitle}>{VERIFICATION_TYPE_LABEL[type]}</Text>
               <Small>
                 {latest
                   ? `${latest.originalFileName ?? 'Belge'} · ${latest.status === 'PENDING' ? 'İnceleniyor' : latest.status === 'APPROVED' ? 'Onaylandı' : latest.status === 'REJECTED' ? `Reddedildi: ${latest.rejectionReason ?? ''}` : 'Süresi doldu'}`

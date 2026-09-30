@@ -1,9 +1,4 @@
-import type {
-  Paginated,
-  PublicProviderProfile,
-  PublicReview,
-  VerificationType,
-} from '@ustago/types';
+import type { Paginated, PublicProviderProfile, PublicReview } from '@ustago/types';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -19,15 +14,9 @@ import { Body, Heading, Small } from '../../src/components/Text';
 import { useApi } from '../../src/hooks/useApi';
 import { useSubmit } from '../../src/hooks/useSubmit';
 import { formatDate } from '../../src/lib/format';
+import { VERIFICATION_BADGE } from '../../src/lib/labels';
 import { colors, spacing } from '../../src/lib/theme';
-
-const BADGES: Record<VerificationType, string> = {
-  IDENTITY: '✓ Kimlik doğrulandı',
-  PROFESSIONAL_CERTIFICATE: '✓ Mesleki belge',
-  TAX_REGISTRATION: '✓ Vergi kaydı',
-  BUSINESS_LICENSE: '✓ İşyeri ruhsatı',
-  CRIMINAL_RECORD: '✓ Adli sicil kaydı',
-};
+import { VERIFIED_BADGE_LABEL } from '../../src/lib/verification';
 
 /** Public provider profile: real ratings and reviews, no phone, e-mail or address. */
 export default function ProviderPublicProfile() {
@@ -67,6 +56,12 @@ export default function ProviderPublicProfile() {
             <Small>UstaGO üyesi · {formatDate(p.memberSince)}</Small>
           </View>
         </View>
+        {p.isVerified ? (
+          <View accessible accessibilityLabel="Kimliği ve hesabı doğrulanmış usta">
+            <Badge label={VERIFIED_BADGE_LABEL} tone="success" />
+            <Small>Doğrulama kalite garantisi değildir; yorumları da inceleyin.</Small>
+          </View>
+        ) : null}
         {p.rating ? (
           <View
             style={styles.rating}
@@ -92,7 +87,7 @@ export default function ProviderPublicProfile() {
         ) : null}
         <View style={styles.badges}>
           {p.verificationBadges.map((b) => (
-            <Badge key={b} label={BADGES[b]} tone="success" />
+            <Badge key={b} label={VERIFICATION_BADGE[b]} tone="success" />
           ))}
         </View>
         {p.bio ? <Body muted>{p.bio}</Body> : null}

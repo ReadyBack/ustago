@@ -24,7 +24,7 @@ function AuthGate() {
   return null;
 }
 
-/** A tapped push opens the job, quote or request it is about. */
+/** A tapped push opens its deep link (or the job, quote or request it is about). */
 function PushTapHandler() {
   const { status } = useAuth();
   const router = useRouter();
@@ -92,6 +92,10 @@ function Navigator() {
         <Stack.Screen name="payments/[id]" options={{ title: 'Ödeme Özeti' }} />
         <Stack.Screen name="earnings/[id]" options={{ title: 'Kazanç Detayı' }} />
         <Stack.Screen name="payouts" options={{ title: 'Para Çek' }} />
+        <Stack.Screen name="verification" options={{ title: 'Hesabımı Doğrula' }} />
+        <Stack.Screen name="sessions" options={{ title: 'Aktif Oturumlar' }} />
+        <Stack.Screen name="account-deletion" options={{ title: 'Hesap ve Verilerim' }} />
+        <Stack.Screen name="unavailable" options={{ title: 'Bulunamadı' }} />
       </Stack>
     </>
   );

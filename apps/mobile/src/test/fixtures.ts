@@ -5,6 +5,9 @@ import type {
   JobPaymentActions,
   JobPaymentSummary,
   Payment,
+  ProviderVerification,
+  ProviderVerificationCaseView,
+  VerificationType,
   Wallet,
 } from '@ustago/types';
 
@@ -183,6 +186,71 @@ export function walletFixture(overrides: Partial<Wallet> = {}): Wallet {
     destination: null,
     recent: [],
     pendingPayouts: [],
+    ...overrides,
+  };
+}
+
+export function documentFixture(
+  type: VerificationType,
+  overrides: Partial<ProviderVerification> = {},
+): ProviderVerification {
+  return {
+    id: `doc-${type}`,
+    type,
+    status: 'PENDING',
+    mimeType: 'image/jpeg',
+    sizeBytes: 120_000,
+    originalFileName: `${type.toLowerCase()}.jpg`,
+    submittedAt: '2026-09-01T10:00:00.000Z',
+    reviewedAt: null,
+    rejectionReason: null,
+    ...overrides,
+  };
+}
+
+/** A provider with a complete profile and nothing uploaded yet. */
+export function verificationCaseFixture(
+  overrides: Partial<ProviderVerificationCaseView> = {},
+): ProviderVerificationCaseView {
+  return {
+    status: 'NOT_STARTED',
+    providerStatus: 'ACTIVE',
+    accountStatus: 'ACTIVE',
+    method: 'MANUAL',
+    submittedAt: null,
+    submissionCount: 0,
+    decidedAt: null,
+    verifiedAt: null,
+    userVisibleReason: null,
+    reasonCode: null,
+    checklist: [
+      { key: 'PROFILE', label: 'Profil bilgileri', done: true },
+      { key: 'SERVICES', label: 'Hizmet kategorileri', done: true },
+      { key: 'SERVICE_AREAS', label: 'Hizmet bölgeleri', done: true },
+      { key: 'DOCUMENTS', label: 'Zorunlu belgeler', done: false },
+      { key: 'SUBMIT', label: 'İncelemeye gönder', done: false },
+    ],
+    documents: [
+      { type: 'IDENTITY', required: true, reason: 'Tüm ustalar için zorunlu.', current: null },
+      {
+        type: 'PROFESSIONAL_CERTIFICATE',
+        required: false,
+        reason: 'İsteğe bağlı; müşterilere güven verir.',
+        current: null,
+      },
+    ],
+    canSubmit: false,
+    canEditDocuments: true,
+    capabilities: {
+      listed: true,
+      canQuote: true,
+      canTakeNowJobs: true,
+      canRequestPayout: true,
+      showVerifiedBadge: false,
+      restrictions: [],
+    },
+    activeSuspension: null,
+    timeline: [],
     ...overrides,
   };
 }
