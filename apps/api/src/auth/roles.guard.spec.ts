@@ -17,10 +17,7 @@ function contextFor(user: AuthUser | undefined): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-function guardRequiring(
-  required: Role[] | undefined,
-  permissions?: AdminPermission[],
-): RolesGuard {
+function guardRequiring(required: Role[] | undefined, permissions?: AdminPermission[]): RolesGuard {
   const reflector = new Reflector();
   vi.spyOn(reflector, 'getAllAndOverride').mockImplementation((key: unknown) =>
     key === ROLES_KEY ? required : key === PERMISSIONS_KEY ? permissions : undefined,

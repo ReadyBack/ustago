@@ -76,6 +76,15 @@ export function uniqueEmail(label: string): string {
 }
 
 const phones = new Set<string>();
+const trackedUsers = new Set<string>();
+
+/**
+ * Users cleanup() cannot find by e-mail or phone any more (for example
+ * after the Faz 6 account deletion pseudonymised them).
+ */
+export function trackUserForCleanup(userId: string): void {
+  trackedUsers.add(userId);
+}
 
 /** A random Turkish mobile number in E.164 form, removed again by cleanup(). */
 export function uniquePhone(): string {
@@ -193,7 +202,11 @@ export const bearer = (auth: { tokens: AuthTokens }) => `Bearer ${auth.tokens.ac
 export async function cleanup(ctx: TestContext): Promise<void> {
   const users = await ctx.prisma.user.findMany({
     where: {
-      OR: [{ email: { startsWith: `e2e-${RUN_ID}-` } }, { phone: { in: [...phones] } }],
+      OR: [
+        { email: { startsWith: `e2e-${RUN_ID}-` } },
+        { phone: { in: [...phones] } },
+        { id: { in: [...trackedUsers] } },
+      ],
     },
     select: { id: true },
   });
@@ -246,10 +259,7 @@ export async function cleanup(ctx: TestContext): Promise<void> {
     ).map((p) => p.id);
     await tx.auditLog.deleteMany({
       where: {
-        OR: [
-          { actorId: { in: ids } },
-          { entityId: { in: [...ids, ...providerIds] } },
-        ],
+        OR: [{ actorId: { in: ids } }, { entityId: { in: [...ids, ...providerIds] } }],
       },
     });
     await tx.providerVerificationEvent.deleteMany({ where: { providerId: { in: providerIds } } });

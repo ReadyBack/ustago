@@ -70,7 +70,9 @@ try {
       );
     }
     const trust = await seedDemoTrust(prisma);
-    console.warn(`DEMO verification states: +${trust} providers (VERIFIED/SUBMITTED/NEEDS_REVISION/SUSPENDED).`);
+    console.warn(
+      `DEMO verification states: +${trust} providers (VERIFIED/SUBMITTED/NEEDS_REVISION/SUSPENDED).`,
+    );
     const history = await seedDemoHistory(prisma);
     console.warn(`DEMO job history: +${history} completed jobs with reviews.`);
     const scored = await recalculateAllScores(prisma);

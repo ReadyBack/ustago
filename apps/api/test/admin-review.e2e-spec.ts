@@ -132,7 +132,11 @@ describe('Admin review of providers (e2e)', () => {
     const stored = await ctx.prisma.providerVerification.findUniqueOrThrow({
       where: { id: provider.verificationId },
     });
-    expect(createHash('sha256').update(doc.body as Buffer).digest('hex')).toBe(stored.sha256);
+    expect(
+      createHash('sha256')
+        .update(doc.body as Buffer)
+        .digest('hex'),
+    ).toBe(stored.sha256);
     // A download link cannot be used to upload.
     await ctx
       .http()

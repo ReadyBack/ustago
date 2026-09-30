@@ -176,7 +176,12 @@ export async function seedDemoFinance(
   );
   // Faz 6: a finance admin verifies every destination before payouts.
   if (destination.verificationStatus !== 'VERIFIED') {
-    await payouts.verifyDestination(admin.id, destination.id, 'DEMO: TEST hesabı doğrulandı.', null);
+    await payouts.verifyDestination(
+      admin.id,
+      destination.id,
+      'DEMO: TEST hesabı doğrulandı.',
+      null,
+    );
   }
   const payout = await payouts.request(providerUser, 100000, 'seed-demo-payout-0001', null);
   if (payout.status === 'REQUESTED') await payouts.approve(admin.id, payout.id, null);
