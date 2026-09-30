@@ -9,6 +9,16 @@ describe('notificationTarget', () => {
     expect(notificationTarget({ data: { serviceRequestId: 'r1' } })).toBe('/request/r1');
   });
 
+  it('opens the conversation for message.* notifications', () => {
+    expect(
+      notificationTarget({ data: { type: 'message.new', conversationId: 'c1', jobId: 'j1' } }),
+    ).toBe('/messages/c1');
+    // Other notifications keep their job/quote/request target.
+    expect(notificationTarget({ data: { conversationId: 'c1', jobId: 'j1' } })).toBe('/job/j1');
+    expect(notificationTarget({ data: { conversationId: 'c1' } })).toBe('/messages/c1');
+    expect(notificationTarget({ deepLink: '/messages/c1' })).toBe('/messages/c1');
+  });
+
   it('ignores empty or non-string payloads', () => {
     expect(notificationTarget({ data: null })).toBeNull();
     expect(notificationTarget({ data: { jobId: '' } })).toBeNull();

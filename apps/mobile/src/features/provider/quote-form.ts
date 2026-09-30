@@ -121,6 +121,16 @@ export function buildQuotePayload(
   };
   const parsed = createQuoteSchema.safeParse(body);
   if (!parsed.success) {
+    // The shared schema still requires labour + material = total whenever both
+    // are given, so servis/diğer cannot be added next to both (contract gap).
+    const extra = (b.parts.service ?? 0) + (b.parts.other ?? 0);
+    if (b.parts.labor !== null && b.parts.material !== null && extra > 0) {
+      return {
+        ok: false,
+        error:
+          'Şimdilik işçilik ve malzeme birlikte yazıldığında servis/diğer kalemi eklenemiyor. Servis/diğer tutarını işçiliğe ekleyebilir ya da malzemeyi boş bırakabilirsin.',
+      };
+    }
     return {
       ok: false,
       error: parsed.error.issues[0]?.message ?? 'Teklif bilgilerini kontrol et.',

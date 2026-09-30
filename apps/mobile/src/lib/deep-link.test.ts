@@ -19,6 +19,10 @@ describe('parseDeepLink', () => {
     ['/me/sessions', '/sessions'],
     ['/account-deletion', '/account-deletion'],
     ['/notifications/', '/notifications'],
+    // Faz 7: message.* notifications open the conversation.
+    [`/messages/${ID}`, `/messages/${ID}`],
+    [`ustago://messages/${ID}`, `/messages/${ID}`],
+    [`/conversations/${ID}`, `/messages/${ID}`],
   ])('%s → %s', (link, href) => {
     expect(parseDeepLink(link)).toEqual({ kind: 'route', href });
   });

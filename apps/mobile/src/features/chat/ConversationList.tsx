@@ -45,7 +45,7 @@ export function ConversationList({ role }: { role: 'CUSTOMER' | 'PROVIDER' }) {
   // Reload whenever the tab comes back into view, then every 30 s while it stays.
   useFocusEffect(
     useCallback(() => {
-      void loadFirst(true);
+      void loadFirst(false);
       const timer = setInterval(() => void loadFirst(true), LIST_POLL_MS);
       return () => clearInterval(timer);
     }, [loadFirst]),
