@@ -224,11 +224,10 @@ export async function seedDemoMarketplace(
   const klimaUsta = await authUser(prisma, 'usta-klima@ustago.test');
   if (!ayse || !zeynep || !klimaUsta) return result;
 
-  const [klima, elektrik] = await Promise.all(
-    ['klima', 'elektrik'].map((slug) =>
-      prisma.serviceCategory.findUniqueOrThrow({ where: { slug }, select: { id: true } }),
-    ),
-  );
+  const category = (slug: string) =>
+    prisma.serviceCategory.findUniqueOrThrow({ where: { slug }, select: { id: true } });
+  const klima = await category('klima');
+  const elektrik = await category('elektrik');
   const addressOf = (userId: string) =>
     prisma.address.findFirstOrThrow({
       where: { userId, deletedAt: null },
@@ -240,7 +239,7 @@ export async function seedDemoMarketplace(
     ayse,
     {
       type: 'QUOTE',
-      categoryId: klima!.id,
+      categoryId: klima.id,
       addressId: (await addressOf(ayse.id)).id,
       title: 'Salon kliması soğutmuyor (DEMO)',
       description:
@@ -259,7 +258,7 @@ export async function seedDemoMarketplace(
     zeynep,
     {
       type: 'QUOTE',
-      categoryId: elektrik!.id,
+      categoryId: elektrik.id,
       addressId: (await addressOf(zeynep.id)).id,
       title: 'Mutfakta sigorta sürekli atıyor (DEMO)',
       description:
