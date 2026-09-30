@@ -22,17 +22,26 @@ describe('searchCategories', () => {
   });
 
   it('matches aliases, including inside a longer phrase', () => {
-    expect(searchCategories('elektrikçi', cats, 5)[0]).toMatchObject({ categoryId: 'elk', matchKind: 'ALIAS' });
+    expect(searchCategories('elektrikçi', cats, 5)[0]).toMatchObject({
+      categoryId: 'elk',
+      matchKind: 'ALIAS',
+    });
     expect(ids('evde su kaçağı var')).toContain('tes');
     expect(searchCategories('sigorta attı', cats, 5)[0]?.matchedText).toBe('sigorta attı');
   });
 
   it('matches prefixes', () => {
-    expect(searchCategories('kli', cats, 5)[0]).toMatchObject({ categoryId: 'kli', matchKind: 'PREFIX' });
+    expect(searchCategories('kli', cats, 5)[0]).toMatchObject({
+      categoryId: 'kli',
+      matchKind: 'PREFIX',
+    });
   });
 
   it('tolerates typos within the budget', () => {
-    expect(searchCategories('elektirik', cats, 5)[0]).toMatchObject({ categoryId: 'elk', matchKind: 'FUZZY' });
+    expect(searchCategories('elektirik', cats, 5)[0]).toMatchObject({
+      categoryId: 'elk',
+      matchKind: 'FUZZY',
+    });
     expect(ids('kilma')).toContain('kli');
   });
 

@@ -24,7 +24,7 @@ export interface RankedCandidate extends MatchScore {
 }
 
 /** Beyond this many km the distance line gives no points. */
-const DISTANCE_HORIZON_KM = 50;
+export const DISTANCE_HORIZON_KM = 50;
 /** Safety bound on one candidate query (a province has far fewer active providers). */
 const MAX_CANDIDATES = 5000;
 
@@ -85,7 +85,7 @@ export class ProviderMatchingService {
   }
 }
 
-function toSignals(
+export function toSignals(
   r: CandidateRow,
   response: MatchSignals['response'],
   workingNow: boolean,
@@ -95,8 +95,7 @@ function toSignals(
     areaFit: r.areaFit,
     distanceKm: r.distanceKm,
     workingNow,
-    ustaScore:
-      r.score === null ? null : { score: r.score, isNewProvider: r.isNewProvider ?? true },
+    ustaScore: r.score === null ? null : { score: r.score, isNewProvider: r.isNewProvider ?? true },
     response,
     completedJobs: r.completedJobs,
     providerCancelledJobs: r.providerCancelledJobs,

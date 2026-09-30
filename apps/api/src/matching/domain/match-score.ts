@@ -121,7 +121,11 @@ export function scoreProvider(s: MatchSignals, cfg: MatchConfig): MatchScore {
     const rate = r.responded / r.dispatched;
     const m = r.medianMinutes;
     const speed = m <= 15 ? 4 : m <= 60 ? 3 : m <= 180 ? 2 : 1;
-    add('response', `Yanıt oranı %${Math.round(rate * 100)}, medyan ${Math.round(m)} dk`, rate * 6 + speed);
+    add(
+      'response',
+      `Yanıt oranı %${Math.round(rate * 100)}, medyan ${Math.round(m)} dk`,
+      rate * 6 + speed,
+    );
   }
 
   if (s.lastActiveAt) {

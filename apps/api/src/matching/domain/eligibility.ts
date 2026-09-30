@@ -132,11 +132,16 @@ export function ineligibilityReason(input: EligibilityInput): IneligibilityReaso
   if (!provider.categoryIds.includes(request.categoryId)) return 'CATEGORY_NOT_SERVED';
   if (!coversRequest(provider, request)) return 'DISTRICT_NOT_SERVED';
   if (!withinTravelLimit(provider, request)) return 'TOO_FAR';
-  if (request.preferredOnly && request.preferredProviderId && request.preferredProviderId !== provider.id) {
+  if (
+    request.preferredOnly &&
+    request.preferredProviderId &&
+    request.preferredProviderId !== provider.id
+  ) {
     return 'PREFERRED_ONLY';
   }
   if (provider.blockedWithCustomer) return 'BLOCKED';
-  if (provider.availability && !provider.availability.receivesNewJobs) return 'PROVIDER_UNAVAILABLE';
+  if (provider.availability && !provider.availability.receivesNewJobs)
+    return 'PROVIDER_UNAVAILABLE';
   if (!category.active || (override !== null && !override.isActive)) return 'CATEGORY_CLOSED';
   if (!province.active || !district.active) return 'PROVINCE_CLOSED';
   if (provider.missingRequiredDocuments > 0) return 'CATEGORY_REQUIREMENTS_MISSING';

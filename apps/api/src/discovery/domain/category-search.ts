@@ -58,7 +58,10 @@ function matchText(
     if (best > budget) return null;
     total += best;
   }
-  return { kind: total === 0 ? (exactKind === 'NAME' ? 'PREFIX' : 'ALIAS') : 'FUZZY', distance: total };
+  return {
+    kind: total === 0 ? (exactKind === 'NAME' ? 'PREFIX' : 'ALIAS') : 'FUZZY',
+    distance: total,
+  };
 }
 
 export function searchCategories(
@@ -105,5 +108,10 @@ export function searchCategories(
   );
   return hits
     .slice(0, limit)
-    .map(({ categoryId, matchKind, matchedText, rank }) => ({ categoryId, matchKind, matchedText, rank }));
+    .map(({ categoryId, matchKind, matchedText, rank }) => ({
+      categoryId,
+      matchKind,
+      matchedText,
+      rank,
+    }));
 }

@@ -138,7 +138,7 @@ const BASE_ELIGIBLE = Prisma.sql`
         AND (ov.province_id IS NULL OR ov.now_enabled))
   )`;
 
-const JOINS = Prisma.sql`
+export const JOINS = Prisma.sql`
   JOIN service_categories c ON c.id = sr.category_id
   LEFT JOIN service_categories pc ON pc.id = c.parent_id
   JOIN provinces p ON p.id = sr.province_id
@@ -148,8 +148,47 @@ const JOINS = Prisma.sql`
   LEFT JOIN province_categories ov
     ON ov.province_id = sr.province_id AND ov.category_id = sr.category_id`;
 
+/**
+ * The MATCH_V1 signal columns for provider `pr` (joined with `ps` =
+ * provider_scores). Shared by request matching and customer discovery so
+ * both rank with the same data.
+ */
+export function candidateFeatures(areaFit: Prisma.Sql, distance: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`pr.id, pr.user_id AS "userId",
+        ${areaFit} AS "areaFit",
+        (${distance})::float8 AS "distanceKm",
+        pr.accepting_new_jobs AS "acceptingNewJobs",
+        pr.unavailable_until AS "unavailableUntil",
+        ps.score::float8 AS score,
+        ps.is_new_provider AS "isNewProvider",
+        (SELECT count(*) FROM jobs j WHERE j.provider_id = pr.id AND j.status = 'COMPLETED')::int
+          AS "completedJobs",
+        (SELECT count(*) FROM jobs j WHERE j.provider_id = pr.id
+           AND j.cancellation_actor = 'PROVIDER' AND j.created_at > now() - interval '90 days')::int
+          AS "providerCancelledJobs",
+        (SELECT count(*) FROM jobs j WHERE j.provider_id = pr.id
+           AND j.created_at > now() - interval '90 days'
+           AND (j.cancellation_actor IS NULL OR j.cancellation_actor = 'PROVIDER'))::int
+          AS "attributableJobs",
+        pr.last_active_at AS "lastActiveAt",
+        pr.approved_at AS "approvedAt",
+        EXISTS (SELECT 1 FROM provider_verification_cases vc
+                WHERE vc.provider_id = pr.id AND vc.status = 'VERIFIED') AS verified,
+        (pr.account_status = 'LIMITED') AS "accountLimited",
+        EXISTS (SELECT 1 FROM disciplinary_actions da
+                WHERE da.subject_id = pr.user_id AND da.subject_role = 'PROVIDER'
+                  AND da.type = 'VISIBILITY_REDUCTION' AND da.status IN ('ACTIVE', 'UNDER_APPEAL')
+                  AND da.starts_at <= now() AND (da.ends_at IS NULL OR da.ends_at > now()))
+          AS "visibilityReduced",
+        (SELECT count(*) FROM disciplinary_actions da
+         WHERE da.subject_id = pr.user_id AND da.subject_role = 'PROVIDER'
+           AND da.type = 'WARNING' AND da.status IN ('ACTIVE', 'UNDER_APPEAL')
+           AND da.starts_at <= now() AND (da.ends_at IS NULL OR da.ends_at > now()))::int
+          AS "activeWarnings"`;
+}
+
 /** Provider-side joins every eligibility query needs (service centre). */
-const PROVIDER_JOIN = Prisma.sql`LEFT JOIN districts scd ON scd.id = pr.service_center_district_id`;
+export const PROVIDER_JOIN = Prisma.sql`LEFT JOIN districts scd ON scd.id = pr.service_center_district_id`;
 
 export type OpportunitySort = 'NEW' | 'NEAREST' | 'BUDGET';
 
@@ -258,17 +297,25 @@ export class MatchingRepository {
     if (sort === 'NEAREST') {
       keyExpr = NEAREST_KEY;
       order = Prisma.sql`${NEAREST_KEY} ASC, sr.id ASC`;
-      if (cursor) conditions.push(Prisma.sql`(${NEAREST_KEY}, sr.id) > (${cursor.k}::float8, ${cursor.id}::uuid)`);
+      if (cursor)
+        conditions.push(
+          Prisma.sql`(${NEAREST_KEY}, sr.id) > (${cursor.k}::float8, ${cursor.id}::uuid)`,
+        );
     } else if (sort === 'BUDGET') {
       keyExpr = BUDGET_KEY;
       order = Prisma.sql`${BUDGET_KEY} DESC, sr.id DESC`;
-      if (cursor) conditions.push(Prisma.sql`(${BUDGET_KEY}, sr.id) < (${cursor.k}::float8, ${cursor.id}::uuid)`);
+      if (cursor)
+        conditions.push(
+          Prisma.sql`(${BUDGET_KEY}, sr.id) < (${cursor.k}::float8, ${cursor.id}::uuid)`,
+        );
     } else {
       keyExpr = Prisma.sql`0::float8`;
       order = Prisma.sql`sr.id DESC`;
       if (cursor) conditions.push(Prisma.sql`sr.id < ${cursor.id}::uuid`);
     }
-    const rows = await this.prisma.$queryRaw<{ id: string; distanceKm: number | null; k: number }[]>`
+    const rows = await this.prisma.$queryRaw<
+      { id: string; distanceKm: number | null; k: number }[]
+    >`
       SELECT sr.id, (${DISTANCE_KM})::float8 AS "distanceKm", (${keyExpr})::float8 AS k
       FROM service_requests sr
       ${JOINS}
@@ -334,39 +381,12 @@ export class MatchingRepository {
           WHERE q.service_request_id = sr.id AND q.provider_id = pr.id)`
       : Prisma.empty;
     return db.$queryRaw<CandidateRow[]>`
-      SELECT pr.id, pr.user_id AS "userId",
-        CASE WHEN EXISTS (SELECT 1 FROM provider_service_areas pa
+      SELECT ${candidateFeatures(
+        Prisma.sql`CASE WHEN EXISTS (SELECT 1 FROM provider_service_areas pa
                           WHERE pa.provider_id = pr.id AND pa.district_id = sr.district_id)
-             THEN 'DISTRICT' ELSE 'REGION' END AS "areaFit",
-        (${DISTANCE_KM})::float8 AS "distanceKm",
-        pr.accepting_new_jobs AS "acceptingNewJobs",
-        pr.unavailable_until AS "unavailableUntil",
-        ps.score::float8 AS score,
-        ps.is_new_provider AS "isNewProvider",
-        (SELECT count(*) FROM jobs j WHERE j.provider_id = pr.id AND j.status = 'COMPLETED')::int
-          AS "completedJobs",
-        (SELECT count(*) FROM jobs j WHERE j.provider_id = pr.id
-           AND j.cancellation_actor = 'PROVIDER' AND j.created_at > now() - interval '90 days')::int
-          AS "providerCancelledJobs",
-        (SELECT count(*) FROM jobs j WHERE j.provider_id = pr.id
-           AND j.created_at > now() - interval '90 days'
-           AND (j.cancellation_actor IS NULL OR j.cancellation_actor = 'PROVIDER'))::int
-          AS "attributableJobs",
-        pr.last_active_at AS "lastActiveAt",
-        pr.approved_at AS "approvedAt",
-        EXISTS (SELECT 1 FROM provider_verification_cases vc
-                WHERE vc.provider_id = pr.id AND vc.status = 'VERIFIED') AS verified,
-        (pr.account_status = 'LIMITED') AS "accountLimited",
-        EXISTS (SELECT 1 FROM disciplinary_actions da
-                WHERE da.subject_id = pr.user_id AND da.subject_role = 'PROVIDER'
-                  AND da.type = 'VISIBILITY_REDUCTION' AND da.status IN ('ACTIVE', 'UNDER_APPEAL')
-                  AND da.starts_at <= now() AND (da.ends_at IS NULL OR da.ends_at > now()))
-          AS "visibilityReduced",
-        (SELECT count(*) FROM disciplinary_actions da
-         WHERE da.subject_id = pr.user_id AND da.subject_role = 'PROVIDER'
-           AND da.type = 'WARNING' AND da.status IN ('ACTIVE', 'UNDER_APPEAL')
-           AND da.starts_at <= now() AND (da.ends_at IS NULL OR da.ends_at > now()))::int
-          AS "activeWarnings"
+             THEN 'DISTRICT' ELSE 'REGION' END`,
+        DISTANCE_KM,
+      )}
       FROM service_requests sr
       ${JOINS}
       CROSS JOIN provider_profiles pr

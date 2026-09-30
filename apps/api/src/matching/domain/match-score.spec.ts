@@ -46,8 +46,9 @@ describe('MATCH_V1', () => {
     const near = scoreProvider({ ...base, distanceKm: 3 }, cfg);
     const far = scoreProvider({ ...base, distanceKm: 40 }, cfg);
     expect(near.score).toBeGreaterThan(far.score);
-    expect(scoreProvider({ ...base, distanceKm: 80 }, cfg).breakdown.find((l) => l.key === 'distance'))
-      .toBeUndefined();
+    expect(
+      scoreProvider({ ...base, distanceKm: 80 }, cfg).breakdown.find((l) => l.key === 'distance'),
+    ).toBeUndefined();
   });
 
   it('verification is a small bonus and cannot beat real quality', () => {
@@ -56,7 +57,12 @@ describe('MATCH_V1', () => {
       cfg,
     );
     const unverifiedStrong = scoreProvider(
-      { ...base, providerId: p(2), verified: false, ustaScore: { score: 90, isNewProvider: false } },
+      {
+        ...base,
+        providerId: p(2),
+        verified: false,
+        ustaScore: { score: 90, isNewProvider: false },
+      },
       cfg,
     );
     expect(unverifiedStrong.score).toBeGreaterThan(verifiedWeak.score);
@@ -76,7 +82,9 @@ describe('MATCH_V1', () => {
       cfg,
     );
     expect(fresh.breakdown.find((l) => l.key === 'quality')?.points).toBe(18);
-    expect(fresh.breakdown.find((l) => l.key === 'cold_start')?.points).toBe(MATCH_POINTS.COLD_START);
+    expect(fresh.breakdown.find((l) => l.key === 'cold_start')?.points).toBe(
+      MATCH_POINTS.COLD_START,
+    );
     const old = scoreProvider(
       { ...base, ustaScore: null, approvedAt: new Date(now.getTime() - 200 * DAY) },
       cfg,
@@ -92,7 +100,9 @@ describe('MATCH_V1', () => {
       { ...base, response: { dispatched: 2, responded: 2, medianMinutes: 1 } },
       cfg,
     );
-    expect(thin.breakdown.find((l) => l.key === 'response')?.points).toBe(MATCH_POINTS.RESPONSE_NEUTRAL);
+    expect(thin.breakdown.find((l) => l.key === 'response')?.points).toBe(
+      MATCH_POINTS.RESPONSE_NEUTRAL,
+    );
     const fast = scoreProvider(
       { ...base, response: { dispatched: 10, responded: 9, medianMinutes: 10 } },
       cfg,
