@@ -20,6 +20,18 @@ describe('apiEnvSchema', () => {
     expect(env.AUTH_REFRESH_TTL_DAYS).toBe(30);
   });
 
+  it('treats empty values from a copied .env.example as unset', () => {
+    const env = parseEnv(apiEnvSchema, {
+      ...validEnv,
+      OTP_HASH_SECRET: '',
+      STORAGE_SIGNING_SECRET: '',
+      API_PORT: '',
+    });
+    expect(env.OTP_HASH_SECRET).toBeUndefined();
+    expect(env.STORAGE_SIGNING_SECRET).toBeUndefined();
+    expect(env.API_PORT).toBe(3000);
+  });
+
   it('splits CORS origins', () => {
     const env = parseEnv(apiEnvSchema, {
       ...validEnv,
