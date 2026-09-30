@@ -56,6 +56,8 @@ export const NotificationEvent = {
   REQUEST_PREFERRED: 'service_request.preferred',
   PAYOUT_PAID: 'payout.paid',
   PAYOUT_FAILED: 'payout.failed',
+  /** The provider answered the customer's review (deep link: the job). */
+  REVIEW_REPLIED: 'review.replied',
 } as const;
 
 export type NotificationEventKey = (typeof NotificationEvent)[keyof typeof NotificationEvent];

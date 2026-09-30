@@ -5,7 +5,7 @@ import {
   adminProviderListItemSchema,
   auditEventSchema,
   paginatedSchema,
-  publicProviderProfileSchema,
+  publicProviderProfileV2Schema,
   signedUrlSchema,
 } from '@ustago/validation';
 
@@ -346,8 +346,10 @@ describe('Admin review of providers (e2e)', () => {
     await post(`/providers/${provider.providerId}/approve`).expect(200);
 
     const res = await ctx.http().get(`/api/v1/providers/${provider.providerId}`).expect(200);
-    const profile = publicProviderProfileSchema.parse(res.body);
-    expect(profile.verificationBadges).toEqual(['IDENTITY']);
+    const profile = publicProviderProfileV2Schema.parse(res.body);
+    expect(profile.id).toBe(provider.providerId);
+    // V2 (Faz 7): no per-document badges; isVerified follows the verification case.
+    expect(res.body).not.toHaveProperty('verificationBadges');
     const text = JSON.stringify(res.body);
     const user = await ctx.prisma.user.findUniqueOrThrow({ where: { id: provider.userId } });
     expect(text).not.toContain(user.phone ?? '<none>');
@@ -400,9 +402,9 @@ describe('Admin review of providers (e2e)', () => {
       .send({ categoryIds: [c.plainCategoryId, child.id] })
       .expect(200);
     const services = async () =>
-      publicProviderProfileSchema
+      publicProviderProfileV2Schema
         .parse((await ctx.http().get(`/api/v1/providers/${provider.providerId}`).expect(200)).body)
-        .services.map((s) => s.categoryId);
+        .categories.map((s) => s.id);
 
     expect(await services()).toContain(child.id);
     await ctx.prisma.serviceCategory.update({

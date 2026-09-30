@@ -2,7 +2,7 @@ import {
   jobSchema,
   paginatedSchema,
   jobListItemSchema,
-  publicProviderProfileSchema,
+  publicProviderProfileV2Schema,
   publicReviewSchema,
   reviewSchema,
 } from '@ustago/validation';
@@ -144,7 +144,7 @@ describe('Job lifecycle (e2e)', () => {
     const again = await postReview(ctx, customer, jobId, { rating: 4 }).expect(409);
     expect(again.body.code).toBe('REVIEW_ALREADY_EXISTS');
 
-    const profile = publicProviderProfileSchema.parse(
+    const profile = publicProviderProfileV2Schema.parse(
       (await ctx.http().get(`/api/v1/providers/${provider.providerId}`).expect(200)).body,
     );
     expect(profile.rating).toEqual({ average: 5, count: 1 });
