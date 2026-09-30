@@ -179,8 +179,8 @@ function RequestForm({
         bunlar kapanana kadar bekler.
       </Body>
       <Body muted>
-        • Süre dolunca adınız, telefonunuz ve e-postanız silinir. Yasal olarak saklanması gereken
-        ödeme ve fatura kayıtları kimliğinizle ilişkilendirilmeden tutulur.
+        • Süre dolunca adınız, telefonunuz ve e-postanız silinir. Ödeme ve iş kayıtları kimliğinizle
+        ilişkilendirilmeden saklanır.
       </Body>
       <TextField
         testID="deletion-confirm-input"

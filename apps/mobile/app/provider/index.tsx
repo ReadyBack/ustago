@@ -113,12 +113,15 @@ function Feed() {
             <>
               <Heading>Acil işler kapalı</Heading>
               <Body muted>
-                Acil Usta’yı açarsanız, müsait olduğunuzda bölgenizdeki acil işler size gelir.
+                {nowBlocked
+                  ? 'Acil iş almak için hesabınızın doğrulanmış ve aktif olması gerekir.'
+                  : 'Acil Usta’yı açarsanız, müsait olduğunuzda bölgenizdeki acil işler size gelir.'}
               </Body>
               <Button
                 title="Acil Usta’yı aç"
                 variant="secondary"
                 loading={toggle.busy}
+                disabled={nowBlocked}
                 onPress={() => void toggle.submit({ nowEnabled: true })}
               />
             </>
