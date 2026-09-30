@@ -3,9 +3,10 @@
 Mobil öncelikli yerel hizmet pazaryeri ve usta işletme platformu.
 Ürün ve teknik tanım: [PROJECT.md](PROJECT.md). Mimari kararlar: [docs/adr](docs/adr/README.md).
 
-> **Durum:** Faz 2 tamamlandı: telefon + OTP girişi, 81 il / 973 ilçe, müşteri adresleri, usta
-> onboarding ve belge doğrulama, admin inceleme paneli. Talep, teklif ve iş akışları (Faz 3+)
-> henüz başlamadı.
+> **Durum:** Faz 3 tamamlandı: yerelde çalışan demo. Telefon + OTP girişi, adres, kategori, bütçeli
+> ya da "bütçem belli değil" talep, usta modu, eşleşen işler, bütçeden bağımsız teklif, karşılıklı
+> pazarlık, kabul, kilitlenen fiyat ve oluşan iş; UstaGO NOW (ACİL USTA) MVP; admin panelinde canlı
+> sayılar ve talep listesi. Ödeme, push bildirim, mesajlaşma ve iş adımları sonraki fazlarda.
 
 ## Yapı
 
@@ -25,90 +26,174 @@ infrastructure/   Docker ve yardımcı betikler
 docs/             ADR, mimari, ürün ve API dokümanları
 ```
 
-## Gereksinimler
+## USTAGO LOCAL DEVELOPMENT
 
-- Node.js 22 (`.nvmrc`), pnpm 10 (`corepack enable` yeterli)
-- Docker (PostgreSQL ve Redis için)
-- Mobil için: telefonda Expo Go veya Android/iOS emülatörü
+Tek seferlik kurulum, ardından tek komutla çalıştırma. Komutlar Windows PowerShell, macOS ve Linux'ta
+aynıdır.
 
-## Lokal kurulum (yeni geliştirici)
+### Gereksinimler
 
-```bash
-# 1. Repository'yi klonla ve bağımlılıkları kur (Prisma istemcisi de üretilir)
-git clone <repo-url> ustago && cd ustago
+- **Node.js 22** (`.nvmrc`). Windows'ta [nodejs.org](https://nodejs.org) LTS yükleyicisi yeterli.
+- **pnpm 10**: `corepack enable` (Windows'ta PowerShell'i bir kez "Yönetici olarak çalıştır" ile açın).
+- **Docker Desktop** (PostgreSQL 17 ve Redis 7 için). Kurulumdan sonra bir kez açın; sağ alttaki
+  balina simgesi "running" olmalı.
+- **Git**.
+- Telefonda deneme için: Play Store / App Store'dan **Expo Go** (SDK 57).
+
+### Windows 11: sıfırdan ilk çalıştırma
+
+PowerShell'de (Docker Desktop açıkken):
+
+```powershell
+git clone https://github.com/ReadyBack/ustago.git
+cd ustago
 corepack enable
 pnpm install
-
-# 2. Ortam değişkenleri (tek .env kökte; git'e girmez)
-cp .env.example .env
-#    İsteğe bağlı: SEED_DEV_PASSWORD'e demo hesaplar için bir şifre yaz (en az 10 karakter).
-cp apps/admin/.env.example apps/admin/.env.local    # isteğe bağlı
-cp apps/mobile/.env.example apps/mobile/.env        # isteğe bağlı
-
-# 3. PostgreSQL + Redis (Docker)
-pnpm db:up
-
-# 4. Migration'ları uygula
-pnpm db:deploy          # mevcut migration'ları uygular
-#    Şemayı değiştirdiysen yeni migration üret: pnpm db:migrate --name <degisiklik>
-
-# 5. Seed: 81 il, 973 ilçe, kategoriler ve demo hesaplar
-pnpm db:seed
-
-# 6. Paylaşılan paketleri derle ve API'yi başlat
-pnpm build --filter "./packages/*"
-pnpm --filter @ustago/api dev       # veya hepsi birden: pnpm dev
-
-# 7. Testler
-pnpm test               # birim + smoke (Docker gerekmez)
-pnpm test:e2e           # gerçek PostgreSQL + Redis (adım 3-4 gerekli)
+pnpm dev:setup
+pnpm dev
 ```
 
-Sıfırdan başlamak için `pnpm db:reset` veritabanını siler, migration'ları yeniden uygular ve seed'i
-çalıştırır (yalnızca lokal).
+- `pnpm dev:setup` şunları yapar: `.env` yoksa `.env.example`'dan oluşturur ve içindeki yerel
+  secret'ları rastgele üretir (`local-dev-...`; production değeri değildir, `.env` git'e girmez),
+  paylaşılan paketleri derler, Prisma istemcisini üretir, Docker'da PostgreSQL + Redis'i başlatır,
+  migration'ları uygular ve demo verisini yükler. Tekrar çalıştırmak güvenlidir; mevcut `.env`'deki
+  dolu değerlere dokunmaz.
+- `pnpm dev` API, Admin ve Expo'yu birlikte başlatır, adresleri ve bilgisayarın yerel ağ IP'sini
+  yazar. Ayrı pencerelerde çalıştırmak isterseniz: `pnpm dev:api`, `pnpm dev:admin`,
+  `pnpm dev:mobile` (Expo'nun QR kodu ve kısayolları en rahat bu komutla, kendi penceresinde görünür).
+- Durdurmak: `Ctrl+C`. Docker servisleri çalışmaya devam eder; kapatmak için `pnpm db:down`.
 
-### Demo hesaplar (yalnızca geliştirme)
+macOS / Linux'ta adımlar aynıdır (Docker Desktop veya Docker Engine + Compose v2).
 
-`pnpm db:seed`, `NODE_ENV` `production` değilse üç demo hesap oluşturur. Adresler `.test` alan
-adındadır, gerçek bir kutuya gidemez:
+## USTAGO LOCAL URLS
 
-| E-posta               | Roller                | Not                                                            |
-| --------------------- | --------------------- | -------------------------------------------------------------- |
-| `admin@ustago.test`   | CUSTOMER, SUPER_ADMIN | Tüm yönetim uç noktaları                                       |
-| `musteri@ustago.test` | CUSTOMER              |                                                                |
-| `usta@ustago.test`    | CUSTOMER, PROVIDER    | Onaylı usta; Elektrik, Su Tesisatı; Kadıköy, Üsküdar, Ataşehir |
+| Ne                 | Adres                                                     |
+| ------------------ | --------------------------------------------------------- |
+| API                | http://localhost:3000/api/v1                              |
+| API sağlık         | http://localhost:3000/api/v1/health                       |
+| Swagger            | http://localhost:3000/api/docs                            |
+| Admin paneli       | http://localhost:3001                                     |
+| Geliştirici durumu | http://localhost:3001/dev/status (yalnızca geliştirmede)  |
+| Mobil (web)        | http://localhost:8081 (Expo çalışırken `w` veya doğrudan) |
+| PostgreSQL / Redis | localhost:5432 / localhost:6379 (Docker)                  |
 
-Şifre repository'de yoktur. `.env` içindeki `SEED_DEV_PASSWORD` doluysa o kullanılır (ve seed her
-çalıştığında bu hesapların şifresi ona eşitlenir). Boşsa seed rastgele bir şifre üretir ve **bir kez**
-terminale yazar. Şifreyi unutursan `SEED_DEV_PASSWORD`'ü doldurup `pnpm db:seed`'i tekrar çalıştır.
-Üretimde (`NODE_ENV=production`) seed yalnızca il/ilçe/kategori verisini yükler.
+## LOCAL DEMO ACCOUNTS
 
-Denemek için: Swagger'da (http://localhost:3000/api/docs) `POST /api/v1/auth/login` ile giriş yap,
-dönen `accessToken`'ı sağ üstteki **Authorize** düğmesine yapıştır.
+Hepsi `pnpm dev:setup` / `pnpm dev:seed` ile oluşur, yalnızca geliştirmede (`NODE_ENV` production
+değilken). Telefonlar **+90 500** ile başlar: bu blok hiçbir operatöre tahsis edilmemiştir, gerçek
+bir kişiye ait değildir. E-postalar `.test` alan adındadır. Demo kayıtlarda "(DEMO)" / "DEMO DATA"
+etiketi vardır.
 
-### Telefonla giriş (geliştirme)
+| Hesap                       | Mobil giriş (telefon) | Rol ve durum                                                                               |
+| --------------------------- | --------------------- | ------------------------------------------------------------------------------------------ |
+| `musteri@ustago.test`       | 500 000 00 01         | Müşteri "Ayşe Demo", Seyhan / Adana'da kayıtlı "Ev (DEMO)" adresi                          |
+| `usta-klima@ustago.test`    | 500 000 00 02         | Onaylı usta "Demo Klima Ustası": Klima + Beyaz Eşya, Seyhan + Çukurova, NOW açık ve müsait |
+| `usta-elektrik@ustago.test` | 500 000 00 03         | Onaylı elektrikçi, NOW açık ama müsait değil                                               |
+| `usta-tesisat@ustago.test`  | 500 000 00 04         | Onaylı tesisatçı, yalnızca teklif (NOW kapalı), Çukurova                                   |
+| `usta-bekleyen@ustago.test` | 500 000 00 05         | İnceleme bekleyen başvuru (admin panelinde onay/red denemesi için)                         |
+| `admin@ustago.test`         | (e-posta + şifre)     | SUPER_ADMIN, admin paneli                                                                  |
+| `usta@ustago.test`          | (e-posta + şifre)     | İstanbul'da onaylı usta (Faz 2 demo hesabı)                                                |
 
-`SMS_PROVIDER=console` iken gerçek SMS gönderilmez; kod API loguna `[DEV SMS → +90532*****67]`
-satırıyla yazılır. `POST /api/v1/auth/otp/request { "phone": "0532 123 45 67" }` → logdaki kod →
-`POST /api/v1/auth/otp/verify { "phone": "...", "code": "123456" }`. Production'da `console` ve
-`fake` sağlayıcıları ortam şeması tarafından reddedilir ([ADR-0009](docs/adr/0009-telefon-otp-ve-sms.md)).
+- **OTP kodu**: gerçek SMS gönderilmez (`SMS_PROVIDER=console`). "Kod Gönder"e bastıktan sonra API
+  çıktısında şu satırı arayın: `[DEV SMS → +90500*****01] OTP KODU: 123456`. Kod 3 dakika geçerli.
+  Bu satır yalnızca console sağlayıcısında yazılır; API yanıtı kodu hiçbir ortamda döndürmez.
+- **Admin / e-posta şifresi**: `.env` içindeki `SEED_DEV_PASSWORD`. `pnpm dev:setup` bunu rastgele
+  üretir; görmek için `.env` dosyasını açın. Değiştirirseniz `pnpm dev:seed` demo hesapların şifresini
+  yeni değere eşitler.
+- Açık iller: Adana (demo) ve İstanbul. Diğer iller admin tarafından açılana kadar talep kabul etmez.
+
+## 5 DAKİKADA USTAGO DEMO
+
+`pnpm dev` çalışırken http://localhost:8081 adresini açın (tarayıcıda telefon görünümü için
+geliştirici araçlarından mobil görünümü seçebilirsiniz) ya da telefonda Expo Go ile QR kodu okutun.
+Müşteri ve usta için iki ayrı tarayıcı penceresi (biri gizli pencere) en rahatıdır.
+
+1. **Müşteri girişi**: 500 000 00 01 → "Kod Gönder" → API çıktısındaki 6 haneli kod.
+2. **Talep**: Ana Sayfa → Klima → başlık ve açıklama → adres "Ev (DEMO)" → (fotoğraf isteğe bağlı) →
+   Tahmini bütçe **1.500** yazın ya da "Bütçem belli değil" seçin → zaman → Önizleme → **Talebi Yayınla**.
+3. **Usta girişi** (ikinci pencere): 500 000 00 02 → Profil → **🔧 Usta Moduna Geç**. "İşler" sekmesinde
+   talep görünür (liste 10-15 saniyede bir kendini yeniler).
+4. **Teklif**: işe dokunun → fiyat **2.500** (bütçenin üstünde teklif serbesttir) → süre, not →
+   **Teklif Gönder**.
+5. **Pazarlık**: müşteri talebinde teklifi açar → karşı teklif **2.000**. Usta karşı teklif **2.200**.
+6. **Anlaşma**: müşteri "✓ ₺2.200 ile Anlaş". Fiyat kilitlenir, iş oluşur; iki taraf da iş detayında
+   anlaşılan fiyatı, adresi ve karşı tarafın telefonunu görür. Diğer ustaların teklifleri kapanır.
+7. **ACİL USTA (NOW)**: müşteri Ana Sayfa'da 🚨 **ACİL USTA** → Klima → talep. Müsait ve NOW'u açık
+   klima ustası (500 000 00 02) "İşler"de 🚨 **ACİL İŞ** rozetiyle görür ve tek seferlik fiyat verir;
+   NOW'da karşı teklif yoktur, müşteri gelen fiyatlardan birini kabul eder.
+8. **Admin**: http://localhost:3001 → `admin@ustago.test` + `SEED_DEV_PASSWORD` → Genel bakış (canlı
+   sayılar), İş talepleri (filtreler, pazarlık geçmişi), Usta başvuruları (500 000 00 05'i onaylayın).
+
+Temiz bir başlangıç için `pnpm dev:reset` (onay ister; yalnız yerel veritabanında çalışır).
+
+## Troubleshooting
+
+| Belirti                                                  | Çözüm                                                                                                                                                             |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Docker erişilemiyor` / `docker: command not found`      | Docker Desktop'ı açın, "running" olmasını bekleyin, komutu tekrarlayın.                                                                                           |
+| `Port 3000 zaten kullanımda` (3001, 8081, 5432, 6379)    | Windows: `netstat -ano \| findstr :3000` → `taskkill /PID <PID> /F`. macOS/Linux: `lsof -i :3000` → `kill <PID>`.                                                 |
+| `password authentication failed for user "ustago"`       | Docker volume eski bir şifreyle oluşmuş. `.env`'deki `POSTGRES_PASSWORD`'ü eski değere döndürün ya da (veri silinir) `docker compose down -v` → `pnpm dev:setup`. |
+| Mobil uygulama "Sunucuya ulaşılamadı" diyor              | API çalışıyor mu (`pnpm dev:api`)? Telefon için aşağıdaki "Fiziksel telefon" notlarına bakın.                                                                     |
+| OTP satırı görünmüyor                                    | API'yi `pnpm dev` / `pnpm dev:api` ile başlattığınız pencereye bakın; `.env`'de `SMS_PROVIDER=console` olmalı.                                                    |
+| "Çok sık kod istendi"                                    | Telefon başına saatlik sınır ve 60 sn yeniden gönderme beklemesi var; bekleyin veya başka demo numarası kullanın.                                                 |
+| Admin girişi reddediliyor                                | Şifre `.env`'deki `SEED_DEV_PASSWORD`; değiştirdiyseniz `pnpm dev:seed`.                                                                                          |
+| `pnpm dev:reset` bir AI aracından çalıştırılınca duruyor | Prisma, yapay zekâ ajanlarının `migrate reset`'ini kullanıcı onayı olmadan engeller; kendi terminalinizden çalıştırın.                                            |
+| PowerShell `running scripts is disabled`                 | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (pnpm/corepack betikleri için).                                                                             |
+| Expo "Metro bundler" hatası / eski ekran                 | Expo penceresinde `r` (yenile) veya `pnpm --filter @ustago/mobile exec expo start -c` (önbelleği temizler).                                                       |
+
+### Fiziksel telefon (Expo Go)
+
+- Telefon ve bilgisayar **aynı Wi-Fi** ağında olmalı. Misafir ağları ve bazı kurumsal ağlar cihazlar
+  arası bağlantıyı engeller; o durumda telefonun hotspot'una bilgisayarı bağlayın.
+- Uygulama API adresini kendisi bulur: QR kodla açıldığında Metro'nun çalıştığı bilgisayarın IP'sini
+  kullanır (`http://<bilgisayar-ip>:3000`). Android emülatörü `10.0.2.2`, web ve iOS simülatörü
+  `localhost` kullanır. Elle vermek için `apps/mobile/.env` içine
+  `EXPO_PUBLIC_API_URL=http://192.168.1.20:3000` yazıp Expo'yu yeniden başlatın.
+- Windows Güvenlik Duvarı ilk çalıştırmada Node.js için izin sorar: **Özel ağlar**'a izin verin.
+  Sormadıysa: Windows Güvenlik → Güvenlik duvarı → "Bir uygulamaya izin ver" → Node.js (Özel).
+- Tokenlar telefonda şifreli depoda (SecureStore) tutulur. Web önizlemesinde SecureStore olmadığı için
+  sekme kapanınca silinen `sessionStorage` kullanılır; bu yalnızca yerel önizleme içindir.
+
+### Manuel kurulum (script kullanmadan)
+
+```bash
+cp .env.example .env            # secret alanlarını doldurun (en az 32 karakter)
+pnpm install
+pnpm build --filter "./packages/*"
+pnpm db:up && pnpm db:deploy && pnpm db:seed
+pnpm --filter @ustago/api dev   # ayrı pencerelerde: admin, mobile
+```
+
+Testler: `pnpm test` (Docker gerekmez), `pnpm test:e2e` (PostgreSQL + Redis gerekir).
+
+### Demo hesaplar ve API ile deneme
+
+Swagger'da (http://localhost:3000/api/docs) `POST /api/v1/auth/login` ile e-posta + şifre girişi
+yapın ya da `POST /api/v1/auth/otp/request { "phone": "0500 000 00 01" }` → API çıktısındaki kod →
+`POST /api/v1/auth/otp/verify`. Dönen `accessToken`'ı **Authorize** düğmesine yapıştırın. Production'da
+`console` ve `fake` SMS sağlayıcıları ortam şeması tarafından reddedilir
+([ADR-0009](docs/adr/0009-telefon-otp-ve-sms.md)). Üretimde (`NODE_ENV=production`) seed yalnızca
+il/ilçe/kategori verisini yükler.
 
 ### Admin paneli
 
-```bash
-pnpm --filter @ustago/api dev          # API :3000
-pnpm --filter @ustago/admin dev        # Admin :3001 → http://localhost:3001
-```
-
-`admin@ustago.test` ile giriş yap. Panel: genel bakış, usta başvuruları, usta detayı (onboarding,
-belgeler), belge görüntüleme, belge ve başvuru onay/red, askıya alma. Oturum httpOnly çerezlerde
-tutulur; token tarayıcı JavaScript'ine verilmez ([ADR-0013](docs/adr/0013-admin-kimlik-dogrulama.md)).
-Belge yüklemeleri geliştirmede `apps/api/.data/storage` altında durur (git'e girmez).
+`admin@ustago.test` ile giriş yapın. Panel: genel bakış (veritabanından canlı sayılar), iş talepleri
+(durum, tür, il, kategori filtreleri; teklif ve pazarlık geçmişi; müşteri telefonu maskeli, açık adres
+yok), usta başvuruları ve belge kuyruğu, geliştirici durumu. Oturum httpOnly çerezlerde tutulur; token
+tarayıcı JavaScript'ine verilmez ([ADR-0013](docs/adr/0013-admin-kimlik-dogrulama.md)). Belge ve
+fotoğraf yüklemeleri geliştirmede `apps/api/.data/storage` altında durur (git'e girmez).
 
 ## Komutlar
 
 | Komut                               | Açıklama                                                              |
 | ----------------------------------- | --------------------------------------------------------------------- |
+| `pnpm dev:setup`                    | Tek seferlik kurulum: `.env`, paketler, Docker, migration, demo seed  |
+| `pnpm dev`                          | API + Admin + Expo (Docker servislerini gerekirse başlatır)           |
+| `pnpm dev:api` / `dev:admin`        | Yalnız API (:3000) / yalnız Admin (:3001)                             |
+| `pnpm dev:mobile`                   | Expo (QR kod, `w` web, `a` Android emülatör)                          |
+| `pnpm dev:infra`                    | Yalnız PostgreSQL + Redis (Docker)                                    |
+| `pnpm dev:seed`                     | Migration + demo verisi (tekrar çalıştırılabilir)                     |
+| `pnpm dev:reset`                    | Yerel veritabanını siler, yeniden kurar ve demo verisini yükler       |
 | `pnpm lint`                         | Tüm paketlerde ESLint                                                 |
 | `pnpm typecheck`                    | Tüm paketlerde TypeScript (strict)                                    |
 | `pnpm test`                         | Birim ve smoke testleri (Docker gerekmez)                             |
@@ -120,7 +205,7 @@ Belge yüklemeleri geliştirmede `apps/api/.data/storage` altında durur (git'e 
 | `pnpm db:migrate`                   | Prisma migration oluşturur ve uygular (geliştirme)                    |
 | `pnpm db:deploy`                    | Mevcut migration'ları uygular (CI / üretim)                           |
 | `pnpm db:seed`                      | Referans veri + (geliştirmede) demo hesaplar                          |
-| `pnpm db:reset`                     | Lokal veritabanını sıfırlar, migration + seed                         |
+| `pnpm db:reset`                     | Lokal veritabanını sıfırlar, migration + seed (Prisma CLI)            |
 | `pnpm db:validate`                  | Prisma şemasını doğrular                                              |
 
 ## Kurallar (özet)
@@ -139,7 +224,7 @@ Tam liste: PROJECT.md §31.
 - Domain modeli: [docs/architecture/domain-model.md](docs/architecture/domain-model.md)
 - Kararlar: [docs/adr](docs/adr/README.md) (0005 rol modeli, 0006 para, 0007 auth, 0008 domain,
   0009 OTP/SMS, 0010 usta yaşam döngüsü ve NOW, 0011 belge ve depolama, 0012 konum verisi,
-  0013 admin oturumu)
+  0013 admin oturumu, 0014 talep, teklif, pazarlık ve NOW)
 - Türkiye il/ilçe verisinin kaynağı: [docs/reference-data](docs/reference-data/turkey-locations.md)
 
 ## CI

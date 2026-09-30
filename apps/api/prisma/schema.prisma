@@ -474,6 +474,8 @@ model ProviderVerification {
 
 enum UploadPurpose {
   PROVIDER_VERIFICATION
+  /// Optional JPEG/PNG photos a customer attaches to a service request.
+  SERVICE_REQUEST_PHOTO
 }
 
 /// A signed upload slot handed to a client (ADR-0010). The client uploads
@@ -493,7 +495,8 @@ model UploadIntent {
   consumedAt       DateTime?     @map("consumed_at") @db.Timestamptz(3)
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceRequestPhoto ServiceRequestPhoto?
 
   @@index([userId, createdAt])
   @@map("upload_intents")
@@ -574,6 +577,10 @@ enum ServiceRequestStatus {
   COMPLETED
 }
 
+/// Lifecycle (docs/adr/0014): DRAFT → PUBLISHED (QUOTE) / MATCHING (NOW)
+/// → QUOTED (first quote) → MATCHED (a quote accepted, job created) →
+/// COMPLETED. CANCELLED and EXPIRED end an open request. Transitions live
+/// in service-requests/domain/service-request-lifecycle.ts only.
 model ServiceRequest {
   id               String               @id @default(uuid(7)) @db.Uuid
   customerId       String               @map("customer_id") @db.Uuid
@@ -595,6 +602,10 @@ model ServiceRequest {
   publishedAt      DateTime?            @map("published_at") @db.Timestamptz(3)
   expiresAt        DateTime?            @map("expires_at") @db.Timestamptz(3)
   cancelledAt      DateTime?            @map("cancelled_at") @db.Timestamptz(3)
+  cancelReason     String?              @map("cancel_reason") @db.VarChar(500)
+  /// Client-generated key: retrying "create" (double tap, flaky network)
+  /// returns the request created the first time instead of a duplicate.
+  idempotencyKey   String?              @map("idempotency_key") @db.Uuid
   version          Int                  @default(0)
   createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -607,10 +618,36 @@ model ServiceRequest {
   quotes         Quote[]
   dispatchOffers EmergencyDispatchOffer[]
   job            Job?
+  photos         ServiceRequestPhoto[]
 
+  @@unique([customerId, idempotencyKey])
   @@index([customerId, createdAt])
   @@index([status, type, provinceId, categoryId])
+  /// Provider opportunity feed: requests in the provider's districts.
+  @@index([districtId, categoryId, status])
+  @@index([createdAt])
   @@map("service_requests")
+}
+
+/// A photo the customer attached to a request. The file lives in private
+/// object storage and is only reachable through a short-lived signed URL.
+model ServiceRequestPhoto {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  serviceRequestId String   @map("service_request_id") @db.Uuid
+  /// The consumed upload; unique so one upload backs at most one photo.
+  uploadIntentId   String   @unique @map("upload_intent_id") @db.Uuid
+  storageKey       String   @unique @map("storage_key") @db.VarChar(512)
+  /// Detected from magic bytes (JPEG or PNG).
+  mimeType         String   @map("mime_type") @db.VarChar(100)
+  sizeBytes        Int      @map("size_bytes")
+  sortOrder        Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  serviceRequest ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  uploadIntent   UploadIntent   @relation(fields: [uploadIntentId], references: [id], onDelete: Restrict)
+
+  @@index([serviceRequestId, sortOrder])
+  @@map("service_request_photos")
 }
 
 enum DispatchOfferStatus {
@@ -679,6 +716,9 @@ model Quote {
   job              Job?
 
   @@unique([serviceRequestId, providerId])
+  /// At most one accepted quote per request, whatever the application does.
+  @@unique([serviceRequestId], map: "quotes_one_accepted_per_request_key", where: raw("status = 'ACCEPTED'"))
+  @@index([serviceRequestId, status])
   @@index([providerId, status])
   @@map("quotes")
 }
@@ -788,6 +828,7 @@ model Job {
 
   @@index([customerId, createdAt])
   @@index([providerId, status])
+  @@index([status])
   @@map("jobs")
 }
 

@@ -104,7 +104,7 @@ export interface CategorySeed {
 
 /** Starting categories (PROJECT.md §4). NOW = can be requested as emergency. */
 export const CATEGORIES: readonly CategorySeed[] = [
-  { slug: 'klima', name: 'Klima', icon: 'air-conditioner', supportsNow: false },
+  { slug: 'klima', name: 'Klima', icon: 'air-conditioner', supportsNow: true },
   { slug: 'elektrik', name: 'Elektrik', icon: 'flash', supportsNow: true },
   { slug: 'su-tesisati', name: 'Su Tesisatı', icon: 'water-pipe', supportsNow: true },
   { slug: 'cilingir', name: 'Çilingir', icon: 'key', supportsNow: true },

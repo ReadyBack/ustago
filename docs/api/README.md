@@ -136,6 +136,25 @@ Kilit: 🔓 herkese açık, 🔐 giriş gerekli, rol belirtilmişse o rol gerekl
 | `POST /admin/provider-verifications/:id/document-url`                          | 🔐 ADMIN       | 2 dakikalık imzalı okuma adresi (audit'e yazılır)                                  |
 | `POST /admin/provider-verifications/:id/{approve,reject}`                      | 🔐 ADMIN       | Belge kararı; `reject` için `{ reason }`                                           |
 | `GET /admin/audit-events`                                                      | 🔐 ADMIN       | Denetim kaydı (`entityType`, `entityId`, `actorId`, `action`)                      |
+| `POST /service-requests`                                                       | 🔐             | Talep (QUOTE / NOW); `budgetMinor` null olabilir, tavan değildir; `idempotencyKey` |
+| `POST /service-requests/photos/upload-intent`                                  | 🔐             | Talep fotoğrafı için imzalı yükleme (JPEG/PNG, 10 MB, en fazla 5)                  |
+| `GET /service-requests/:id`, `PATCH /service-requests/:id`                     | 🔐             | Müşterinin kendi talebi / düzenleme (teklif sonrası kategori ve adres kilitli)     |
+| `POST /service-requests/:id/publish`, `POST /service-requests/:id/cancel`      | 🔐             | Yayınlama (tekrar etkisiz) / iptal (anlaşma sonrası 409)                           |
+| `GET /service-requests/:id/photos/:photoId/url`                                | 🔐             | Fotoğraf için 5 dakikalık imzalı adres                                             |
+| `GET /me/service-requests`                                                     | 🔐             | Taleplerim: `group=OPEN`, `AGREED`, `CLOSED`                                       |
+| `POST /service-requests/:id/quotes`                                            | 🔐 PROVIDER    | İlk teklif (bütçenin üstünde olabilir); usta başına tek teklif                     |
+| `GET /service-requests/:id/quotes`                                             | 🔐             | Gelen teklifler, revizyonlarıyla (yalnız talep sahibi)                             |
+| `GET /quotes/:id`                                                              | 🔐             | Pazarlık dizisi (yalnız müşteri ve teklifin ustası)                                |
+| `POST /quotes/:id/counter`                                                     | 🔐             | Karşı teklif, sıra kimdeyse; `expectedRevisionNo` zorunlu. NOW'da yok              |
+| `POST /quotes/:id/accept`                                                      | 🔐             | Kabul: fiyat kilitlenir, iş oluşur, rakip teklifler kapanır                        |
+| `POST /quotes/:id/reject`, `POST /quotes/:id/withdraw`                         | 🔐             | Müşteri reddeder / usta geri çeker                                                 |
+| `GET /providers/me/opportunities`, `GET /providers/me/opportunities/:id`       | 🔐 PROVIDER    | Size uygun açık işler (yalnız il/ilçe; müşteri kimliği ve açık adres yok)          |
+| `GET /providers/me/quotes`                                                     | 🔐 PROVIDER    | Tekliflerim (`filter=WAITING`, `NEGOTIATING`, …)                                   |
+| `GET /jobs`, `GET /jobs/:id`                                                   | 🔐             | İşler (`role=CUSTOMER`/`PROVIDER`); detayda anlaşılan fiyat, tam adres, iletişim   |
+| `GET /me/notifications`, `POST /me/notifications/read`                         | 🔐             | Uygulama içi bildirimler (outbox; push yok)                                        |
+| `GET /admin/stats`                                                             | 🔐 ADMIN       | Dashboard sayıları (`tz`, varsayılan Europe/Istanbul)                              |
+| `GET /admin/service-requests`, `GET /admin/service-requests/:id`               | 🔐 ADMIN       | Talepler (`status`, `type`, `provinceId`, `categoryId`) / detay (maskeli)          |
+| `GET /admin/system-status`                                                     | 🔐 ADMIN       | Ortam, sürücüler, DB/Redis durumu; secret içermez                                  |
 | `GET /users`, `GET /users/:id`, `PATCH /users/:id/status`                      | 🔐 ADMIN       | Kullanıcı yönetimi                                                                 |
 | `PUT/DELETE /users/:id/roles/:role`                                            | 🔐 SUPER_ADMIN | `ADMIN` / `SUPER_ADMIN` verir / kaldırır                                           |
 
@@ -160,3 +179,18 @@ sayaçlarıyla korunur ([ADR-0009](../adr/0009-telefon-otp-ve-sms.md)).
 
 Kurallar: [ADR-0010](../adr/0010-usta-yasam-dongusu-ve-now.md), belgeler:
 [ADR-0011](../adr/0011-dogrulama-belgeleri-ve-nesne-depolama.md).
+
+## Talep → teklif → pazarlık → iş
+
+1. Müşteri `POST /service-requests { type: "QUOTE", categoryId, addressId, title, description,
+budgetMinor: 150000 | null }` (kuruş). `null` = "Bütçem belli değil".
+2. Uygun usta `GET /providers/me/opportunities` ile görür, `POST /service-requests/:id/quotes
+{ totalMinor: 250000, ... }` ile teklif verir. Bütçenin üstündeki tutar reddedilmez.
+3. Taraflar sırayla `POST /quotes/:id/counter { totalMinor, expectedRevisionNo }` gönderir. Arada
+   başka hamle olduysa 409 `QUOTE_REVISION_STALE`: güncel hali çekip tekrar deneyin.
+4. Sırası gelen taraf `POST /quotes/:id/accept { expectedRevisionNo }`. Yanıt `jobId` içerir;
+   `GET /jobs/:id` anlaşılan fiyatı (`agreedPrice`, değişmez), tam adresi ve telefonları döner.
+5. NOW: `type: "NOW"`; uygun ve müsait ustalar `opportunities`'te görür, tek fiyat verir, karşı
+   teklif yoktur.
+
+Kurallar ve eşzamanlılık: [ADR-0014](../adr/0014-talep-teklif-pazarlik-ve-now.md).

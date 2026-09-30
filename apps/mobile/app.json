@@ -21,8 +21,30 @@
       "package": "com.ustago.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
     },
-    "scheme": "ustago"
+    "scheme": "ustago",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Adresinizi otomatik doldurmak için konumunuz yalnızca siz istediğinizde kullanılır."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Talebinize fotoğraf eklemek için galerinize erişim gerekir.",
+          "cameraPermission": "Talebinize fotoğraf çekmek için kameranıza erişim gerekir."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
   }
 }
