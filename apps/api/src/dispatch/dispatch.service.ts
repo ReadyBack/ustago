@@ -121,6 +121,12 @@ export class DispatchService implements OnApplicationBootstrap, OnApplicationShu
    * get their first wave once opened).
    */
   async dispatchIn(tx: Tx, requestId: string, reason: DispatchReason, now = new Date()): Promise<number> {
+    // Take the request's row lock here too (a no-op when the caller already
+    // holds it): two unlocked runs would both rank the same providers and,
+    // although the unique key stops a second dispatch row, both would
+    // notify them. Once the lock is ours, the reads below see the other
+    // run's committed wave, so it is never repeated.
+    await tx.$queryRaw`SELECT id FROM service_requests WHERE id = ${requestId}::uuid FOR UPDATE`;
     const req = await tx.serviceRequest.findUniqueOrThrow({
       where: { id: requestId },
       select: dispatchRequestSelect,
