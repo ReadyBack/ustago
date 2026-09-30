@@ -58,10 +58,13 @@ export function ProfileScreen({ mode }: { mode: 'customer' | 'provider' }) {
       </Card>
 
       {mode === 'customer' ? (
-        isProvider(user) ? (
+        // An applicant (provider profile, not yet approved) may switch too: the
+        // provider side shows their application state behind ProviderGate.
+        isProvider(user) || provider !== null ? (
           <Button
             testID="switch-provider"
-            title="🔧 Usta Moduna Geç"
+            title="🔧 Usta moduna geç"
+            accessibilityHint="Usta hesabının işlerini ve tekliflerini gösterir"
             onPress={() => void switchTo('provider')}
           />
         ) : (
@@ -80,7 +83,7 @@ export function ProfileScreen({ mode }: { mode: 'customer' | 'provider' }) {
       ) : (
         <Button
           testID="switch-customer"
-          title="🏠 Müşteri Moduna Geç"
+          title="🏠 Müşteri moduna dön"
           onPress={() => void switchTo('customer')}
         />
       )}
@@ -89,6 +92,18 @@ export function ProfileScreen({ mode }: { mode: 'customer' | 'provider' }) {
         {mode === 'customer' ? (
           <>
             <Button title="Adreslerim" variant="ghost" onPress={() => router.push('/addresses')} />
+            <Button
+              testID="open-favorites"
+              title="Favori ustalarım"
+              variant="ghost"
+              onPress={() => router.push('/favorites')}
+            />
+            <Button
+              testID="open-notification-settings"
+              title="Bildirim tercihleri"
+              variant="ghost"
+              onPress={() => router.push('/notifications/preferences')}
+            />
             <Button
               testID="open-my-payments"
               title="Ödemelerim"
