@@ -3,6 +3,7 @@ import type { ChangeOrder } from '@ustago/types';
 import { type CreateChangeOrder, formatMoney } from '@ustago/validation';
 
 import { AuditService } from '../audit/audit.service.js';
+import { ConversationsService } from '../conversations/conversations.service.js';
 import type { AuthUser } from '../common/auth/auth-user.js';
 import { conflict, unprocessable } from '../common/http/errors.js';
 import { toMinor } from '../common/money.js';
@@ -56,6 +57,7 @@ export class ChangeOrdersService {
     private readonly store: JobStore,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
+    private readonly conversations: ConversationsService,
   ) {}
 
   async list(userId: string, jobId: string): Promise<ChangeOrder[]> {
@@ -132,6 +134,13 @@ export class ChangeOrdersService {
             data: { jobId, changeOrderId: order.id },
           },
         ]);
+        // The price change itself lives only in the change order (docs/adr/0030).
+        await this.conversations.postSystemEventIn(tx, {
+          serviceRequestId: job.serviceRequestId,
+          providerId: job.providerId,
+          eventKey: `change_order.created:${order.id}`,
+          body: `Usta ${formatMoney(input.amountMinor)} tutarında ek iş onayı istedi.`,
+        });
         return order;
       });
     } catch (error) {
@@ -210,6 +219,17 @@ export class ChangeOrdersService {
       });
       const amount = formatMoney(Number(order.amountDeltaMinor));
       const data = { jobId: job.id, changeOrderId: id };
+      await this.conversations.postSystemEventIn(tx, {
+        serviceRequestId: job.serviceRequestId,
+        providerId: job.providerId,
+        eventKey: `change_order.${answer.toLowerCase()}:${id}`,
+        body:
+          answer === 'ACCEPT'
+            ? `${amount} ek iş onaylandı.`
+            : answer === 'REJECT'
+              ? `${amount} ek iş reddedildi.`
+              : `${amount} ek iş talebi geri çekildi.`,
+      });
       await this.notifications.enqueueIn(
         tx,
         answer === 'ACCEPT'

@@ -28,6 +28,7 @@ export const noOfferQuerySchema = z.object({
     .max(60 * 24 * 30)
     .default(60),
   limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.uuid().optional(),
 });
 export type NoOfferQuery = z.infer<typeof noOfferQuerySchema>;
 

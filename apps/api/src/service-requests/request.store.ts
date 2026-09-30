@@ -103,7 +103,10 @@ export class RequestStore {
           parent: { select: { isActive: true } },
         },
       }),
-      tx.province.findUnique({ where: { id: provinceId }, select: { isActive: true } }),
+      tx.province.findUnique({
+        where: { id: provinceId },
+        select: { isActive: true, waitlistOpen: true },
+      }),
       tx.district.findUnique({ where: { id: districtId }, select: { isActive: true } }),
       tx.provinceCategory.findUnique({
         where: { provinceId_categoryId: { provinceId, categoryId } },
@@ -113,7 +116,14 @@ export class RequestStore {
     if (!category || !isCategoryLive(category)) {
       throw unprocessable('CATEGORY_NOT_AVAILABLE', 'Bu kategori şu anda hizmet vermiyor.');
     }
-    if (!province?.isActive || !district?.isActive || (override && !override.isActive)) {
+    // Faz 7 waitlist (docs/adr/0029): a closed province with the waitlist open
+    // still takes quote requests; they are dispatched once it opens.
+    const waitlisted = province !== null && !province.isActive && province.waitlistOpen && type === 'QUOTE';
+    if (
+      !(province?.isActive || waitlisted) ||
+      !district?.isActive ||
+      (override && !override.isActive)
+    ) {
       throw unprocessable(
         'SERVICE_NOT_AVAILABLE_IN_AREA',
         'UstaGO bu bölgede bu hizmeti henüz sunmuyor.',

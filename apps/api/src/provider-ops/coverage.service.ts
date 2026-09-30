@@ -178,6 +178,18 @@ export class CoverageService {
     const providerId = await this.prisma.$transaction(async (tx) => {
       const profile = await this.store.lockByUserId(tx, userId);
       this.store.assertEditable(profile, 'SERVICE_AREAS');
+      const center =
+        input.serviceCenterDistrictId !== undefined
+          ? input.serviceCenterDistrictId
+          : profile.serviceCenterDistrictId;
+      const maxTravel = input.maxTravelKm !== undefined ? input.maxTravelKm : profile.maxTravelKm;
+      if (maxTravel !== null && center === null) {
+        // A distance limit is measured from the service centre, so it needs one.
+        throw unprocessable(
+          'SERVICE_CENTER_REQUIRED',
+          'Azami mesafe için önce hizmet merkezi ilçeni seç.',
+        );
+      }
       if (input.serviceCenterDistrictId) {
         const district = await tx.district.findUnique({
           where: { id: input.serviceCenterDistrictId },

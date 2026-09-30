@@ -19,6 +19,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 import { OpsCoreModule } from './ops/ops-core.module.js';
 import { OpsModule } from './ops/ops.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { ProviderOpsModule } from './provider-ops/provider-ops.module.js';
 import { ProvidersModule } from './providers/providers.module.js';
 import { PushModule } from './push/push.module.js';
 import { QualityModule } from './quality/quality.module.js';
@@ -52,6 +53,7 @@ import { UsersModule } from './users/users.module.js';
     AuthModule,
     UsersModule,
     ProvidersModule,
+    ProviderOpsModule,
     CategoriesModule,
     LocationsModule,
     AddressesModule,

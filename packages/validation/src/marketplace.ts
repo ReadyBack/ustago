@@ -193,13 +193,15 @@ export type CreateRequestPhotoUpload = z.infer<typeof createRequestPhotoUploadSc
 
 export const listOpportunitiesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
-  cursor: z.uuid().optional(),
+  /** Opaque: a request id for NEW, a keyset token for NEAREST / BUDGET. */
+  cursor: z
+    .string()
+    .max(200)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
   type: serviceRequestTypeSchema.optional(),
   categoryId: z.uuid().optional(),
-  /**
-   * Faz 7 "Sana Uygun İşler" filters. NEW (default) keeps the id cursor;
-   * NEAREST and BUDGET return one bounded page (no cursor).
-   */
+  /** Faz 7 "Sana Uygun İşler" filters; every sort pages with a stable keyset cursor. */
   sort: z.enum(['NEW', 'NEAREST', 'BUDGET']).default('NEW'),
   maxDistanceKm: z.coerce.number().int().min(1).max(500).optional(),
   /** Only requests dispatched to me. */

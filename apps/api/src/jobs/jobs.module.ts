@@ -1,3 +1,4 @@
+import { ConversationsModule } from '../conversations/conversations.module.js';
 import { Module } from '@nestjs/common';
 
 import { FinanceModule } from '../finance/finance.module.js';
@@ -9,7 +10,7 @@ import { JobsController } from './jobs.controller.js';
 import { JobsService } from './jobs.service.js';
 
 @Module({
-  imports: [NotificationsModule, FinanceModule],
+  imports: [NotificationsModule, FinanceModule, ConversationsModule],
   controllers: [JobsController],
   providers: [JobsService, JobStore, JobLifecycleService, ChangeOrdersService],
   exports: [JobsService, JobStore],
