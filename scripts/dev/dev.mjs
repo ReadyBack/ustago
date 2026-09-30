@@ -11,6 +11,7 @@ import {
   PORTS,
   portOpen,
   readEnv,
+  runOrFail,
   start,
   startInfra,
   step,
@@ -72,9 +73,31 @@ if (apps.includes('mobile') && !apps.includes('api')) {
   warn('Mobil uygulama API’ye ihtiyaç duyar; ayrı bir terminalde "pnpm dev:api" çalıştırın.');
 }
 
-const filters = apps.map((n) => `--filter=${APPS[n].filter}`);
-const child = start('pnpm', ['turbo', 'run', 'dev', ...filters]);
-const stop = () => child.kill('SIGINT');
-process.on('SIGINT', stop);
-process.on('SIGTERM', stop);
-child.on('exit', (code) => process.exit(code ?? 0));
+// Shared packages first, so API/Admin (through Turborepo) and Expo start
+// from the same build without racing each other.
+step('Paylaşılan paketler derleniyor');
+runOrFail('pnpm', ['turbo', 'run', 'build', '--filter=./packages/*'], 'Paketler derlenemedi.');
+
+// API and Admin stream their logs through Turborepo. Expo runs as its own
+// process attached to this terminal, so its QR code and keyboard shortcuts
+// (a = Android, w = web, r = reload) work.
+const children = [];
+const turboApps = apps.filter((n) => n !== 'mobile');
+if (turboApps.length > 0) {
+  const filters = turboApps.map((n) => `--filter=${APPS[n].filter}`);
+  children.push(start('pnpm', ['turbo', 'run', 'dev', ...filters]));
+}
+if (apps.includes('mobile')) {
+  children.push(start('pnpm', ['--filter', '@ustago/mobile', 'exec', 'expo', 'start']));
+}
+
+let exiting = false;
+const stopAll = (code) => {
+  if (exiting) return;
+  exiting = true;
+  for (const child of children) if (child.exitCode === null) child.kill('SIGINT');
+  process.exitCode = code;
+};
+process.on('SIGINT', () => stopAll(0));
+process.on('SIGTERM', () => stopAll(0));
+for (const child of children) child.on('exit', (code) => stopAll(code ?? 0));
