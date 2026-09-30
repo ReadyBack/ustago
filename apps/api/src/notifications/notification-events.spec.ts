@@ -1,10 +1,17 @@
 import { categoryOf, NotificationEvent, wantsPush } from './notification-events.js';
 
 describe('notification events', () => {
-  it('uses unique dotted keys', () => {
-    const keys = Object.values(NotificationEvent);
+  it('uses unique dotted keys (Faz 6 aliases share the stored key)', () => {
+    const aliases = new Set(['PAYMENT_REFUNDED', 'CASH_CONFIRMATION_REQUIRED']);
+    const keys = Object.entries(NotificationEvent)
+      .filter(([name]) => !aliases.has(name))
+      .map(([, key]) => key);
     expect(new Set(keys).size).toBe(keys.length);
-    for (const k of keys) expect(k).toMatch(/^[a-z_]+\.[a-z_]+$/);
+    for (const k of keys) expect(k).toMatch(/^[a-z_]+(\.[a-z_]+)+$/);
+    expect(NotificationEvent.PAYMENT_REFUNDED).toBe(NotificationEvent.REFUND_COMPLETED);
+    expect(NotificationEvent.CASH_CONFIRMATION_REQUIRED).toBe(
+      NotificationEvent.CASH_CONFIRMATION_REQUESTED,
+    );
   });
 
   it.each([

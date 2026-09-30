@@ -70,7 +70,9 @@ describe('Notifications and push outbox (e2e)', () => {
   const onlyMine = async (userIds: string[]) => {
     await ctx.prisma.pushDelivery.updateMany({
       where: { status: 'PENDING', notification: { userId: { notIn: userIds } } },
-      data: { nextAttemptAt: new Date(Date.now() + 3600_000) },
+      // Far enough that the retry test (which moves the clock by hours)
+      // never reaches rows left by other suites or the dev seed.
+      data: { nextAttemptAt: new Date(Date.now() + 365 * 24 * 3600_000) },
     });
   };
 

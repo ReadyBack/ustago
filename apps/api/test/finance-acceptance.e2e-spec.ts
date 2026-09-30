@@ -16,6 +16,7 @@ import {
   payOnline,
   requestPayout,
   setDestination,
+  verifyDestination,
   summaryOf,
   walletOf,
 } from './finance-helpers.js';
@@ -93,6 +94,7 @@ describe('Finance: Faz 5 acceptance scenario', () => {
 
   it('two concurrent 2000 payouts from 2295: the same money is withdrawn once', async () => {
     await setDestination(ctx, job.provider).expect(200);
+    await verifyDestination(ctx, admin, job.provider.providerId);
     const results = await Promise.all([
       requestPayout(ctx, job.provider, 200000),
       requestPayout(ctx, job.provider, 200000),

@@ -113,6 +113,12 @@ export async function providerIn(
     nowEnabled?: boolean;
     isAvailableNow?: boolean;
     displayName?: string;
+    /**
+     * Faz 6 verification case. Defaults to VERIFIED for ACTIVE providers
+     * (the Faz 3-5 suites assume a fully trusted provider: NOW jobs and
+     * payouts need it); null creates no case (NOT_STARTED).
+     */
+    verification?: 'VERIFIED' | 'SUBMITTED' | 'NEEDS_REVISION' | 'REJECTED' | null;
   },
 ): Promise<ProviderActor> {
   const auth = await phoneLogin(ctx, undefined, { firstName: 'Test', lastName: 'Usta' });
@@ -133,6 +139,26 @@ export async function providerIn(
     },
   });
   await ctx.prisma.userRole.create({ data: { userId: auth.user.id, role: 'PROVIDER' } });
+  const verification =
+    options.verification === undefined
+      ? status === 'ACTIVE'
+        ? 'VERIFIED'
+        : null
+      : options.verification;
+  if (verification) {
+    const now = new Date();
+    await ctx.prisma.providerVerificationCase.create({
+      data: {
+        providerId: profile.id,
+        status: verification,
+        source: 'DEMO_SEED',
+        submittedAt: now,
+        submissionCount: 1,
+        verifiedAt: verification === 'VERIFIED' ? now : null,
+        decidedAt: verification === 'SUBMITTED' ? null : now,
+      },
+    });
+  }
   return { tokens: auth.tokens, userId: auth.user.id, providerId: profile.id };
 }
 

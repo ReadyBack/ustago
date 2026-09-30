@@ -194,20 +194,20 @@ export class AccountDeletionService implements OnModuleInit {
       ...(customerId ? [{ customerId }] : []),
       ...(providerId ? [{ providerId }] : []),
     ];
-    const [openJobs, openDisputes, openPayouts] = await Promise.all([
+    // Sequential: an interactive transaction runs on one connection.
+    const openJobs =
       jobScope.length > 0
-        ? tx.job.count({ where: { OR: jobScope, status: { in: [...OPEN_JOB_STATUSES] } } })
-        : Promise.resolve(0),
-      tx.dispute.count({
-        where: {
-          OR: [{ openedById: userId }, { againstId: userId }],
-          status: { in: [...OPEN_DISPUTE_STATUSES] },
-        },
-      }),
-      providerId
-        ? tx.payout.count({ where: { providerId, status: { in: [...OPEN_PAYOUT_STATUSES] } } })
-        : Promise.resolve(0),
-    ]);
+        ? await tx.job.count({ where: { OR: jobScope, status: { in: [...OPEN_JOB_STATUSES] } } })
+        : 0;
+    const openDisputes = await tx.dispute.count({
+      where: {
+        OR: [{ openedById: userId }, { againstId: userId }],
+        status: { in: [...OPEN_DISPUTE_STATUSES] },
+      },
+    });
+    const openPayouts = providerId
+      ? await tx.payout.count({ where: { providerId, status: { in: [...OPEN_PAYOUT_STATUSES] } } })
+      : 0;
     return [
       ...(openJobs > 0 ? ['ACTIVE_JOB'] : []),
       ...(openDisputes > 0 ? ['OPEN_DISPUTE'] : []),

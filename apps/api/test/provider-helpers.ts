@@ -1,19 +1,31 @@
+import { randomBytes } from 'node:crypto';
+
 import type { AuthTokens, UploadIntentResponse } from '@ustago/types';
 import { uploadIntentResponseSchema } from '@ustago/validation';
 
 import { bearer, phoneLogin, RUN_ID, type TestContext } from './helpers.js';
 
-/** Smallest byte strings the magic-byte check accepts. */
+/**
+ * Smallest byte strings the magic-byte check accepts. Each read returns
+ * new random content of the same size, because Faz 6 refuses the same file
+ * (same SHA-256) twice for one provider (DOCUMENT_DUPLICATE).
+ */
 export const FILES = {
-  png: Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    Buffer.alloc(64, 1),
-  ]),
-  jpeg: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 2)]),
-  pdf: Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(64, 3)]),
+  get png() {
+    return Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      randomBytes(64),
+    ]);
+  },
+  get jpeg() {
+    return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), randomBytes(64)]);
+  },
+  get pdf() {
+    return Buffer.concat([Buffer.from('%PDF-1.7\n'), randomBytes(64)]);
+  },
   html: Buffer.from('<html><script>alert(1)</script></html>'),
   svg: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
-} as const;
+};
 
 export interface Actor {
   tokens: AuthTokens;

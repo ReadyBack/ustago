@@ -35,7 +35,11 @@ export function accessLogMiddleware(req: Request, res: Response, next: NextFunct
 
 function routeTemplate(req: Request): string {
   const routePath = (req.route as { path?: unknown } | undefined)?.path;
-  if (typeof routePath === 'string') return `${req.baseUrl}${routePath}`.slice(0, 120);
+  if (typeof routePath === 'string') {
+    const template = `${req.baseUrl}${routePath}`.slice(0, 120);
+    // Wildcards and regex routes (e.g. the 404 catch-all) are not labels.
+    return /^[\w:/{}.-]+$/.test(template) ? template : 'unmatched';
+  }
   // Unmatched routes (404s) are collapsed so URLs never become labels.
   return 'unmatched';
 }

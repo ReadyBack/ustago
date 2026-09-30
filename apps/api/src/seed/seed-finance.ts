@@ -18,13 +18,17 @@ export async function ensureDevFeePolicy(prisma: PrismaClient): Promise<boolean>
     where: { code: DEV_FEE_POLICY.code },
   });
   if (existing) return false;
+  // Published at once (Faz 6 lifecycle): development only. Staging and
+  // production never use development policies (FeePolicyService).
   await prisma.platformFeePolicy.create({
     data: {
       code: DEV_FEE_POLICY.code,
+      name: 'Geliştirme varsayılanı %15 (DEMO)',
       bps: DEV_FEE_POLICY.bps,
       effectiveFrom: DEV_FEE_POLICY.effectiveFrom,
       isDevelopment: true,
       note: DEV_FEE_POLICY.note,
+      publishedAt: DEV_FEE_POLICY.effectiveFrom,
     },
   });
   return true;
