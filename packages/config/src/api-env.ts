@@ -130,6 +130,49 @@ export const apiEnvSchema = z
       .min(1024)
       .max(20 * 1024 * 1024)
       .default(10 * 1024 * 1024),
+    // --- Finance (docs/adr/0018-0020) ---
+    /**
+     * mock: MockPaymentProvider, test payments only, no money moves
+     * (development and tests; refused in production).
+     * disabled: online payments answer 503. A real adapter (iyzico, PayTR...)
+     * is added only after its official docs and merchant terms are verified.
+     */
+    PAYMENT_PROVIDER: z.enum(['mock', 'disabled']).default('mock'),
+    /** mock: test payouts that an admin marks paid/failed by hand; refused in production. */
+    PAYOUT_PROVIDER: z.enum(['mock', 'disabled']).default('mock'),
+    /** Feature flags: "Uygulamadan öde", "Ustaya doğrudan öde", "Para Çek". */
+    PAYMENTS_ENABLED: booleanString.default(true),
+    CASH_ENABLED: booleanString.default(true),
+    PAYOUTS_ENABLED: booleanString.default(true),
+    /**
+     * HMAC key the mock provider signs its webhooks with. Optional outside
+     * production (derived from JWT_ACCESS_SECRET).
+     */
+    MOCK_PAYMENT_WEBHOOK_SECRET: z.string().min(32, 'must be at least 32 characters').optional(),
+    /** Webhooks older than this (by their signed timestamp) are refused as replays. */
+    PAYMENT_WEBHOOK_TOLERANCE_SECONDS: z.coerce.number().int().min(30).max(3600).default(300),
+    /**
+     * Hours an online earning stays pending after the job is completed
+     * before it becomes available (dispute window). Development uses 0; the
+     * production value is a business decision and has no default here.
+     */
+    FINANCE_EARNING_HOLD_HOURS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(24 * 90)
+      .optional(),
+    /** When a cash job is confirmed, book the platform fee as provider debt. */
+    FINANCE_CASH_COMMISSION_ENABLED: booleanString.default(true),
+    /** New online earnings first pay off the provider's platform debt. */
+    FINANCE_DEBT_OFFSET_ENABLED: booleanString.default(true),
+    /** Smallest payout a provider can request (kuruş). No production default. */
+    FINANCE_MIN_PAYOUT_MINOR: z.coerce.number().int().min(1).optional(),
+    /** Payment attempts before a payment is marked FAILED. */
+    FINANCE_MAX_PAYMENT_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
+    /** Seconds between earning-release / refund-retry sweeps; 0 turns it off (tests). */
+    FINANCE_SWEEP_SECONDS: z.coerce.number().int().min(0).max(3600).default(15),
+
     /** IANA zone for business "today" in admin statistics (data stays UTC). */
     MARKETPLACE_TIME_ZONE: z
       .string()
@@ -190,6 +233,36 @@ export const apiEnvSchema = z
         code: 'custom',
         path: ['STORAGE_DRIVER'],
         message: 'the local storage driver is not allowed in production',
+      });
+    }
+    // Test money must never be possible in production: the API refuses to
+    // boot with the mock payment or payout provider (docs/adr/0019).
+    if (env.PAYMENT_PROVIDER === 'mock') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['PAYMENT_PROVIDER'],
+        message: 'the mock payment provider is not allowed in production',
+      });
+    }
+    if (env.PAYOUT_PROVIDER === 'mock') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['PAYOUT_PROVIDER'],
+        message: 'the mock payout provider is not allowed in production',
+      });
+    }
+    if (env.FINANCE_EARNING_HOLD_HOURS === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FINANCE_EARNING_HOLD_HOURS'],
+        message: 'must be set explicitly in production (a business decision)',
+      });
+    }
+    if (env.FINANCE_MIN_PAYOUT_MINOR === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FINANCE_MIN_PAYOUT_MINOR'],
+        message: 'must be set explicitly in production (a business decision)',
       });
     }
     if (env.API_CORS_ORIGINS.includes('*')) {

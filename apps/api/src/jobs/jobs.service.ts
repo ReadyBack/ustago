@@ -4,6 +4,7 @@ import type { ListJobsQuery } from '@ustago/validation';
 
 import { toMoney } from '../common/money.js';
 import type { Job as JobRow, JobStatus, Prisma } from '../generated/prisma/client.js';
+import { FeePolicyService } from '../finance/fee-policy.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toQuoteRevision } from '../quotes/quote.mappers.js';
 import { editableUntil } from '../reviews/domain/review-policy.js';
@@ -83,11 +84,21 @@ const SCOPES: Record<ListJobsQuery['scope'], readonly JobStatus[] | null> = {
  */
 @Injectable()
 export class JobsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly feePolicy: FeePolicyService,
+  ) {}
 
   /** Writes the job and its first status-history row. */
   async createIn(tx: Tx, deal: AcceptedDeal, actorUserId: string): Promise<JobRow> {
-    const job = await tx.job.create({ data: jobFromAcceptedDeal(deal) });
+    // Faz 5: the platform fee policy in force now is frozen on the job.
+    const policy = await this.feePolicy.activeAt(tx, new Date());
+    const job = await tx.job.create({
+      data: {
+        ...jobFromAcceptedDeal(deal),
+        ...(policy ? { platformFeePolicyId: policy.id, platformFeeBps: policy.bps } : {}),
+      },
+    });
     await tx.jobStatusHistory.create({
       data: {
         jobId: job.id,

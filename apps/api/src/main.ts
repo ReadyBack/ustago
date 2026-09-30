@@ -18,7 +18,7 @@ if (existsSync(rootEnv)) {
 const LOG_LEVELS = ['fatal', 'error', 'warn', 'log', 'debug', 'verbose'] as const;
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const env = app.get<ApiEnv>(API_ENV);
   app.useLogger(LOG_LEVELS.slice(0, LOG_LEVELS.indexOf(env.LOG_LEVEL) + 1));
   setupApp(app, env);

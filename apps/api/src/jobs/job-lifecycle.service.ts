@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth/auth-user.js';
 import { conflict, unprocessable } from '../common/http/errors.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { type AfterCommit, JobFinanceService } from '../finance/job-finance.service.js';
 import { NotificationEvent } from '../notifications/notification-events.js';
 import {
   type NotificationDraft,
@@ -65,6 +66,7 @@ export class JobLifecycleService {
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
     private readonly quality: QualityService,
+    private readonly jobFinance: JobFinanceService,
   ) {}
 
   enRoute(user: AuthUser, jobId: string, ip: string | null): Promise<Job> {
@@ -96,8 +98,9 @@ export class JobLifecycleService {
     ipAddress: string | null,
     extra: Extra = {},
   ): Promise<Job> {
+    let after: AfterCommit | null = null;
     try {
-      await this.prisma.$transaction(async (tx) => {
+      after = await this.prisma.$transaction(async (tx): Promise<AfterCommit | null> => {
         const locked = await this.store.lockForParty(tx, jobId, user.id);
         const { job, party } = locked;
         const decision = transitionFor(job.status, action, party);
@@ -106,7 +109,7 @@ export class JobLifecycleService {
           // Retried request: nothing new is written. A second, different
           // dispute is not a retry, though.
           if (action === 'DISPUTE') throw disputeAlreadyOpen();
-          return;
+          return null;
         }
         if (decision.kind === 'INVALID') throw invalidTransition(job.status);
 
@@ -143,6 +146,7 @@ export class JobLifecycleService {
           },
         });
         await this.sideEffects(tx, locked, action, extra, now);
+        const money = await this.financeEffects(tx, locked, action, now);
         await this.audit.recordIn(tx, {
           action: AUDIT_ACTION[action],
           actorId: user.id,
@@ -160,6 +164,7 @@ export class JobLifecycleService {
         if (action === 'COMPLETE' || action === 'CANCEL') {
           await this.quality.recalculateIn(tx, [job.providerId], now);
         }
+        return money;
       });
     } catch (error) {
       // One open dispute per job is also a unique index.
@@ -168,7 +173,26 @@ export class JobLifecycleService {
       }
       throw error;
     }
+    if (after) await this.jobFinance.finish(after);
     return this.jobs.get(user.id, jobId);
+  }
+
+  /**
+   * Faz 5 money hooks, inside the job transaction (job row locked):
+   * completion starts the earning hold, a dispute freezes it, a
+   * cancellation withdraws unfinished payments and refunds captured ones.
+   */
+  private async financeEffects(
+    tx: Tx,
+    locked: LockedJob,
+    action: JobAction,
+    now: Date,
+  ): Promise<AfterCommit | null> {
+    const jobId = locked.job.id;
+    if (action === 'COMPLETE') await this.jobFinance.onCompleted(tx, jobId, now);
+    if (action === 'DISPUTE') await this.jobFinance.onDisputed(tx, jobId, now);
+    if (action === 'CANCEL') return this.jobFinance.onCancelled(tx, jobId, locked.party, now);
+    return null;
   }
 
   private async guard(tx: Tx, locked: LockedJob, action: JobAction, extra: Extra): Promise<void> {

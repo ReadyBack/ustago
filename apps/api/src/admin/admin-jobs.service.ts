@@ -22,6 +22,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { conflict, notFound } from '../common/http/errors.js';
 import { toMoney, toMoneyOrNull } from '../common/money.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { JobFinanceService } from '../finance/job-finance.service.js';
 import { buildTimeline } from '../jobs/domain/job-state-machine.js';
 import { OPEN_DISPUTE_STATUSES, toChangeOrder } from '../jobs/job.mappers.js';
 import { NotificationEvent } from '../notifications/notification-events.js';
@@ -156,6 +157,7 @@ export class AdminJobsService {
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
     private readonly quality: QualityService,
+    private readonly jobFinance: JobFinanceService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -349,7 +351,11 @@ export class AdminJobsService {
     input: ResolveDispute,
     ipAddress: string | null,
   ): Promise<AdminDisputeDetail> {
-    await this.prisma.$transaction(async (tx) => {
+    const ref = await this.prisma.dispute.findUnique({ where: { id }, select: { jobId: true } });
+    if (!ref) throw disputeNotFound();
+    const after = await this.prisma.$transaction(async (tx) => {
+      // Lock order everywhere: job → dispute → payment → earning → ledger accounts.
+      await tx.$queryRaw`SELECT id FROM jobs WHERE id = ${ref.jobId}::uuid FOR UPDATE`;
       const locked = await tx.$queryRaw<{ id: string }[]>`
         SELECT id FROM disputes WHERE id = ${id}::uuid FOR UPDATE`;
       if (locked.length === 0) throw disputeNotFound();
@@ -386,7 +392,12 @@ export class AdminJobsService {
         entityType: 'dispute',
         entityId: id,
         ipAddress,
-        metadata: { jobId: d.job.id, outcome: input.outcome, reason: d.reason },
+        metadata: {
+          jobId: d.job.id,
+          outcome: input.outcome,
+          reason: d.reason,
+          financialAction: input.financialAction?.type ?? null,
+        },
       });
       const data = { jobId: d.job.id, disputeId: id };
       const title = 'Sorun bildirimi sonuçlandı.';
@@ -396,7 +407,16 @@ export class AdminJobsService {
         { userId: d.againstId, type: NotificationEvent.DISPUTE_RESOLVED, title, body, data },
       ]);
       await this.quality.recalculateIn(tx, [d.job.providerId], now);
+      // Money held for the job is decided together with the dispute.
+      return this.jobFinance.resolveDispute(tx, {
+        jobId: d.job.id,
+        action: input.financialAction,
+        adminId,
+        note: input.note,
+        now,
+      });
     });
+    await this.jobFinance.finish(after);
     return this.dispute(id);
   }
 

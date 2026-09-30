@@ -7,6 +7,8 @@ import type {
 } from '@ustago/types';
 import { z } from 'zod';
 
+import { disputeFinancialActionSchema } from './finance.js';
+
 import {
   changeOrderSchema,
   disciplinaryActionTypeSchema,
@@ -65,6 +67,11 @@ export const resolveDisputeSchema = z
     ]),
     /** Internal note; shown to both parties as the resolution text. */
     note: plainTextSchema(3, 2000, 'Karar notu en az 3 karakter olmalı.'),
+    /**
+     * Faz 5: what happens to the money. Required when the job has a
+     * captured online payment (the API answers 422 otherwise).
+     */
+    financialAction: disputeFinancialActionSchema.optional(),
   })
   .strict();
 export type ResolveDispute = z.infer<typeof resolveDisputeSchema>;

@@ -11,7 +11,7 @@ import type { ApiEnv } from '../../config/env.js';
  */
 export function secretFor(
   env: ApiEnv,
-  purpose: 'otp' | 'storage',
+  purpose: 'otp' | 'storage' | 'payment-webhook',
   configured: string | undefined,
 ): Buffer {
   if (configured) return Buffer.from(configured, 'utf8');

@@ -26,6 +26,17 @@ export const NotificationEvent = {
   JOB_CANCELLED: 'job.cancelled',
   DISPUTE_RESOLVED: 'dispute.resolved',
   REVIEW_RECEIVED: 'review.received',
+  // Faz 5: money
+  PAYMENT_SUCCEEDED: 'payment.succeeded',
+  PAYMENT_RECEIVED: 'payment.received',
+  REFUND_COMPLETED: 'payment.refunded',
+  CASH_CONFIRMATION_REQUESTED: 'cash.confirmation_requested',
+  CASH_CONFIRMED: 'cash.confirmed',
+  CASH_DISPUTED: 'cash.disputed',
+  CASH_RESOLVED: 'cash.resolved',
+  EARNING_AVAILABLE: 'earning.available',
+  PAYOUT_PAID: 'payout.paid',
+  PAYOUT_FAILED: 'payout.failed',
 } as const;
 
 export type NotificationEventKey = (typeof NotificationEvent)[keyof typeof NotificationEvent];
@@ -44,7 +55,11 @@ export function categoryOf(type: string): NotificationCategory {
     type.startsWith('change_order.') ||
     type.startsWith('dispute.') ||
     type.startsWith('review.') ||
-    type.startsWith('now.')
+    type.startsWith('now.') ||
+    type.startsWith('payment.') ||
+    type.startsWith('cash.') ||
+    type.startsWith('earning.') ||
+    type.startsWith('payout.')
   ) {
     return 'JOB';
   }
