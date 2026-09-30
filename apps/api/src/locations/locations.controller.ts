@@ -29,6 +29,7 @@ import { effectiveRoles } from '../auth/roles.guard.js';
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { LocationsService } from './locations.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 @ApiTags('locations')
 @Controller('locations')
@@ -90,7 +91,7 @@ export class LocationsController {
     body: UpdateProvinceCategoryRequest,
     @Req() req: Request,
   ): Promise<ProvinceCategorySetting> {
-    return this.locations.setProvinceCategory(actor.id, id, categoryId, body, req.ip ?? null);
+    return this.locations.setProvinceCategory(actor.id, id, categoryId, body, clientIp(req));
   }
 
   @Patch('provinces/:id')
@@ -105,7 +106,7 @@ export class LocationsController {
     @Body(new ZodValidationPipe(updateProvinceRequestSchema)) body: UpdateProvinceRequest,
     @Req() req: Request,
   ): Promise<Province> {
-    return this.locations.setProvinceActive(actor.id, id, body.isActive, req.ip ?? null);
+    return this.locations.setProvinceActive(actor.id, id, body.isActive, clientIp(req));
   }
 }
 

@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import type { PlatformFeePolicy, Prisma } from '../generated/prisma/client.js';
 import type { FeePolicy } from './domain/fee.js';
+import { FINANCE_CONFIG, type FinanceConfig } from './finance.config.js';
 import { feePolicyMissing } from './finance-errors.js';
 
 type Tx = Prisma.TransactionClient;
@@ -27,10 +28,23 @@ const toSnapshot = (p: PlatformFeePolicy): FeeSnapshot => ({
  */
 @Injectable()
 export class FeePolicyService {
-  /** The policy in force at `at`, or null when none is configured. */
+  constructor(@Inject(FINANCE_CONFIG) private readonly config: FinanceConfig) {}
+
+  /**
+   * The policy in force at `at`, or null when none is configured. Only
+   * published policies count (Faz 6 lifecycle, docs/adr/0025); a retired
+   * policy never applied (only SCHEDULED policies can be retired). In
+   * staging/production development policies are ignored entirely.
+   */
   async activeAt(tx: Tx, at: Date): Promise<PlatformFeePolicy | null> {
     return tx.platformFeePolicy.findFirst({
-      where: { currency: 'TRY', effectiveFrom: { lte: at } },
+      where: {
+        currency: 'TRY',
+        effectiveFrom: { lte: at },
+        publishedAt: { not: null },
+        retiredAt: null,
+        ...(this.config.strictEnv ? { isDevelopment: false } : {}),
+      },
       orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
     });
   }

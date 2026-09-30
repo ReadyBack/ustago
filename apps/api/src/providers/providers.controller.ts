@@ -17,7 +17,9 @@ import type {
   ProviderServiceAreaGroup,
   ProviderServiceItem,
   ProviderVerification,
+  ProviderVerificationCaseView,
   PublicProviderProfile,
+  SignedUrl,
   UploadIntentResponse,
 } from '@ustago/types';
 import {
@@ -36,6 +38,7 @@ import {
   setProviderServiceAreasRequestSchema,
   type SetProviderServicesRequest,
   setProviderServicesRequestSchema,
+  signedUrlSchema,
   type SubmitVerificationRequest,
   submitVerificationRequestSchema,
   type UpdateProviderAvailabilityRequest,
@@ -49,12 +52,14 @@ import type { Request } from 'express';
 import { z } from 'zod';
 
 import { type AuthUser, CurrentUser, Public, Roles } from '../common/auth/decorators.js';
+import { clientIp } from '../common/http/client-context.js';
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ProviderCatalogService } from './provider-catalog.service.js';
 import { ProviderVerificationsService } from './provider-verifications.service.js';
 import { ProvidersService } from './providers.service.js';
 import { PublicProvidersService } from './public-providers.service.js';
+import { VerificationCaseService } from './verification-case.service.js';
 
 const STATE_ERRORS = 'INVALID_PROVIDER_STATE (ör. başvuru incelenirken düzenleme)';
 
@@ -66,6 +71,7 @@ export class ProvidersController {
     private readonly catalog: ProviderCatalogService,
     private readonly verifications: ProviderVerificationsService,
     private readonly publicProviders: PublicProvidersService,
+    private readonly cases: VerificationCaseService,
   ) {}
 
   @Post('me')
@@ -80,7 +86,7 @@ export class ProvidersController {
     body: CreateProviderProfileRequest,
     @Req() req: Request,
   ): Promise<ProviderProfile> {
-    return this.providers.becomeProvider(user.id, body, req.ip ?? null);
+    return this.providers.becomeProvider(user.id, body, clientIp(req));
   }
 
   @Get('me')
@@ -104,7 +110,7 @@ export class ProvidersController {
     body: UpdateProviderProfileRequest,
     @Req() req: Request,
   ): Promise<ProviderProfile> {
-    return this.providers.updateMine(user.id, body, req.ip ?? null);
+    return this.providers.updateMine(user.id, body, clientIp(req));
   }
 
   @Get('me/onboarding')
@@ -141,7 +147,7 @@ export class ProvidersController {
     @Body(new ZodValidationPipe(setProviderServicesRequestSchema)) body: SetProviderServicesRequest,
     @Req() req: Request,
   ): Promise<ProviderServiceItem[]> {
-    return this.catalog.setServices(user.id, body, req.ip ?? null);
+    return this.catalog.setServices(user.id, body, clientIp(req));
   }
 
   @Get('me/service-areas')
@@ -166,7 +172,7 @@ export class ProvidersController {
     body: SetProviderServiceAreasRequest,
     @Req() req: Request,
   ): Promise<ProviderServiceAreaGroup[]> {
-    return this.catalog.setServiceAreas(user.id, body, req.ip ?? null);
+    return this.catalog.setServiceAreas(user.id, body, clientIp(req));
   }
 
   @Patch('me/availability')
@@ -188,7 +194,7 @@ export class ProvidersController {
     body: UpdateProviderAvailabilityRequest,
     @Req() req: Request,
   ): Promise<ProviderProfile> {
-    return this.providers.updateAvailability(user.id, body, req.ip ?? null);
+    return this.providers.updateAvailability(user.id, body, clientIp(req));
   }
 
   @Get('me/verifications')
@@ -216,7 +222,7 @@ export class ProvidersController {
     @Body(new ZodValidationPipe(createUploadIntentRequestSchema)) body: CreateUploadIntentRequest,
     @Req() req: Request,
   ): Promise<UploadIntentResponse> {
-    return this.verifications.createUploadIntent(user, body, req.ip ?? null);
+    return this.verifications.createUploadIntent(user, body, clientIp(req));
   }
 
   @Post('me/verifications')
@@ -236,7 +242,50 @@ export class ProvidersController {
     @Body(new ZodValidationPipe(submitVerificationRequestSchema)) body: SubmitVerificationRequest,
     @Req() req: Request,
   ): Promise<ProviderVerification> {
-    return this.verifications.submit(user, body, req.ip ?? null);
+    return this.verifications.submit(user, body, clientIp(req));
+  }
+
+  @Get('me/verifications/:id/url')
+  @Roles('PROVIDER')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Kendi belgeniz için kısa ömürlü imzalı görüntüleme adresi.',
+    description: 'Başka bir ustanın veya müşterinin isteği 404 döner.',
+  })
+  @ApiZodResponse(200, signedUrlSchema)
+  @ApiZodResponse(404, apiErrorResponseSchema, 'VERIFICATION_NOT_FOUND')
+  ownDocumentUrl(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Req() req: Request,
+  ): Promise<SignedUrl> {
+    return this.verifications.ownDocumentUrl(user, id, clientIp(req));
+  }
+
+  @Get('me/verification')
+  @Roles('PROVIDER')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Hesap doğrulama başvurum: durum, kontrol listesi, belgeler, zaman çizelgesi.',
+  })
+  verificationCase(@CurrentUser() user: AuthUser): Promise<ProviderVerificationCaseView> {
+    return this.cases.view(user.id);
+  }
+
+  @Post('me/verification/submit')
+  @HttpCode(HttpStatus.OK)
+  @Roles('PROVIDER')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Hesap doğrulama başvurusunu incelemeye gönderir. Tekrar çağrı güvenlidir.',
+  })
+  @ApiZodResponse(422, apiErrorResponseSchema, 'VERIFICATION_INCOMPLETE')
+  @ApiZodResponse(409, apiErrorResponseSchema, 'PROVIDER_VERIFICATION_INVALID_TRANSITION')
+  submitVerificationCase(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+  ): Promise<ProviderVerificationCaseView> {
+    return this.cases.submit(user.id, clientIp(req));
   }
 
   @Post('me/submit')
@@ -254,7 +303,7 @@ export class ProvidersController {
   )
   @ApiZodResponse(409, apiErrorResponseSchema, 'INVALID_PROVIDER_STATE')
   submit(@CurrentUser() user: AuthUser, @Req() req: Request): Promise<ProviderProfile> {
-    return this.providers.submit(user.id, req.ip ?? null);
+    return this.providers.submit(user.id, clientIp(req));
   }
 
   @Post('me/reapply')
@@ -265,7 +314,7 @@ export class ProvidersController {
   @ApiZodResponse(200, providerProfileSchema)
   @ApiZodResponse(409, apiErrorResponseSchema, 'INVALID_PROVIDER_STATE')
   reapply(@CurrentUser() user: AuthUser, @Req() req: Request): Promise<ProviderProfile> {
-    return this.providers.reapply(user.id, req.ip ?? null);
+    return this.providers.reapply(user.id, clientIp(req));
   }
 
   // Declared after the /me routes so "me" is never taken for an id.

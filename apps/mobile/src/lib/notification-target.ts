@@ -1,6 +1,18 @@
-/** Where a notification leads: the job, the quote thread or the request. */
-export function notificationTarget(n: { data?: Record<string, unknown> | null }): string | null {
+import { deepLinkHref } from './deep-link';
+
+/**
+ * Where a notification (or a tapped push's data) leads. The server's
+ * deepLink wins; a link the app cannot open goes to the "unavailable"
+ * screen. Older notifications without a link fall back to the ids in data:
+ * the job, the quote thread or the request. Null means nothing to open.
+ */
+export function notificationTarget(n: {
+  deepLink?: string | null;
+  data?: Record<string, unknown> | null;
+}): string | null {
   const d = n.data ?? {};
+  const link = n.deepLink ?? d.deepLink;
+  if (typeof link === 'string' && link.length > 0) return deepLinkHref(link);
   const id = (key: string) => {
     const value = d[key];
     return typeof value === 'string' && value.length > 0 ? value : null;

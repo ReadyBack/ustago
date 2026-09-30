@@ -18,8 +18,8 @@ export const badRequest = (code: string, message: string, details?: unknown) =>
   new BadRequestException({ code, message, ...(details === undefined ? {} : { details }) });
 export const unauthorized = (code: string, message: string) =>
   new UnauthorizedException({ code, message });
-export const forbidden = (code: string, message: string) =>
-  new ForbiddenException({ code, message });
+export const forbidden = (code: string, message: string, details?: unknown) =>
+  new ForbiddenException({ code, message, ...(details === undefined ? {} : { details }) });
 export const notFound = (code: string, message: string) => new NotFoundException({ code, message });
 export const conflict = (code: string, message: string, details?: unknown) =>
   new ConflictException({ code, message, ...(details === undefined ? {} : { details }) });

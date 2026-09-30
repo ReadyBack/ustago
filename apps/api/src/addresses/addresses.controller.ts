@@ -29,6 +29,7 @@ import { type AuthUser, CurrentUser } from '../common/auth/decorators.js';
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { AddressesService } from './addresses.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const idPipe = new ZodValidationPipe(uuidSchema);
 
@@ -98,6 +99,6 @@ export class AddressesController {
     @Param('id', idPipe) id: string,
     @Req() req: Request,
   ): Promise<void> {
-    await this.addresses.remove(user.id, id, req.ip ?? null);
+    await this.addresses.remove(user.id, id, clientIp(req));
   }
 }

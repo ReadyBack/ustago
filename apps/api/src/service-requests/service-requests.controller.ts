@@ -44,6 +44,7 @@ import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { RequestPhotosService } from './request-photos.service.js';
 import { ServiceRequestsService } from './service-requests.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const idPipe = new ZodValidationPipe(uuidSchema);
 const STATE_ERRORS = 'INVALID_REQUEST_STATE / REQUEST_FIELD_LOCKED';
@@ -76,7 +77,7 @@ export class ServiceRequestsController {
     @Body(new ZodValidationPipe(createServiceRequestSchema)) body: CreateServiceRequest,
     @Req() req: Request,
   ): Promise<ServiceRequest> {
-    return this.requests.create(user, body, req.ip ?? null);
+    return this.requests.create(user, body, clientIp(req));
   }
 
   @Post('photos/upload-intent')
@@ -116,7 +117,7 @@ export class ServiceRequestsController {
     @Body(new ZodValidationPipe(updateServiceRequestSchema)) body: UpdateServiceRequest,
     @Req() req: Request,
   ): Promise<ServiceRequest> {
-    return this.requests.update(user, id, body, req.ip ?? null);
+    return this.requests.update(user, id, body, clientIp(req));
   }
 
   @Post(':id/publish')
@@ -129,7 +130,7 @@ export class ServiceRequestsController {
     @Param('id', idPipe) id: string,
     @Req() req: Request,
   ): Promise<ServiceRequest> {
-    return this.requests.publish(user, id, req.ip ?? null);
+    return this.requests.publish(user, id, clientIp(req));
   }
 
   @Post(':id/cancel')
@@ -144,7 +145,7 @@ export class ServiceRequestsController {
     @Body(new ZodValidationPipe(cancelServiceRequestSchema)) body: CancelServiceRequest,
     @Req() req: Request,
   ): Promise<ServiceRequest> {
-    return this.requests.cancel(user, id, body, req.ip ?? null);
+    return this.requests.cancel(user, id, body, clientIp(req));
   }
 
   @Get(':id/photos/:photoId/url')
@@ -160,7 +161,7 @@ export class ServiceRequestsController {
     @Param('photoId', idPipe) photoId: string,
     @Req() req: Request,
   ): Promise<SignedUrl> {
-    return this.photos.viewUrl(user, id, photoId, req.ip ?? null);
+    return this.photos.viewUrl(user, id, photoId, clientIp(req));
   }
 }
 

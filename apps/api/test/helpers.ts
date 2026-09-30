@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { hash } from '@node-rs/argon2';
-import type { AuthResponse, AuthTokens, OtpVerifyResponse } from '@ustago/types';
+import type { AdminPermission, AuthResponse, AuthTokens, OtpVerifyResponse } from '@ustago/types';
 import { authResponseSchema, otpVerifyResponseSchema } from '@ustago/validation';
 import request from 'supertest';
 
@@ -76,6 +76,15 @@ export function uniqueEmail(label: string): string {
 }
 
 const phones = new Set<string>();
+const trackedUsers = new Set<string>();
+
+/**
+ * Users cleanup() cannot find by e-mail or phone any more (for example
+ * after the Faz 6 account deletion pseudonymised them).
+ */
+export function trackUserForCleanup(userId: string): void {
+  trackedUsers.add(userId);
+}
 
 /** A random Turkish mobile number in E.164 form, removed again by cleanup(). */
 export function uniquePhone(): string {
@@ -146,8 +155,23 @@ export async function registerUser(
   return authResponseSchema.parse(res.body);
 }
 
+/**
+ * Faz 6 default for a plain ADMIN in tests: every day-to-day permission
+ * (support, verification, finance), not ADMIN_SUPER. Suites that test the
+ * permission split pass their own list.
+ */
+export const DEFAULT_ADMIN_PERMISSIONS: AdminPermission[] = [
+  'ADMIN_SUPPORT',
+  'ADMIN_VERIFICATION',
+  'ADMIN_FINANCE',
+];
+
 /** Staff accounts cannot sign up; tests create them directly in the database. */
-export async function createStaffUser(ctx: TestContext, roles: Role[]): Promise<AuthResponse> {
+export async function createStaffUser(
+  ctx: TestContext,
+  roles: Role[],
+  permissions: AdminPermission[] = roles.includes('ADMIN') ? DEFAULT_ADMIN_PERMISSIONS : [],
+): Promise<AuthResponse> {
   const email = uniqueEmail(roles.join('-').toLowerCase());
   await ctx.prisma.user.create({
     data: {
@@ -157,6 +181,7 @@ export async function createStaffUser(ctx: TestContext, roles: Role[]): Promise<
       lastName: 'Yönetici',
       roles: { create: ['CUSTOMER' as Role, ...roles].map((role) => ({ role })) },
       customerProfile: { create: {} },
+      adminPermissions: { create: permissions.map((permission) => ({ permission })) },
     },
   });
   return login(ctx, email);
@@ -177,7 +202,11 @@ export const bearer = (auth: { tokens: AuthTokens }) => `Bearer ${auth.tokens.ac
 export async function cleanup(ctx: TestContext): Promise<void> {
   const users = await ctx.prisma.user.findMany({
     where: {
-      OR: [{ email: { startsWith: `e2e-${RUN_ID}-` } }, { phone: { in: [...phones] } }],
+      OR: [
+        { email: { startsWith: `e2e-${RUN_ID}-` } },
+        { phone: { in: [...phones] } },
+        { id: { in: [...trackedUsers] } },
+      ],
     },
     select: { id: true },
   });
@@ -217,9 +246,34 @@ export async function cleanup(ctx: TestContext): Promise<void> {
   await ctx.prisma.otpChallenge.deleteMany({
     where: { OR: [{ phone: { in: [...phones] } }, { userId: { in: ids } }] },
   });
-  await ctx.prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } });
   await ctx.prisma.device.deleteMany({ where: { userId: { in: ids } } });
-  await ctx.prisma.user.deleteMany({ where: { id: { in: ids } } });
+  await ctx.prisma.accountDeletionRequest.deleteMany({ where: { userId: { in: ids } } });
+  await ctx.prisma.riskSignal.deleteMany({ where: { subjectUserId: { in: ids } } });
+  // Audit logs and verification timelines are append-only (Faz 6 trigger);
+  // test fixtures may delete them only with the purge flag set.
+  await ctx.prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SET LOCAL ustago.audit_test_purge = 'on'`);
+    await tx.$executeRawUnsafe(`SET LOCAL ustago.ledger_test_purge = 'on'`);
+    const providerIds = (
+      await tx.providerProfile.findMany({ where: { userId: { in: ids } }, select: { id: true } })
+    ).map((p) => p.id);
+    await tx.auditLog.deleteMany({
+      where: {
+        OR: [{ actorId: { in: ids } }, { entityId: { in: [...ids, ...providerIds] } }],
+      },
+    });
+    await tx.providerVerificationEvent.deleteMany({ where: { providerId: { in: providerIds } } });
+    // Rows that point at both a deleted provider (cascade) and a deleted
+    // admin (set null) in one statement: remove them first, or PostgreSQL
+    // skips the cascade and reports a foreign key violation.
+    await tx.providerVerificationCase.deleteMany({ where: { providerId: { in: providerIds } } });
+    await tx.providerSuspension.deleteMany({ where: { providerId: { in: providerIds } } });
+    await tx.providerVerification.deleteMany({ where: { providerId: { in: providerIds } } });
+    await tx.platformFeePolicy.deleteMany({
+      where: { code: { startsWith: `e2e-${RUN_ID}` }, jobs: { none: {} } },
+    });
+    await tx.user.deleteMany({ where: { id: { in: ids } } });
+  });
   // Sub-categories first: parents are delete-restricted.
   await ctx.prisma.serviceCategory.deleteMany({
     where: { slug: { startsWith: `e2e-${RUN_ID}` }, parentId: { not: null } },

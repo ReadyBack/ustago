@@ -1,5 +1,6 @@
 import { formatMoney, reconciliationReportSchema } from '@ustago/validation';
 import { colors, spacing } from '@ustago/ui';
+import Link from 'next/link';
 
 import { apiRequest } from '@/lib/api';
 import { requireAdmin } from '@/lib/auth';
@@ -25,7 +26,8 @@ export default async function ReconciliationPage() {
       <h1>Mutabakat</h1>
       <p style={{ color: colors.textSecondary }}>
         Salt okunur rapor: ödemeler, iadeler, para çekmeler ve nakit ödemeler defterle
-        karşılaştırılır. Hiçbir şey otomatik düzeltilmez.
+        karşılaştırılır. Hiçbir şey otomatik düzeltilmez.{' '}
+        <Link href="/operations/reconciliation">Kayıtlı çalıştırmalar</Link>
       </p>
       {!result.ok ? (
         <p role="alert">{result.message}</p>

@@ -12,6 +12,8 @@ import { JobsModule } from './jobs/jobs.module.js';
 import { LocationsModule } from './locations/locations.module.js';
 import { MatchingModule } from './matching/matching.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { OpsCoreModule } from './ops/ops-core.module.js';
+import { OpsModule } from './ops/ops.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProvidersModule } from './providers/providers.module.js';
 import { PushModule } from './push/push.module.js';
@@ -20,6 +22,7 @@ import { QuotesModule } from './quotes/quotes.module.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
+import { SecurityModule } from './security/security.module.js';
 import { ServiceRequestsModule } from './service-requests/service-requests.module.js';
 import { SmsModule } from './sms/sms.module.js';
 import { StorageModule } from './storage/storage.module.js';
@@ -31,6 +34,8 @@ import { UsersModule } from './users/users.module.js';
     PrismaModule,
     RedisModule,
     AuditModule,
+    OpsCoreModule,
+    SecurityModule,
     QualityModule,
     PushModule,
     RateLimitModule,
@@ -51,6 +56,7 @@ import { UsersModule } from './users/users.module.js';
     FinanceModule,
     QuotesModule,
     ReviewsModule,
+    OpsModule,
   ],
 })
 export class AppModule {}

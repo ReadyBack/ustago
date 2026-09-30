@@ -6,6 +6,7 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 
+import { HeartbeatService, WORKERS } from '../ops/heartbeat.service.js';
 import { API_ENV, type ApiEnv } from '../config/env.js';
 import { EarningsService } from './earnings.service.js';
 import { FINANCE_CONFIG, type FinanceConfig } from './finance.config.js';
@@ -29,6 +30,7 @@ export class FinanceSweepService implements OnApplicationBootstrap, OnApplicatio
     private readonly refunds: RefundsService,
     @Inject(API_ENV) private readonly env: ApiEnv,
     @Inject(FINANCE_CONFIG) private readonly config: FinanceConfig,
+    private readonly heartbeat: HeartbeatService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -45,8 +47,14 @@ export class FinanceSweepService implements OnApplicationBootstrap, OnApplicatio
     if (this.running) return;
     this.running = true;
     try {
-      const released = await this.earnings.releaseDue(now);
-      const retried = await this.refunds.retryStale(60, now);
+      const { released, retried } = await this.heartbeat.track(
+        WORKERS.FINANCE_SWEEP,
+        async () => ({
+          released: await this.earnings.releaseDue(now),
+          retried: await this.refunds.retryStale(60, now),
+        }),
+        (r) => r,
+      );
       if (released + retried > 0) {
         this.logger.log(
           `Finance sweep: ${released} earning(s) released, ${retried} refund(s) retried`,

@@ -39,6 +39,7 @@ import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { OpportunitiesService } from './opportunities.service.js';
 import { QuotesService } from './quotes.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const idPipe = new ZodValidationPipe(uuidSchema);
 const NEGOTIATION_ERRORS =
@@ -68,7 +69,7 @@ export class QuotesController {
     @Body(new ZodValidationPipe(createQuoteSchema)) body: CreateQuote,
     @Req() req: Request,
   ): Promise<Quote> {
-    return this.quotes.create(user, requestId, body, req.ip ?? null);
+    return this.quotes.create(user, requestId, body, clientIp(req));
   }
 
   @Get('service-requests/:id/quotes')
@@ -108,7 +109,7 @@ export class QuotesController {
     @Body(new ZodValidationPipe(counterQuoteSchema)) body: CounterQuote,
     @Req() req: Request,
   ): Promise<Quote> {
-    return this.quotes.counter(user, id, body, req.ip ?? null);
+    return this.quotes.counter(user, id, body, clientIp(req));
   }
 
   @Post('quotes/:id/accept')
@@ -127,7 +128,7 @@ export class QuotesController {
     @Body(new ZodValidationPipe(acceptQuoteSchema)) body: AcceptQuote,
     @Req() req: Request,
   ): Promise<Quote> {
-    return this.quotes.accept(user, id, body, req.ip ?? null);
+    return this.quotes.accept(user, id, body, clientIp(req));
   }
 
   @Post('quotes/:id/reject')
@@ -141,7 +142,7 @@ export class QuotesController {
     @Body(new ZodValidationPipe(closeQuoteSchema)) body: CloseQuote,
     @Req() req: Request,
   ): Promise<Quote> {
-    return this.quotes.reject(user, id, body, req.ip ?? null);
+    return this.quotes.reject(user, id, body, clientIp(req));
   }
 
   @Post('quotes/:id/withdraw')
@@ -155,7 +156,7 @@ export class QuotesController {
     @Body(new ZodValidationPipe(closeQuoteSchema)) body: CloseQuote,
     @Req() req: Request,
   ): Promise<Quote> {
-    return this.quotes.withdraw(user, id, body, req.ip ?? null);
+    return this.quotes.withdraw(user, id, body, clientIp(req));
   }
 }
 

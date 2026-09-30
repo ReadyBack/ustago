@@ -1,8 +1,11 @@
 import type {
+  AccountDeletionRequestView,
+  ActiveSession,
   Address,
   AppNotification,
   ChangeOrder,
   CurrentUser,
+  DataExportRequestView,
   Device,
   District,
   DisputeReason,
@@ -19,6 +22,7 @@ import type {
   ProviderServiceAreaGroup,
   ProviderServiceItem,
   ProviderVerification,
+  ProviderVerificationCaseView,
   Province,
   PublicProviderProfile,
   PublicReview,
@@ -33,6 +37,7 @@ import type {
   VerificationType,
 } from '@ustago/types';
 
+import { ACCOUNT_DELETION_PHRASE } from '../lib/account';
 import { api } from './session';
 
 /** Typed calls to /api/v1. Screens use these, never raw paths. */
@@ -173,6 +178,11 @@ export const providerApi = {
   }) => api.post<UploadIntentResponse>('/providers/me/verifications/upload-intent', body),
   submitVerification: (type: VerificationType, uploadId: string) =>
     api.post<ProviderVerification>('/providers/me/verifications', { type, uploadId }),
+  verificationUrl: (id: string) => api.get<SignedUrl>(`/providers/me/verifications/${id}/url`),
+  /** The account verification case ("Hesabımı Doğrula"). */
+  verificationCase: () => api.get<ProviderVerificationCaseView>('/providers/me/verification'),
+  submitVerificationCase: () =>
+    api.post<ProviderVerificationCaseView>('/providers/me/verification/submit'),
   submit: () => api.post<ProviderProfile>('/providers/me/submit'),
   reapply: () => api.post<ProviderProfile>('/providers/me/reapply'),
   opportunities: (type?: 'QUOTE' | 'NOW') =>
@@ -250,4 +260,22 @@ export const notificationApi = {
 export const deviceApi = {
   register: (body: { platform: 'IOS' | 'ANDROID'; pushProvider: 'EXPO'; pushToken: string }) =>
     api.post<Device>('/me/devices', body),
+};
+
+export const sessionApi = {
+  list: () => api.get<ActiveSession[]>('/me/sessions'),
+  revoke: async (id: string): Promise<void> => {
+    await api.delete<unknown>(`/me/sessions/${id}`);
+  },
+};
+
+export const accountApi = {
+  deletion: () => api.get<AccountDeletionRequestView | null>('/me/account-deletion'),
+  requestDeletion: () =>
+    api.post<AccountDeletionRequestView>('/me/account-deletion', {
+      confirm: ACCOUNT_DELETION_PHRASE,
+    }),
+  cancelDeletion: () => api.delete<AccountDeletionRequestView>('/me/account-deletion'),
+  dataExports: () => api.get<DataExportRequestView[]>('/me/data-exports'),
+  requestDataExport: () => api.post<DataExportRequestView>('/me/data-exports'),
 };

@@ -34,6 +34,13 @@ describe('reconciliation rules', () => {
     expect(reconcile(base())).toEqual([]);
   });
 
+  it('Faz 6: a payout with an unknown outcome is always reported', () => {
+    const input = base();
+    input.ledger.delete('payout:o1:paid');
+    input.payouts = [{ id: 'o1', status: 'NEEDS_RECONCILIATION', amount: 100000n }];
+    expect(reconcile(input).map((m) => m.kind)).toContain('PAYOUT_OUTCOME_UNKNOWN');
+  });
+
   it.each([
     ['PAYMENT_WITHOUT_LEDGER', (i: ReconciliationInput) => i.ledger.delete('payment:p1:captured')],
     [

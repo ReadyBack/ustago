@@ -37,9 +37,10 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ChangeOrdersService } from './change-orders.service.js';
 import { JobLifecycleService } from './job-lifecycle.service.js';
 import { JobsService } from './jobs.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const idPipe = new ZodValidationPipe(uuidSchema);
-const ip = (req: Request) => req.ip ?? null;
+const ip = (req: Request) => clientIp(req);
 
 /** Every lifecycle action documents the same error shapes. */
 const JobAction = (summary: string, extra409 = '') =>

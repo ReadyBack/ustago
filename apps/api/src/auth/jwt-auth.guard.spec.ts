@@ -17,6 +17,8 @@ function session(overrides: Partial<SessionWithUser> = {}, userOverrides = {}): 
     deviceId: null,
     userAgent: null,
     ipAddress: null,
+    ipHash: null,
+    isAdmin: false,
     expiresAt: new Date(Date.now() + 60_000),
     lastUsedAt: new Date(),
     revokedAt: null,
@@ -28,6 +30,7 @@ function session(overrides: Partial<SessionWithUser> = {}, userOverrides = {}): 
       status: 'ACTIVE',
       deletedAt: null,
       roles: [{ role: 'CUSTOMER' }],
+      adminPermissions: [],
       ...userOverrides,
     },
     ...overrides,
@@ -37,14 +40,17 @@ function session(overrides: Partial<SessionWithUser> = {}, userOverrides = {}): 
 describe('JwtAuthGuard', () => {
   const tokens = new TokenService(testEnv());
   let found: SessionWithUser | null;
+  const revoke = vi.fn(() => Promise.resolve());
   const sessions = {
     findForAuth: vi.fn(() => Promise.resolve(found)),
+    revoke,
+    touch: vi.fn(() => Promise.resolve()),
   } as unknown as SessionsRepository;
 
   function setup(isPublic = false) {
     const reflector = new Reflector();
     vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(isPublic);
-    return new JwtAuthGuard(reflector, tokens, sessions);
+    return new JwtAuthGuard(reflector, tokens, sessions, testEnv());
   }
 
   function contextWith(authorization?: string) {
@@ -84,6 +90,7 @@ describe('JwtAuthGuard', () => {
       id: USER_ID,
       sessionId: SESSION_ID,
       roles: ['CUSTOMER', 'PROVIDER'],
+      permissions: [],
     });
   });
 
@@ -105,6 +112,21 @@ describe('JwtAuthGuard', () => {
     await expect(setup().canActivate(contextWith(await bearer()).context)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+
+  it('ends an idle admin session, but not an idle customer session', async () => {
+    const idleFor = (testEnv().ADMIN_IDLE_TIMEOUT_MINUTES + 1) * 60_000;
+    const lastUsedAt = new Date(Date.now() - idleFor);
+    found = session({ isAdmin: true, lastUsedAt });
+    await expect(setup().canActivate(contextWith(await bearer()).context)).rejects.toMatchObject({
+      response: { code: 'SESSION_IDLE_TIMEOUT' },
+    });
+    expect(revoke).toHaveBeenCalledWith(SESSION_ID, 'IDLE_TIMEOUT');
+
+    revoke.mockClear();
+    found = session({ isAdmin: false, lastUsedAt });
+    await expect(setup().canActivate(contextWith(await bearer()).context)).resolves.toBe(true);
+    expect(revoke).not.toHaveBeenCalled();
   });
 
   it('rejects garbage tokens', async () => {

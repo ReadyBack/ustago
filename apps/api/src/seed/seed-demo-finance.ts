@@ -70,7 +70,12 @@ async function authUser(prisma: PrismaClient, email: string): Promise<AuthUser |
     select: { id: true, roles: { select: { role: true } } },
   });
   if (!user) return null;
-  return { id: user.id, sessionId: 'seed', roles: user.roles.map((r) => r.role as Role) };
+  return {
+    id: user.id,
+    sessionId: 'seed',
+    roles: user.roles.map((r) => r.role as Role),
+    permissions: [],
+  };
 }
 
 export interface DemoFinanceResult {
@@ -163,10 +168,18 @@ export async function seedDemoFinance(
   }
 
   // One TEST payout of 1.000 TL, paid.
-  if ((await payouts.destination(providerUser.id)) === null) {
-    await payouts.setDestination(
-      providerUser,
-      { holderName: 'Hakan Demo (TEST)', iban: DEMO_IBAN },
+  let destination = await payouts.destination(providerUser.id);
+  destination ??= await payouts.setDestination(
+    providerUser,
+    { holderName: 'Hakan Demo (TEST)', iban: DEMO_IBAN },
+    null,
+  );
+  // Faz 6: a finance admin verifies every destination before payouts.
+  if (destination.verificationStatus !== 'VERIFIED') {
+    await payouts.verifyDestination(
+      admin.id,
+      destination.id,
+      'DEMO: TEST hesabı doğrulandı.',
       null,
     );
   }

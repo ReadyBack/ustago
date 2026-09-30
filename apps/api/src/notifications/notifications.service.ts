@@ -4,7 +4,7 @@ import type { ListNotificationsQuery, UpdateNotificationPreferences } from '@ust
 
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { DEFAULT_PUSH_PREFERENCES, wantsPush } from './notification-events.js';
+import { DEFAULT_PUSH_PREFERENCES, notificationTarget, wantsPush } from './notification-events.js';
 
 export interface NotificationDraft {
   userId: string;
@@ -33,15 +33,19 @@ export class NotificationsService {
   async enqueueIn(tx: Prisma.TransactionClient, drafts: NotificationDraft[]): Promise<void> {
     if (drafts.length === 0) return;
     const rows = await tx.notification.createManyAndReturn({
-      data: drafts.map((d) => ({
-        userId: d.userId,
-        type: d.type,
-        channel: 'IN_APP' as const,
-        status: 'PENDING' as const,
-        title: d.title.slice(0, 140),
-        body: d.body.slice(0, 1000),
-        ...(d.data ? { data: d.data } : {}),
-      })),
+      data: drafts.map((d) => {
+        const target = notificationTarget(d.type, d.data);
+        return {
+          userId: d.userId,
+          type: d.type,
+          channel: 'IN_APP' as const,
+          status: 'PENDING' as const,
+          title: d.title.slice(0, 140),
+          body: d.body.slice(0, 1000),
+          ...(d.data ? { data: d.data } : {}),
+          ...(target ?? {}),
+        };
+      }),
       select: { id: true, userId: true, type: true },
     });
     const prefs = await tx.notificationPreference.findMany({
@@ -76,6 +80,9 @@ export class NotificationsService {
         title: n.title,
         body: n.body,
         data: isStringRecord(n.data) ? n.data : null,
+        entityType: n.entityType,
+        entityId: n.entityId,
+        deepLink: n.deepLink,
         readAt: n.readAt?.toISOString() ?? null,
         createdAt: n.createdAt.toISOString(),
       })),

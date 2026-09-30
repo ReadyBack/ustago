@@ -13,6 +13,7 @@ import { conflict, unprocessable } from '../common/http/errors.js';
 import { toMinor } from '../common/money.js';
 import { Prisma, type ServiceRequestStatus } from '../generated/prisma/client.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { RuntimeFlagsService } from '../ops/runtime-flags.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RateLimitService } from '../rate-limit/rate-limit.service.js';
 import { OPEN_QUOTE_STATUSES } from '../quotes/domain/quote-negotiation.js';
@@ -58,6 +59,7 @@ export class ServiceRequestsService {
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
     private readonly rateLimit: RateLimitService,
+    private readonly flags: RuntimeFlagsService,
   ) {}
 
   async create(
@@ -66,6 +68,7 @@ export class ServiceRequestsService {
     ipAddress: string | null,
   ): Promise<ServiceRequest> {
     const customerId = await this.store.customerProfileId(user.id);
+    await this.flags.assertEnabled('new_jobs');
     if (input.idempotencyKey) {
       const existing = await this.findByIdempotencyKey(customerId, input.idempotencyKey);
       if (existing) return existing;

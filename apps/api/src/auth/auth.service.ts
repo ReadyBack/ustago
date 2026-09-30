@@ -24,6 +24,10 @@ const INVALID_CREDENTIALS = () => unauthorized('INVALID_CREDENTIALS', 'E-posta v
 const INVALID_REFRESH = () =>
   unauthorized('REFRESH_TOKEN_INVALID', 'Oturumun süresi doldu. Lütfen tekrar giriş yapın.');
 
+export function isIdle(lastUsedAt: Date, now: Date, idleMinutes: number): boolean {
+  return now.getTime() - lastUsedAt.getTime() > idleMinutes * 60 * 1000;
+}
+
 export function accountDisabledError(status: UserStatus) {
   return forbidden(
     status === 'BANNED' ? 'ACCOUNT_BANNED' : 'ACCOUNT_SUSPENDED',
@@ -126,21 +130,24 @@ export class AuthService {
     if (candidate.status !== 'ACTIVE') throw accountDisabledError(candidate.status);
 
     const refresh = this.tokens.generateRefreshToken();
-    const { refreshExpiresAt, sessionExpiresAt } = this.lifetimes();
+    const isAdmin = await this.users.isStaff(candidate.id);
+    const { refreshExpiresAt, sessionExpiresAt } = this.lifetimes(Date.now(), isAdmin);
     const session = await this.sessions.create({
       userId: candidate.id,
       ...client,
+      isAdmin,
       expiresAt: sessionExpiresAt,
       refreshTokenHash: refresh.hash,
       refreshTokenExpiresAt: refreshExpiresAt,
     });
     await this.users.touchLastLogin(candidate.id);
     await this.audit.record({
-      action: 'auth.login',
+      action: isAdmin ? 'admin.login' : 'auth.login',
       actorId: candidate.id,
       entityType: 'session',
       entityId: session.id,
       ipAddress: client.ipAddress,
+      ...(isAdmin ? { metadata: { sessionHours: this.env.ADMIN_SESSION_MAX_HOURS } } : {}),
     });
 
     const user = await this.users.findById(candidate.id);
@@ -174,6 +181,11 @@ export class AuthService {
         session.expiresAt <= now ||
         session.user.deletedAt
       ) {
+        return { kind: 'invalid' } as const;
+      }
+      // Staff sessions end after ADMIN_IDLE_TIMEOUT_MINUTES without use.
+      if (session.isAdmin && isIdle(session.lastUsedAt, now, this.env.ADMIN_IDLE_TIMEOUT_MINUTES)) {
+        await this.sessions.revoke(session.id, 'IDLE_TIMEOUT', tx);
         return { kind: 'invalid' } as const;
       }
       if (session.user.status !== 'ACTIVE') {
@@ -268,7 +280,12 @@ export class AuthService {
     });
   }
 
-  private lifetimes(now = Date.now()) {
+  private lifetimes(now = Date.now(), isAdmin = false) {
+    if (isAdmin) {
+      // Staff: one working day at most (ADMIN_SESSION_MAX_HOURS).
+      const end = new Date(now + this.env.ADMIN_SESSION_MAX_HOURS * 60 * 60 * 1000);
+      return { refreshExpiresAt: end, sessionExpiresAt: end };
+    }
     return {
       refreshExpiresAt: new Date(now + this.env.AUTH_REFRESH_TTL_DAYS * DAY_MS),
       sessionExpiresAt: new Date(now + this.env.AUTH_SESSION_MAX_DAYS * DAY_MS),

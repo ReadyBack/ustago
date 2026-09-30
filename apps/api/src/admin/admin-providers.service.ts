@@ -41,6 +41,8 @@ import {
   toServiceItems,
 } from '../providers/provider.mappers.js';
 import { invalidProviderState, ProviderStore } from '../providers/provider.store.js';
+import { SuspensionsService } from '../providers/suspensions.service.js';
+import { VerificationCaseService } from '../providers/verification-case.service.js';
 import {
   OBJECT_STORAGE,
   type ObjectStorage,
@@ -70,6 +72,8 @@ export class AdminProvidersService {
     private readonly audit: AuditService,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(API_ENV) private readonly env: ApiEnv,
+    private readonly cases: VerificationCaseService,
+    private readonly suspensions: SuspensionsService,
   ) {}
 
   /**
@@ -308,36 +312,91 @@ export class AdminProvidersService {
     id: string,
     ipAddress: string | null,
   ): Promise<ProviderProfile> {
-    return this.transition(actor, id, 'APPROVE', null, ipAddress, async (profile, tx) => {
-      const snapshot = await this.store.snapshot(profile, tx);
-      const missing = missingApprovals(snapshot.verifications);
-      if (missing.length > 0) {
-        throw unprocessable(
-          'VERIFICATION_REQUIRED',
-          'Onay için zorunlu belgelerin onaylanmış olması gerekir.',
-          { missingVerificationTypes: missing },
-        );
-      }
-      const onboarding = computeOnboarding(snapshot);
-      const blocking = onboarding.missingSteps.filter((s) => s !== 'REQUIRED_VERIFICATIONS');
-      if (blocking.length > 0) {
-        throw unprocessable('PROVIDER_PROFILE_INCOMPLETE', 'Başvuruda eksik adımlar var.', {
-          missingSteps: blocking,
-        });
-      }
-    });
+    return this.transition(
+      actor,
+      id,
+      'APPROVE',
+      null,
+      ipAddress,
+      async (profile, tx) => {
+        const snapshot = await this.store.snapshot(profile, tx);
+        const missing = missingApprovals(snapshot.verifications);
+        if (missing.length > 0) {
+          throw unprocessable(
+            'VERIFICATION_REQUIRED',
+            'Onay için zorunlu belgelerin onaylanmış olması gerekir.',
+            { missingVerificationTypes: missing },
+          );
+        }
+        const onboarding = computeOnboarding(snapshot);
+        const blocking = onboarding.missingSteps.filter((s) => s !== 'REQUIRED_VERIFICATIONS');
+        if (blocking.length > 0) {
+          throw unprocessable('PROVIDER_PROFILE_INCOMPLETE', 'Başvuruda eksik adımlar var.', {
+            missingSteps: blocking,
+          });
+        }
+      },
+      (profile, tx, now) => this.cases.syncLegacyApproval(tx, profile, actor.id, now),
+    );
   }
 
   async rejectProvider(actor: AuthUser, id: string, reason: string, ipAddress: string | null) {
-    return this.transition(actor, id, 'REJECT', reason, ipAddress);
+    return this.transition(actor, id, 'REJECT', reason, ipAddress, undefined, (profile, tx) =>
+      this.cases.syncLegacyRejection(tx, profile, actor.id, reason.slice(0, 500)),
+    );
   }
 
+  /**
+   * Faz 2 "askıya al" keeps its application status change and now also
+   * opens a Faz 6 account suspension, so both views agree.
+   */
   async suspendProvider(actor: AuthUser, id: string, reason: string, ipAddress: string | null) {
-    return this.transition(actor, id, 'SUSPEND', reason, ipAddress);
+    return this.transition(
+      actor,
+      id,
+      'SUSPEND',
+      reason,
+      ipAddress,
+      undefined,
+      async (profile, tx) => {
+        await this.suspensions.suspendInTx(
+          tx,
+          profile.id,
+          profile.userId,
+          actor.id,
+          {
+            level: 'SUSPENDED',
+            reasonCode: 'OTHER',
+            userVisibleReason: reason.slice(0, 500),
+            internalNote: '',
+            expiresAt: null,
+            autoLift: false,
+          },
+          ipAddress,
+        );
+      },
+    );
   }
 
   async reinstateProvider(actor: AuthUser, id: string, ipAddress: string | null) {
-    return this.transition(actor, id, 'REINSTATE', null, ipAddress);
+    return this.transition(
+      actor,
+      id,
+      'REINSTATE',
+      null,
+      ipAddress,
+      undefined,
+      async (profile, tx) => {
+        await this.suspensions.liftInTx(
+          tx,
+          profile.id,
+          profile.userId,
+          actor.id,
+          'Faz 2 yeniden etkinleştirme.',
+          ipAddress,
+        );
+      },
+    );
   }
 
   /**
@@ -355,6 +414,11 @@ export class AdminProvidersService {
       profile: Awaited<ReturnType<ProviderStore['lockById']>>,
       tx: Prisma.TransactionClient,
     ) => Promise<void>,
+    after?: (
+      profile: Awaited<ReturnType<ProviderStore['lockById']>>,
+      tx: Prisma.TransactionClient,
+      now: Date,
+    ) => Promise<unknown>,
   ): Promise<ProviderProfile> {
     const profile = await this.prisma.$transaction(async (tx) => {
       const current = await this.store.lockById(tx, providerId);
@@ -387,6 +451,7 @@ export class AdminProvidersService {
         ipAddress,
         metadata: { from: current.status, to: next, ...(reason ? { reason } : {}) },
       });
+      await after?.(current, tx, now);
       return tx.providerProfile.findUniqueOrThrow({ where: { id: current.id } });
     });
     return toProviderProfile(profile);

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   adminProviderDetailSchema,
   adminProviderListItemSchema,
@@ -127,7 +129,14 @@ describe('Admin review of providers (e2e)', () => {
     expect(doc.headers['content-type']).toBe('image/png');
     expect(doc.headers['cache-control']).toBe('private, no-store');
     expect(doc.headers['x-content-type-options']).toBe('nosniff');
-    expect(Buffer.compare(doc.body as Buffer, FILES.png)).toBe(0);
+    const stored = await ctx.prisma.providerVerification.findUniqueOrThrow({
+      where: { id: provider.verificationId },
+    });
+    expect(
+      createHash('sha256')
+        .update(doc.body as Buffer)
+        .digest('hex'),
+    ).toBe(stored.sha256);
     // A download link cannot be used to upload.
     await ctx
       .http()
@@ -232,7 +241,10 @@ describe('Admin review of providers (e2e)', () => {
     const pending = await pendingProviderFor(applicant);
     const user = await ctx.prisma.user.update({
       where: { id: applicant.userId },
-      data: { roles: { create: { role: 'ADMIN' } } },
+      data: {
+        roles: { create: { role: 'ADMIN' } },
+        adminPermissions: { create: { permission: 'ADMIN_VERIFICATION' } },
+      },
     });
     const asAdmin = bearer(await phoneLogin(ctx, user.phone ?? ''));
 

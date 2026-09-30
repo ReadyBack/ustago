@@ -1,7 +1,9 @@
+import type { ProviderVerificationCaseView } from '@ustago/types';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { API_URL } from '../api/config';
+import { providerApi } from '../api/services';
 import { isProvider, useAuth } from '../auth/AuthContext';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -9,17 +11,25 @@ import { Card } from '../components/Card';
 import { DevHint } from '../components/DevHint';
 import { Screen } from '../components/Screen';
 import { Body, Heading, Small } from '../components/Text';
+import { useApi } from '../hooks/useApi';
 import { confirm } from '../lib/confirm';
 import { formatPhone } from '../lib/format';
 import { PROVIDER_STATUS } from '../lib/labels';
 import { colors, spacing } from '../lib/theme';
+import { VERIFICATION_STATUS, VERIFIED_BADGE_LABEL } from '../lib/verification';
 
 /** Profile tab for both modes, with the mode switch. */
 export function ProfileScreen({ mode }: { mode: 'customer' | 'provider' }) {
   const router = useRouter();
   const { user, signOut, setMode } = useAuth();
+  const provider = user?.providerProfile ?? null;
+  const verification = useApi<ProviderVerificationCaseView>(
+    'provider:verification',
+    providerApi.verificationCase,
+    { enabled: mode === 'provider' && provider !== null },
+  );
   if (!user) return null;
-  const provider = user.providerProfile;
+  const v = verification.data;
 
   const switchTo = async (next: 'customer' | 'provider') => {
     await setMode(next);
@@ -41,6 +51,9 @@ export function ProfileScreen({ mode }: { mode: 'customer' | 'provider' }) {
             />
             <Small>{provider.displayName}</Small>
           </View>
+        ) : null}
+        {mode === 'provider' && v?.capabilities.showVerifiedBadge ? (
+          <Text style={styles.verified}>{VERIFIED_BADGE_LABEL}</Text>
         ) : null}
       </Card>
 
@@ -86,6 +99,14 @@ export function ProfileScreen({ mode }: { mode: 'customer' | 'provider' }) {
         ) : (
           <>
             <Button
+              testID="open-verification"
+              title={
+                v ? `Hesabımı Doğrula · ${VERIFICATION_STATUS[v.status].label}` : 'Hesabımı Doğrula'
+              }
+              variant="ghost"
+              onPress={() => router.push('/verification')}
+            />
+            <Button
               title="Başvuru ve hizmet bilgilerim"
               variant="ghost"
               onPress={() => router.push('/provider-onboarding')}
@@ -111,6 +132,22 @@ export function ProfileScreen({ mode }: { mode: 'customer' | 'provider' }) {
         />
       </Card>
 
+      <Card>
+        <Heading>Güvenlik ve hesap</Heading>
+        <Button
+          testID="open-sessions"
+          title="Aktif Oturumlar"
+          variant="ghost"
+          onPress={() => router.push('/sessions')}
+        />
+        <Button
+          testID="open-account-deletion"
+          title="Verilerim ve hesabı silme"
+          variant="ghost"
+          onPress={() => router.push('/account-deletion')}
+        />
+      </Card>
+
       <Button
         title="Çıkış Yap"
         variant="danger"
@@ -129,4 +166,5 @@ export function ProfileScreen({ mode }: { mode: 'customer' | 'provider' }) {
 const styles = StyleSheet.create({
   name: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  verified: { fontSize: 14, fontWeight: '700', color: colors.success },
 });

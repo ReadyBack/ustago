@@ -170,7 +170,20 @@ export function reconcile(input: ReconciliationInput): Mismatch[] {
     if (reserved.amount !== p.amount) {
       add('PAYOUT_AMOUNT_MISMATCH', 'payout', p.id, 'Ayırma kaydı tutarı taleple aynı değil.');
     }
-    const open = p.status === 'REQUESTED' || p.status === 'APPROVED' || p.status === 'PROCESSING';
+    const open =
+      p.status === 'REQUESTED' ||
+      p.status === 'APPROVED' ||
+      p.status === 'PROCESSING' ||
+      p.status === 'NEEDS_RECONCILIATION';
+    if (p.status === 'NEEDS_RECONCILIATION') {
+      // Faz 6: never resolved automatically; a finance admin must check.
+      add(
+        'PAYOUT_OUTCOME_UNKNOWN',
+        'payout',
+        p.id,
+        'Para çekme sonucu bilinmiyor; sağlayıcıyla kontrol edilip elle kapatılmalı.',
+      );
+    }
     if (open && (paid || released)) {
       add('PAYOUT_CLOSED_IN_LEDGER', 'payout', p.id, `Talep ${p.status} ama kapanış kaydı var.`);
     }

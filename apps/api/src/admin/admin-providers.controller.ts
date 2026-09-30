@@ -38,9 +38,11 @@ import type { Request } from 'express';
 import { z } from 'zod';
 
 import { type AuthUser, CurrentUser, Roles } from '../common/auth/decorators.js';
+import { RequirePermission } from '../common/auth/permissions.js';
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { AdminProvidersService } from './admin-providers.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const idPipe = new ZodValidationPipe(uuidSchema);
 
@@ -76,6 +78,7 @@ export class AdminProvidersController {
   }
 
   @Post('providers/:id/approve')
+  @RequirePermission('ADMIN_VERIFICATION')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'PENDING_REVIEW → ACTIVE. Zorunlu belgeler APPROVED olmalı.' })
   @ApiZodResponse(200, providerProfileSchema)
@@ -90,10 +93,11 @@ export class AdminProvidersController {
     @Param('id', idPipe) id: string,
     @Req() req: Request,
   ): Promise<ProviderProfile> {
-    return this.admin.approveProvider(actor, id, req.ip ?? null);
+    return this.admin.approveProvider(actor, id, clientIp(req));
   }
 
   @Post('providers/:id/reject')
+  @RequirePermission('ADMIN_VERIFICATION')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'PENDING_REVIEW → REJECTED. Sebep zorunlu ve ustaya gösterilir.' })
   @ApiZodBody(reviewReasonRequestSchema)
@@ -105,10 +109,11 @@ export class AdminProvidersController {
     @Body(new ZodValidationPipe(reviewReasonRequestSchema)) body: ReviewReasonRequest,
     @Req() req: Request,
   ): Promise<ProviderProfile> {
-    return this.admin.rejectProvider(actor, id, body.reason, req.ip ?? null);
+    return this.admin.rejectProvider(actor, id, body.reason, clientIp(req));
   }
 
   @Post('providers/:id/suspend')
+  @RequirePermission('ADMIN_VERIFICATION')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'ACTIVE → SUSPENDED; müsaitlik kapanır. Sebep zorunlu.' })
   @ApiZodBody(reviewReasonRequestSchema)
@@ -119,10 +124,11 @@ export class AdminProvidersController {
     @Body(new ZodValidationPipe(reviewReasonRequestSchema)) body: ReviewReasonRequest,
     @Req() req: Request,
   ): Promise<ProviderProfile> {
-    return this.admin.suspendProvider(actor, id, body.reason, req.ip ?? null);
+    return this.admin.suspendProvider(actor, id, body.reason, clientIp(req));
   }
 
   @Post('providers/:id/reinstate')
+  @RequirePermission('ADMIN_VERIFICATION')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'SUSPENDED → ACTIVE.' })
   @ApiZodResponse(200, providerProfileSchema)
@@ -131,7 +137,7 @@ export class AdminProvidersController {
     @Param('id', idPipe) id: string,
     @Req() req: Request,
   ): Promise<ProviderProfile> {
-    return this.admin.reinstateProvider(actor, id, req.ip ?? null);
+    return this.admin.reinstateProvider(actor, id, clientIp(req));
   }
 
   @Get('provider-verifications')
@@ -145,6 +151,7 @@ export class AdminProvidersController {
   }
 
   @Post('provider-verifications/:id/document-url')
+  @RequirePermission('ADMIN_VERIFICATION')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Belgeyi görüntülemek için kısa ömürlü imzalı adres. Her erişim audit log’a yazılır.',
@@ -155,10 +162,11 @@ export class AdminProvidersController {
     @Param('id', idPipe) id: string,
     @Req() req: Request,
   ): Promise<SignedUrl> {
-    return this.admin.documentUrl(actor, id, req.ip ?? null);
+    return this.admin.documentUrl(actor, id, clientIp(req));
   }
 
   @Post('provider-verifications/:id/approve')
+  @RequirePermission('ADMIN_VERIFICATION')
   @HttpCode(HttpStatus.OK)
   @ApiZodResponse(200, adminProviderVerificationSchema)
   @ApiZodResponse(409, apiErrorResponseSchema, 'VERIFICATION_ALREADY_REVIEWED')
@@ -167,10 +175,11 @@ export class AdminProvidersController {
     @Param('id', idPipe) id: string,
     @Req() req: Request,
   ): Promise<AdminProviderVerification> {
-    return this.admin.approveVerification(actor, id, req.ip ?? null);
+    return this.admin.approveVerification(actor, id, clientIp(req));
   }
 
   @Post('provider-verifications/:id/reject')
+  @RequirePermission('ADMIN_VERIFICATION')
   @HttpCode(HttpStatus.OK)
   @ApiZodBody(reviewReasonRequestSchema)
   @ApiZodResponse(200, adminProviderVerificationSchema)
@@ -181,6 +190,6 @@ export class AdminProvidersController {
     @Body(new ZodValidationPipe(reviewReasonRequestSchema)) body: ReviewReasonRequest,
     @Req() req: Request,
   ): Promise<AdminProviderVerification> {
-    return this.admin.rejectVerification(actor, id, body.reason, req.ip ?? null);
+    return this.admin.rejectVerification(actor, id, body.reason, clientIp(req));
   }
 }

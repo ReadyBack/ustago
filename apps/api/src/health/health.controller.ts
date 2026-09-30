@@ -12,8 +12,12 @@ import { HealthService } from './health.service.js';
 export class HealthController {
   constructor(private readonly health: HealthService) {}
 
-  /** Readiness: checks the database and Redis. */
-  @Get()
+  /**
+   * Readiness: checks the database and Redis. Also served at /health/ready
+   * (Faz 6). The body carries up/down only: no hosts, versions of
+   * dependencies or error texts in staging/production.
+   */
+  @Get(['', 'ready'])
   @ApiOkResponse({ description: 'API is ready (Redis may be degraded).' })
   @ApiServiceUnavailableResponse({ description: 'Database is unreachable.' })
   async check(@Res({ passthrough: true }) res: Response): Promise<HealthResponse> {

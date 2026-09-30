@@ -77,45 +77,63 @@ model User {
   /// Soft delete; personal data is anonymised by a later KVKK job.
   deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(3)
 
-  roles              UserRole[]              @relation("UserRoles")
-  grantedRoles       UserRole[]              @relation("RoleGrantedBy")
-  customerProfile    CustomerProfile?
-  providerProfile    ProviderProfile?
-  addresses          Address[]
-  sessions           AuthSession[]
-  devices            Device[]
-  otpChallenges      OtpChallenge[]
-  uploadIntents      UploadIntent[]
-  providersReviewed  ProviderProfile[]       @relation("ProviderReviewedBy")
-  notifications      Notification[]
-  quoteRevisions     QuoteRevision[]
-  jobStatusChanges   JobStatusHistory[]
-  jobsCancelled      Job[]                   @relation("JobCancelledBy")
-  changeOrdersAsked  ChangeOrder[]           @relation("ChangeOrderRequestedBy")
-  changeOrdersAnswer ChangeOrder[]           @relation("ChangeOrderRespondedBy")
-  paymentsMade       Payment[]
-  reviewsWritten     Review[]                @relation("ReviewAuthor")
-  reviewsReceived    Review[]                @relation("ReviewTarget")
-  reviewsModerated   Review[]                @relation("ReviewModeratedBy")
-  notificationPrefs  NotificationPreference?
-  verificationsDone  ProviderVerification[]
-  trustEvents        TrustEvent[]
-  disciplinary       DisciplinaryAction[]    @relation("DisciplineSubject")
-  disciplineDecided  DisciplinaryAction[]    @relation("DisciplineDecidedBy")
-  appeals            Appeal[]                @relation("AppealBy")
-  appealsReviewed    Appeal[]                @relation("AppealReviewedBy")
-  disputesOpened     Dispute[]               @relation("DisputeOpenedBy")
-  disputesAgainst    Dispute[]               @relation("DisputeAgainst")
-  disputesResolved   Dispute[]               @relation("DisputeResolvedBy")
-  evidence           Evidence[]
-  auditLogs          AuditLog[]
-  refundsRequested   Refund[]                @relation("RefundRequestedBy")
-  feePoliciesCreated PlatformFeePolicy[]     @relation("FeePolicyCreatedBy")
-  cashDisputed       CashSettlement[]        @relation("CashDisputedBy")
-  cashResolved       CashSettlement[]        @relation("CashResolvedBy")
-  payoutsRequested   Payout[]                @relation("PayoutRequestedBy")
-  payoutsDecided     Payout[]                @relation("PayoutDecidedBy")
-  ledgerTransactions LedgerTransaction[]     @relation("LedgerTransactionCreatedBy")
+  roles                     UserRole[]                    @relation("UserRoles")
+  grantedRoles              UserRole[]                    @relation("RoleGrantedBy")
+  customerProfile           CustomerProfile?
+  providerProfile           ProviderProfile?
+  addresses                 Address[]
+  sessions                  AuthSession[]
+  devices                   Device[]
+  otpChallenges             OtpChallenge[]
+  uploadIntents             UploadIntent[]
+  providersReviewed         ProviderProfile[]             @relation("ProviderReviewedBy")
+  notifications             Notification[]
+  quoteRevisions            QuoteRevision[]
+  jobStatusChanges          JobStatusHistory[]
+  jobsCancelled             Job[]                         @relation("JobCancelledBy")
+  changeOrdersAsked         ChangeOrder[]                 @relation("ChangeOrderRequestedBy")
+  changeOrdersAnswer        ChangeOrder[]                 @relation("ChangeOrderRespondedBy")
+  paymentsMade              Payment[]
+  reviewsWritten            Review[]                      @relation("ReviewAuthor")
+  reviewsReceived           Review[]                      @relation("ReviewTarget")
+  reviewsModerated          Review[]                      @relation("ReviewModeratedBy")
+  notificationPrefs         NotificationPreference?
+  verificationsDone         ProviderVerification[]
+  trustEvents               TrustEvent[]
+  disciplinary              DisciplinaryAction[]          @relation("DisciplineSubject")
+  disciplineDecided         DisciplinaryAction[]          @relation("DisciplineDecidedBy")
+  appeals                   Appeal[]                      @relation("AppealBy")
+  appealsReviewed           Appeal[]                      @relation("AppealReviewedBy")
+  disputesOpened            Dispute[]                     @relation("DisputeOpenedBy")
+  disputesAgainst           Dispute[]                     @relation("DisputeAgainst")
+  disputesResolved          Dispute[]                     @relation("DisputeResolvedBy")
+  evidence                  Evidence[]
+  auditLogs                 AuditLog[]
+  refundsRequested          Refund[]                      @relation("RefundRequestedBy")
+  feePoliciesCreated        PlatformFeePolicy[]           @relation("FeePolicyCreatedBy")
+  cashDisputed              CashSettlement[]              @relation("CashDisputedBy")
+  cashResolved              CashSettlement[]              @relation("CashResolvedBy")
+  payoutsRequested          Payout[]                      @relation("PayoutRequestedBy")
+  payoutsDecided            Payout[]                      @relation("PayoutDecidedBy")
+  ledgerTransactions        LedgerTransaction[]           @relation("LedgerTransactionCreatedBy")
+  feePoliciesPublished      PlatformFeePolicy[]           @relation("FeePolicyPublishedBy")
+  feePoliciesRetired        PlatformFeePolicy[]           @relation("FeePolicyRetiredBy")
+  adminPermissions          AdminPermissionGrant[]        @relation("AdminPermissionHolder")
+  permissionsGranted        AdminPermissionGrant[]        @relation("AdminPermissionGrantedBy")
+  verificationCasesReviewed ProviderVerificationCase[]    @relation("VerificationCaseReviewer")
+  verificationCasesDecided  ProviderVerificationCase[]    @relation("VerificationCaseDecider")
+  verificationEvents        ProviderVerificationEvent[]
+  suspensionsCreated        ProviderSuspension[]          @relation("SuspensionCreatedBy")
+  suspensionsLifted         ProviderSuspension[]          @relation("SuspensionLiftedBy")
+  requirementsSet           CategoryProviderRequirement[]
+  riskSignals               RiskSignal[]                  @relation("RiskSignalSubject")
+  riskSignalsReviewed       RiskSignal[]                  @relation("RiskSignalReviewer")
+  alertsAcknowledged        OperationalAlert[]            @relation("AlertAcknowledgedBy")
+  alertsResolved            OperationalAlert[]            @relation("AlertResolvedBy")
+  runtimeFlags              RuntimeFlag[]
+  deletionRequests          AccountDeletionRequest[]
+  dataExports               DataExportRequest[]
+  destinationsVerified      PayoutDestination[]           @relation("PayoutDestinationVerifiedBy")
 
   @@index([status])
   @@map("users")
@@ -142,7 +160,14 @@ model AuthSession {
   userId        String    @map("user_id") @db.Uuid
   deviceId      String?   @map("device_id") @db.Uuid
   userAgent     String?   @map("user_agent") @db.VarChar(512)
+  /// Faz 1-5 sessions only. New sessions store `ipHash` instead (Faz 6,
+  /// docs/adr/0024): an HMAC is enough to spot "same network" without
+  /// keeping the address itself.
   ipAddress     String?   @map("ip_address") @db.VarChar(64)
+  /// HMAC-SHA256 of the client IP (keyed, not reversible without the key).
+  ipHash        String?   @map("ip_hash") @db.Char(64)
+  /// Staff sessions get a shorter lifetime and an idle timeout (Faz 6).
+  isAdmin       Boolean   @default(false) @map("is_admin")
   /// Absolute lifetime; rotation never extends past this.
   expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
   lastUsedAt    DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(3)
@@ -372,34 +397,39 @@ enum ProviderType {
 }
 
 model ProviderProfile {
-  id                String         @id @default(uuid(7)) @db.Uuid
-  userId            String         @unique @map("user_id") @db.Uuid
-  type              ProviderType   @default(INDIVIDUAL)
-  status            ProviderStatus @default(DRAFT)
-  displayName       String         @map("display_name") @db.VarChar(120)
-  bio               String?        @db.VarChar(2000)
-  yearsOfExperience Int?           @map("years_of_experience") @db.SmallInt
+  id                     String                @id @default(uuid(7)) @db.Uuid
+  userId                 String                @unique @map("user_id") @db.Uuid
+  type                   ProviderType          @default(INDIVIDUAL)
+  status                 ProviderStatus        @default(DRAFT)
+  displayName            String                @map("display_name") @db.VarChar(120)
+  bio                    String?               @db.VarChar(2000)
+  yearsOfExperience      Int?                  @map("years_of_experience") @db.SmallInt
   /// Provider opted in to UstaGO NOW (emergency) jobs.
-  nowEnabled        Boolean        @default(false) @map("now_enabled")
+  nowEnabled             Boolean               @default(false) @map("now_enabled")
   /// Currently accepting NOW jobs ("müsaitim" toggle).
-  isAvailableNow    Boolean        @default(false) @map("is_available_now")
-  lastLatitude      Decimal?       @map("last_latitude") @db.Decimal(9, 6)
-  lastLongitude     Decimal?       @map("last_longitude") @db.Decimal(9, 6)
-  lastLocationAt    DateTime?      @map("last_location_at") @db.Timestamptz(3)
-  approvedAt        DateTime?      @map("approved_at") @db.Timestamptz(3)
+  isAvailableNow         Boolean               @default(false) @map("is_available_now")
+  lastLatitude           Decimal?              @map("last_latitude") @db.Decimal(9, 6)
+  lastLongitude          Decimal?              @map("last_longitude") @db.Decimal(9, 6)
+  lastLocationAt         DateTime?             @map("last_location_at") @db.Timestamptz(3)
+  approvedAt             DateTime?             @map("approved_at") @db.Timestamptz(3)
   /// Last time the application went to PENDING_REVIEW.
-  submittedAt       DateTime?      @map("submitted_at") @db.Timestamptz(3)
+  submittedAt            DateTime?             @map("submitted_at") @db.Timestamptz(3)
   /// Last admin decision (approve, reject, suspend, reinstate).
-  reviewedAt        DateTime?      @map("reviewed_at") @db.Timestamptz(3)
-  reviewedById      String?        @map("reviewed_by_id") @db.Uuid
+  reviewedAt             DateTime?             @map("reviewed_at") @db.Timestamptz(3)
+  reviewedById           String?               @map("reviewed_by_id") @db.Uuid
   /// Shown to the provider while REJECTED or SUSPENDED (DB check).
-  statusReason      String?        @map("status_reason") @db.VarChar(1000)
-  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt         DateTime?      @map("deleted_at") @db.Timestamptz(3)
+  statusReason           String?               @map("status_reason") @db.VarChar(1000)
+  /// Product access (Faz 6, docs/adr/0023), separate from the application
+  /// status above and from verification. Changed only through
+  /// provider_suspensions by SuspensionsService.
+  accountStatus          ProviderAccountStatus @default(ACTIVE) @map("account_status")
+  accountStatusChangedAt DateTime?             @map("account_status_changed_at") @db.Timestamptz(3)
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt              DateTime?             @map("deleted_at") @db.Timestamptz(3)
 
-  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reviewedBy         User?                    @relation("ProviderReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  user               User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy         User?                       @relation("ProviderReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   services           ProviderService[]
   serviceAreas       ProviderServiceArea[]
   verifications      ProviderVerification[]
@@ -408,12 +438,15 @@ model ProviderProfile {
   jobs               Job[]
   dispatchOffers     EmergencyDispatchOffer[]
   ledgerAccounts     LedgerAccount[]
-  payments           Payment[]                @relation("PaymentProvider")
+  payments           Payment[]                   @relation("PaymentProvider")
   earnings           ProviderEarning[]
   cashSettlements    CashSettlement[]
   payoutDestinations PayoutDestination[]
   payouts            Payout[]
-  ledgerTransactions LedgerTransaction[]      @relation("LedgerTransactionProvider")
+  ledgerTransactions LedgerTransaction[]         @relation("LedgerTransactionProvider")
+  verificationCase   ProviderVerificationCase?
+  verificationEvents ProviderVerificationEvent[]
+  suspensions        ProviderSuspension[]
 
   @@index([status, nowEnabled, isAvailableNow])
   @@index([status, submittedAt])
@@ -452,6 +485,18 @@ enum VerificationType {
   TAX_REGISTRATION
   BUSINESS_LICENSE
   CRIMINAL_RECORD
+  /// Faz 6: generic business paper (vergi levhası, oda kaydı...).
+  BUSINESS_DOCUMENT
+  OTHER
+}
+
+/// Result of the malware scanner (docs/adr/0023). Without a real scanner
+/// every file stays NOT_SCANNED; SAFE is only ever written by a real scan.
+enum DocumentScanStatus {
+  NOT_SCANNED
+  SAFE
+  REJECTED
+  QUARANTINED
 }
 
 enum VerificationStatus {
@@ -478,16 +523,25 @@ model ProviderVerification {
   reviewedAt       DateTime?          @map("reviewed_at") @db.Timestamptz(3)
   rejectionReason  String?            @map("rejection_reason") @db.VarChar(500)
   expiresAt        DateTime?          @map("expires_at") @db.Timestamptz(3)
+  /// Faz 6: the verification case this document was submitted with.
+  caseId           String?            @map("case_id") @db.Uuid
+  /// SHA-256 of the stored bytes: duplicate detection and tamper evidence.
+  sha256           String?            @db.Char(64)
+  scanStatus       DocumentScanStatus @default(NOT_SCANNED) @map("scan_status")
+  scannedAt        DateTime?          @map("scanned_at") @db.Timestamptz(3)
   createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  reviewedBy User?           @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+  provider   ProviderProfile           @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  reviewedBy User?                     @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+  case       ProviderVerificationCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
 
   /// One open (PENDING) submission per provider and type.
   @@unique([providerId, type], map: "provider_verifications_one_pending_key", where: raw("status = 'PENDING'"))
   @@index([providerId, type])
   @@index([status, submittedAt])
+  @@index([caseId])
+  @@index([providerId, sha256])
   @@map("provider_verifications")
 }
 
@@ -563,12 +617,13 @@ model ServiceCategory {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  parent          ServiceCategory?   @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
-  children        ServiceCategory[]  @relation("CategoryTree")
+  parent          ServiceCategory?              @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children        ServiceCategory[]             @relation("CategoryTree")
   provinceRules   ProvinceCategory[]
   providers       ProviderService[]
   serviceRequests ServiceRequest[]
   jobs            Job[]
+  requirements    CategoryProviderRequirement[]
 
   @@index([parentId, sortOrder])
   @@map("service_categories")
@@ -1132,10 +1187,24 @@ model PlatformFeePolicy {
   note          String?      @db.VarChar(500)
   createdById   String?      @map("created_by_id") @db.Uuid
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// Faz 6 (docs/adr/0025): admin-visible name. Lifecycle: DRAFT until
+  /// published; published = SCHEDULED before effective_from, ACTIVE from it
+  /// until a later published policy takes over or it is retired. Financial
+  /// columns are frozen by a trigger once published_at is set.
+  name          String?      @db.VarChar(120)
+  publishedAt   DateTime?    @map("published_at") @db.Timestamptz(3)
+  publishedById String?      @map("published_by_id") @db.Uuid
+  retiredAt     DateTime?    @map("retired_at") @db.Timestamptz(3)
+  retiredById   String?      @map("retired_by_id") @db.Uuid
 
-  createdBy User? @relation("FeePolicyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  jobs      Job[]
+  createdBy   User? @relation("FeePolicyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  publishedBy User? @relation("FeePolicyPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  retiredBy   User? @relation("FeePolicyRetiredBy", fields: [retiredById], references: [id], onDelete: SetNull)
+  jobs        Job[]
 
+  /// Two published, live policies can never start at the same instant for
+  /// the same currency and scope: "which one applies" is always one answer.
+  @@unique([currency, isDevelopment, effectiveFrom], map: "platform_fee_policies_one_live_per_start_key", where: raw("published_at IS NOT NULL AND retired_at IS NULL"))
   @@index([currency, effectiveFrom])
   @@map("platform_fee_policies")
 }
@@ -1236,25 +1305,43 @@ model CashSettlement {
 
 enum PayoutDestinationType {
   /// Demo destination: validated IBAN format, only masked digits stored.
+  /// Refused in production (docs/adr/0025).
   TEST_BANK_ACCOUNT
+  /// A real account held by a payout provider behind a token
+  /// (`external_destination_ref`); no adapter exists yet.
+  BANK_ACCOUNT
+}
+
+/// Faz 6: no bank check exists yet, so a finance admin confirms the
+/// account by hand; payouts need VERIFIED (docs/adr/0025).
+enum PayoutDestinationStatus {
+  UNVERIFIED
+  PENDING_VERIFICATION
+  VERIFIED
 }
 
 /// Where a provider's payouts go. Faz 5 stores no full IBAN at all: the
 /// masked form and the last four digits only. A real provider will hold
 /// the account behind a token.
 model PayoutDestination {
-  id            String                @id @default(uuid(7)) @db.Uuid
-  providerId    String                @map("provider_id") @db.Uuid
-  type          PayoutDestinationType @default(TEST_BANK_ACCOUNT)
-  holderName    String                @map("holder_name") @db.VarChar(120)
-  maskedIban    String                @map("masked_iban") @db.VarChar(40)
-  last4         String                @db.VarChar(4)
-  isTest        Boolean               @default(true) @map("is_test")
-  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
-  deactivatedAt DateTime?             @map("deactivated_at") @db.Timestamptz(3)
+  id                     String                  @id @default(uuid(7)) @db.Uuid
+  providerId             String                  @map("provider_id") @db.Uuid
+  type                   PayoutDestinationType   @default(TEST_BANK_ACCOUNT)
+  holderName             String                  @map("holder_name") @db.VarChar(120)
+  maskedIban             String                  @map("masked_iban") @db.VarChar(40)
+  last4                  String                  @db.VarChar(4)
+  isTest                 Boolean                 @default(true) @map("is_test")
+  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  deactivatedAt          DateTime?               @map("deactivated_at") @db.Timestamptz(3)
+  verificationStatus     PayoutDestinationStatus @default(PENDING_VERIFICATION) @map("verification_status")
+  verifiedAt             DateTime?               @map("verified_at") @db.Timestamptz(3)
+  verifiedById           String?                 @map("verified_by_id") @db.Uuid
+  /// Token/reference a real payout provider returns; never a raw IBAN.
+  externalDestinationRef String?                 @map("external_destination_ref") @db.VarChar(120)
 
-  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Restrict)
-  payouts  Payout[]
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  verifiedBy User?           @relation("PayoutDestinationVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  payouts    Payout[]
 
   @@unique([providerId], map: "payout_destinations_one_active_key", where: raw("deactivated_at IS NULL"))
   @@map("payout_destinations")
@@ -1267,6 +1354,10 @@ enum PayoutStatus {
   PAID
   FAILED
   CANCELLED
+  /// Faz 6: the payout provider's answer was lost (timeout, 5xx). The money
+  /// stays reserved until a finance admin checks with the provider and
+  /// records PAID or FAILED; nothing is retried or released automatically.
+  NEEDS_RECONCILIATION
 }
 
 /// A provider's withdrawal request ("Para Çek"). Requesting reserves the
@@ -1728,19 +1819,24 @@ enum NotificationStatus {
 }
 
 model Notification {
-  id        String              @id @default(uuid(7)) @db.Uuid
-  userId    String              @map("user_id") @db.Uuid
+  id         String              @id @default(uuid(7)) @db.Uuid
+  userId     String              @map("user_id") @db.Uuid
   /// Event key, e.g. "quote.created", "emergency.new_request".
-  type      String              @db.VarChar(60)
-  channel   NotificationChannel
-  status    NotificationStatus  @default(PENDING)
-  title     String              @db.VarChar(140)
-  body      String              @db.VarChar(1000)
-  data      Json?
-  sentAt    DateTime?           @map("sent_at") @db.Timestamptz(3)
-  readAt    DateTime?           @map("read_at") @db.Timestamptz(3)
-  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  type       String              @db.VarChar(60)
+  channel    NotificationChannel
+  status     NotificationStatus  @default(PENDING)
+  title      String              @db.VarChar(140)
+  body       String              @db.VarChar(1000)
+  data       Json?
+  /// Faz 6 navigation metadata (docs/adr/0026). The app opens `deepLink`;
+  /// the API still authorises the target on every request.
+  entityType String?             @map("entity_type") @db.VarChar(40)
+  entityId   String?             @map("entity_id") @db.VarChar(64)
+  deepLink   String?             @map("deep_link") @db.VarChar(200)
+  sentAt     DateTime?           @map("sent_at") @db.Timestamptz(3)
+  readAt     DateTime?           @map("read_at") @db.Timestamptz(3)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   pushDelivery PushDelivery?
@@ -1860,4 +1956,410 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([entityType, entityId])
   @@map("audit_logs")
+}
+
+// ============================================================================
+// Faz 6: provider verification and trust (docs/adr/0023)
+// ============================================================================
+
+/// Verification workflow of a provider. Transitions only through
+/// providers/domain/verification-state-machine.ts.
+enum ProviderVerificationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  NEEDS_REVISION
+  SUSPENDED
+}
+
+/// One verification case per provider (the "single active verification"
+/// invariant is the unique provider_id). History is in
+/// provider_verification_events. No identity number is stored: a future
+/// KYC provider's result is kept as `external_reference` only.
+model ProviderVerificationCase {
+  id                 String                     @id @default(uuid(7)) @db.Uuid
+  providerId         String                     @unique @map("provider_id") @db.Uuid
+  status             ProviderVerificationStatus @default(NOT_STARTED)
+  /// MANUAL today; the adapter name of a KYC provider later.
+  method             String                     @default("MANUAL") @db.VarChar(30)
+  externalReference  String?                    @map("external_reference") @db.VarChar(120)
+  submittedAt        DateTime?                  @map("submitted_at") @db.Timestamptz(3)
+  submissionCount    Int                        @default(0) @map("submission_count")
+  reviewStartedAt    DateTime?                  @map("review_started_at") @db.Timestamptz(3)
+  /// Admin who took the case into review.
+  reviewedByAdminId  String?                    @map("reviewed_by_admin_id") @db.Uuid
+  decidedAt          DateTime?                  @map("decided_at") @db.Timestamptz(3)
+  /// Admin who made the last decision (may differ from the reviewer: a
+  /// future four-eyes rule needs both).
+  decisionByAdminId  String?                    @map("decision_by_admin_id") @db.Uuid
+  decisionReasonCode String?                    @map("decision_reason_code") @db.VarChar(60)
+  /// Shown to the provider.
+  userVisibleReason  String?                    @map("user_visible_reason") @db.VarChar(500)
+  /// Staff only; never returned by a provider or public endpoint.
+  internalNote       String?                    @map("internal_note") @db.VarChar(2000)
+  verifiedAt         DateTime?                  @map("verified_at") @db.Timestamptz(3)
+  /// WORKFLOW, LEGACY_BACKFILL (Faz 2 approvals) or DEMO_SEED.
+  source             String                     @default("WORKFLOW") @db.VarChar(30)
+  version            Int                        @default(0)
+  createdAt          DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  provider  ProviderProfile             @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  reviewer  User?                       @relation("VerificationCaseReviewer", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+  decider   User?                       @relation("VerificationCaseDecider", fields: [decisionByAdminId], references: [id], onDelete: SetNull)
+  documents ProviderVerification[]
+  events    ProviderVerificationEvent[]
+
+  @@index([status, submittedAt])
+  @@map("provider_verification_cases")
+}
+
+/// Append-only timeline of a verification case (DB trigger).
+model ProviderVerificationEvent {
+  id                String                      @id @default(uuid(7)) @db.Uuid
+  caseId            String                      @map("case_id") @db.Uuid
+  providerId        String                      @map("provider_id") @db.Uuid
+  event             String                      @db.VarChar(40)
+  fromStatus        ProviderVerificationStatus? @map("from_status")
+  toStatus          ProviderVerificationStatus  @map("to_status")
+  /// PROVIDER, ADMIN or SYSTEM.
+  actorType         String                      @map("actor_type") @db.VarChar(20)
+  actorId           String?                     @map("actor_id") @db.Uuid
+  reasonCode        String?                     @map("reason_code") @db.VarChar(60)
+  userVisibleReason String?                     @map("user_visible_reason") @db.VarChar(500)
+  internalNote      String?                     @map("internal_note") @db.VarChar(2000)
+  createdAt         DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  case     ProviderVerificationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  provider ProviderProfile          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  actor    User?                    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([caseId, createdAt])
+  @@map("provider_verification_events")
+}
+
+/// Admin-configurable document requirement per category (a product rule,
+/// not a legal one: nothing here encodes Turkish regulation).
+model CategoryProviderRequirement {
+  id            String           @id @default(uuid(7)) @db.Uuid
+  categoryId    String           @map("category_id") @db.Uuid
+  documentType  VerificationType @map("document_type")
+  note          String?          @db.VarChar(300)
+  createdById   String?          @map("created_by_id") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  deactivatedAt DateTime?        @map("deactivated_at") @db.Timestamptz(3)
+
+  category  ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdBy User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([categoryId, documentType], map: "category_provider_requirements_live_key", where: raw("deactivated_at IS NULL"))
+  @@map("category_provider_requirements")
+}
+
+/// Product access of a provider; not the same thing as verification.
+enum ProviderAccountStatus {
+  ACTIVE
+  /// Can quote, cannot take NOW jobs or request payouts.
+  LIMITED
+  /// No new quotes, NOW jobs or payouts; running jobs continue.
+  SUSPENDED
+  BANNED
+}
+
+enum ProviderSuspensionStatus {
+  ACTIVE
+  LIFTED
+  /// expires_at passed and auto_lift was set: access restored by the sweep.
+  EXPIRED
+  /// expires_at passed without auto_lift: stays suspended until an admin
+  /// reviews it (docs/adr/0023).
+  EXPIRED_PENDING_REVIEW
+}
+
+/// An account restriction decided by an admin (docs/adr/0023). Separate
+/// from Faz 4 penalties (ranking signals) and from verification.
+model ProviderSuspension {
+  id                String                   @id @default(uuid(7)) @db.Uuid
+  providerId        String                   @map("provider_id") @db.Uuid
+  status            ProviderSuspensionStatus @default(ACTIVE)
+  /// Account status while this suspension is in force.
+  level             ProviderAccountStatus
+  reasonCode        String                   @map("reason_code") @db.VarChar(60)
+  internalNote      String                   @map("internal_note") @db.VarChar(2000)
+  userVisibleReason String                   @map("user_visible_reason") @db.VarChar(500)
+  startsAt          DateTime                 @map("starts_at") @db.Timestamptz(3)
+  expiresAt         DateTime?                @map("expires_at") @db.Timestamptz(3)
+  autoLift          Boolean                  @default(false) @map("auto_lift")
+  createdById       String?                  @map("created_by_id") @db.Uuid
+  liftedById        String?                  @map("lifted_by_id") @db.Uuid
+  liftedAt          DateTime?                @map("lifted_at") @db.Timestamptz(3)
+  liftNote          String?                  @map("lift_note") @db.VarChar(2000)
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  createdBy User?           @relation("SuspensionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  liftedBy  User?           @relation("SuspensionLiftedBy", fields: [liftedById], references: [id], onDelete: SetNull)
+
+  /// One suspension in force per provider.
+  @@unique([providerId], map: "provider_suspensions_one_open_key", where: raw("status = ANY (ARRAY['ACTIVE'::\"ProviderSuspensionStatus\", 'EXPIRED_PENDING_REVIEW'::\"ProviderSuspensionStatus\"])"))
+  @@index([status, expiresAt])
+  @@index([providerId, createdAt])
+  @@map("provider_suspensions")
+}
+
+// ============================================================================
+// Faz 6: admin permissions, risk signals (docs/adr/0024)
+// ============================================================================
+
+/// Fine-grained staff permissions on top of the ADMIN role. SUPER_ADMIN
+/// (role) and ADMIN_SUPER (permission) imply every permission.
+enum AdminPermission {
+  ADMIN_SUPPORT
+  ADMIN_VERIFICATION
+  ADMIN_FINANCE
+  ADMIN_SUPER
+}
+
+model AdminPermissionGrant {
+  userId      String          @map("user_id") @db.Uuid
+  permission  AdminPermission
+  grantedById String?         @map("granted_by_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user      User  @relation("AdminPermissionHolder", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("AdminPermissionGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@id([userId, permission])
+  @@map("admin_permission_grants")
+}
+
+enum RiskSignalType {
+  OTP_ABUSE
+  QUOTE_SPAM
+  CANCEL_ABUSE
+  PAYMENT_ABUSE
+  REVIEW_ABUSE
+  DEVICE_ANOMALY
+  ADMIN_FLAG
+}
+
+enum RiskSignalStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+}
+
+/// An observed, explainable fact ("12 OTP requests from one IP in an
+/// hour"), never a score and never an automatic sanction.
+model RiskSignal {
+  id            String           @id @default(uuid(7)) @db.Uuid
+  type          RiskSignalType
+  status        RiskSignalStatus @default(OPEN)
+  subjectUserId String?          @map("subject_user_id") @db.Uuid
+  /// Keyed hash of a phone or IP when there is no user (never the raw value).
+  subjectKey    String?          @map("subject_key") @db.VarChar(64)
+  /// Counts and ids only, no personal data.
+  evidence      Json
+  source        String           @db.VarChar(60)
+  dedupeKey     String           @map("dedupe_key") @db.VarChar(160)
+  occurrences   Int              @default(1)
+  lastSeenAt    DateTime         @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  reviewedById  String?          @map("reviewed_by_id") @db.Uuid
+  reviewedAt    DateTime?        @map("reviewed_at") @db.Timestamptz(3)
+  reviewNote    String?          @map("review_note") @db.VarChar(1000)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  subject    User? @relation("RiskSignalSubject", fields: [subjectUserId], references: [id], onDelete: SetNull)
+  reviewedBy User? @relation("RiskSignalReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([dedupeKey], map: "risk_signals_open_dedupe_key", where: raw("status = 'OPEN'"))
+  @@index([status, createdAt])
+  @@index([subjectUserId, createdAt])
+  @@map("risk_signals")
+}
+
+// ============================================================================
+// Faz 6: operations, observability, reconciliation (docs/adr/0026)
+// ============================================================================
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+/// Something an operator must look at. The system only raises alerts; it
+/// never "fixes" money or data on its own.
+model OperationalAlert {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  type             String        @db.VarChar(60)
+  severity         AlertSeverity
+  status           AlertStatus   @default(OPEN)
+  title            String        @db.VarChar(200)
+  details          Json
+  source           String        @db.VarChar(60)
+  /// Repeats of an unresolved alert bump `occurrences` instead of piling up.
+  dedupeKey        String        @map("dedupe_key") @db.VarChar(160)
+  occurrences      Int           @default(1)
+  lastSeenAt       DateTime      @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  acknowledgedAt   DateTime?     @map("acknowledged_at") @db.Timestamptz(3)
+  acknowledgedById String?       @map("acknowledged_by_id") @db.Uuid
+  resolvedAt       DateTime?     @map("resolved_at") @db.Timestamptz(3)
+  resolvedById     String?       @map("resolved_by_id") @db.Uuid
+  resolutionNote   String?       @map("resolution_note") @db.VarChar(2000)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  acknowledgedBy User? @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  resolvedBy     User? @relation("AlertResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@unique([dedupeKey], map: "operational_alerts_open_dedupe_key", where: raw("status <> 'RESOLVED'"))
+  @@index([status, createdAt])
+  @@index([severity, status])
+  @@map("operational_alerts")
+}
+
+enum ReconciliationRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+/// One finance reconciliation (scheduled, manual or CLI). Read-only check;
+/// a mismatch only raises an alert.
+model FinanceReconciliationRun {
+  id                    String                  @id @default(uuid(7)) @db.Uuid
+  trigger               String                  @db.VarChar(20)
+  status                ReconciliationRunStatus @default(RUNNING)
+  startedAt             DateTime                @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt            DateTime?               @map("finished_at") @db.Timestamptz(3)
+  counts                Json?
+  debitTotalMinor       BigInt?                 @map("debit_total_minor")
+  creditTotalMinor      BigInt?                 @map("credit_total_minor")
+  mismatchCount         Int?                    @map("mismatch_count")
+  /// First mismatches (bounded), ids and codes only.
+  mismatches            Json?
+  snapshotsChecked      Int                     @default(0) @map("snapshots_checked")
+  snapshotMismatchCount Int                     @default(0) @map("snapshot_mismatch_count")
+  error                 String?                 @db.VarChar(500)
+  alertId               String?                 @map("alert_id") @db.Uuid
+
+  /// At most one RUNNING row: the row itself is the cross-replica lock.
+  @@unique([status], map: "finance_reconciliation_runs_one_running_key", where: raw("status = 'RUNNING'::\"ReconciliationRunStatus\""))
+  @@index([startedAt])
+  @@map("finance_reconciliation_runs")
+}
+
+/// Daily per-account balance summary computed from the ledger. A cache
+/// for reports and a tamper check; never a source of truth.
+model LedgerAccountSnapshot {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  accountId        String   @map("account_id") @db.Uuid
+  asOf             DateTime @map("as_of") @db.Timestamptz(3)
+  debitTotalMinor  BigInt   @map("debit_total_minor")
+  creditTotalMinor BigInt   @map("credit_total_minor")
+  entryCount       Int      @map("entry_count")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([accountId, asOf])
+  @@index([asOf])
+  @@map("ledger_account_snapshots")
+}
+
+/// Last run of each background worker, for the Operations page.
+model WorkerHeartbeat {
+  name                String    @id @db.VarChar(60)
+  lastRunAt           DateTime? @map("last_run_at") @db.Timestamptz(3)
+  lastSuccessAt       DateTime? @map("last_success_at") @db.Timestamptz(3)
+  lastFailureAt       DateTime? @map("last_failure_at") @db.Timestamptz(3)
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  totalRuns           Int       @default(0) @map("total_runs")
+  totalFailures       Int       @default(0) @map("total_failures")
+  lastError           String?   @map("last_error") @db.VarChar(500)
+  lastDurationMs      Int?      @map("last_duration_ms")
+  lastResult          Json?     @map("last_result")
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("worker_heartbeats")
+}
+
+/// Feature switches an admin may turn OFF at runtime (kill switch). The
+/// env flag is the ceiling: the effective value is env AND this row, so an
+/// admin can never enable what the deployment disabled.
+model RuntimeFlag {
+  key         String   @id @db.VarChar(60)
+  enabled     Boolean
+  reason      String   @db.VarChar(500)
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("runtime_flags")
+}
+
+// ============================================================================
+// Faz 6: account deletion and data export (docs/adr/0027)
+// ============================================================================
+
+enum AccountDeletionStatus {
+  REQUESTED
+  BLOCKED_BY_ACTIVE_JOB
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+model AccountDeletionRequest {
+  id          String                @id @default(uuid(7)) @db.Uuid
+  userId      String                @map("user_id") @db.Uuid
+  status      AccountDeletionStatus @default(REQUESTED)
+  /// Codes of what blocks completion (ACTIVE_JOB, OPEN_DISPUTE, ...).
+  blockers    Json                  @default("[]")
+  requestedAt DateTime              @default(now()) @map("requested_at") @db.Timestamptz(3)
+  processedAt DateTime?             @map("processed_at") @db.Timestamptz(3)
+  completedAt DateTime?             @map("completed_at") @db.Timestamptz(3)
+  cancelledAt DateTime?             @map("cancelled_at") @db.Timestamptz(3)
+  updatedAt   DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([userId], map: "account_deletion_requests_one_open_key", where: raw("status = ANY (ARRAY['REQUESTED'::\"AccountDeletionStatus\", 'BLOCKED_BY_ACTIVE_JOB'::\"AccountDeletionStatus\", 'PROCESSING'::\"AccountDeletionStatus\"])"))
+  @@index([status, requestedAt])
+  @@map("account_deletion_requests")
+}
+
+enum DataExportStatus {
+  REQUESTED
+  PROCESSING
+  READY
+  EXPIRED
+  FAILED
+}
+
+/// Recorded request for a personal data export. Generating the archive is
+/// not implemented yet (docs/adr/0027); the request is kept so none is lost.
+model DataExportRequest {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  status      DataExportStatus @default(REQUESTED)
+  requestedAt DateTime         @default(now()) @map("requested_at") @db.Timestamptz(3)
+  readyAt     DateTime?        @map("ready_at") @db.Timestamptz(3)
+  expiresAt   DateTime?        @map("expires_at") @db.Timestamptz(3)
+  storageKey  String?          @map("storage_key") @db.VarChar(512)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, requestedAt])
+  @@map("data_export_requests")
 }

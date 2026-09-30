@@ -15,8 +15,15 @@ export const listAuditEventsQuerySchema = paginationQuerySchema
       .regex(/^[a-z_]+(\.[a-z_]*)*$/)
       .max(60)
       .optional(),
+    /** Inclusive date range (ISO date or date-time). */
+    from: z.coerce.date().optional(),
+    to: z.coerce.date().optional(),
   })
-  .strict();
+  .strict()
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    message: 'Başlangıç tarihi bitişten sonra olamaz.',
+    path: ['from'],
+  });
 export type ListAuditEventsQuery = z.infer<typeof listAuditEventsQuerySchema>;
 
 export const auditEventSchema = z.object({

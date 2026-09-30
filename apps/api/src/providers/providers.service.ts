@@ -16,8 +16,10 @@ import {
   requiresNonEmptyCatalog,
   transitionFor,
 } from './domain/provider-lifecycle.js';
+import { providerPolicy } from './domain/provider-policy.js';
 import { toProviderProfile } from './provider.mappers.js';
 import { invalidProviderState, ProviderStore } from './provider.store.js';
+import { VerificationCaseService } from './verification-case.service.js';
 
 /** The provider's own profile, onboarding progress, submission and NOW settings. */
 @Injectable()
@@ -26,6 +28,7 @@ export class ProvidersService {
     private readonly prisma: PrismaService,
     private readonly store: ProviderStore,
     private readonly audit: AuditService,
+    private readonly cases: VerificationCaseService,
   ) {}
 
   /**
@@ -156,6 +159,8 @@ export class ProvidersService {
         ipAddress,
         metadata: { from: current.status, to: next },
       });
+      // Faz 6: the verification case goes for review together.
+      await this.cases.submitWithApplication(tx, updated, userId, ipAddress);
       return updated;
     });
     return toProviderProfile(profile);
@@ -221,6 +226,24 @@ export class ProvidersService {
         }
         if (!nowEnabled) {
           throw unprocessable('NOW_NOT_AVAILABLE', 'Önce Acil Usta tercihini açın.');
+        }
+        // Faz 6: NOW needs a verified account in good standing.
+        const verification = await tx.providerVerificationCase.findUnique({
+          where: { providerId: current.id },
+          select: { status: true },
+        });
+        const policy = providerPolicy({
+          applicationStatus: current.status,
+          verificationStatus: verification?.status ?? 'NOT_STARTED',
+          accountStatus: current.accountStatus,
+        });
+        if (!policy.canTakeNowJobs) {
+          throw conflict(
+            current.accountStatus === 'ACTIVE' ? 'NOW_REQUIRES_VERIFICATION' : 'PROVIDER_SUSPENDED',
+            current.accountStatus === 'ACTIVE'
+              ? 'Acil Usta için önce hesabınızı doğrulayın.'
+              : 'Hesabınız kısıtlıyken acil iş alamazsınız.',
+          );
         }
         if (!(await this.store.hasNowOpenPair(current.id, tx))) {
           throw unprocessable(

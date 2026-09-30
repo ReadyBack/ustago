@@ -1,11 +1,16 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 
 import { hash } from '@node-rs/argon2';
 
-import type { PrismaClient, ProviderStatus, Role } from '../generated/prisma/client.js';
+import type {
+  AdminPermission,
+  PrismaClient,
+  ProviderStatus,
+  Role,
+} from '../generated/prisma/client.js';
 
 /** Adana (plate 1) is the local demo market; İstanbul keeps the Faz 1 provider. */
 export const DEMO_PROVINCE_ID = 1;
@@ -34,6 +39,8 @@ interface DevUser {
   firstName: string;
   lastName: string;
   roles: Role[];
+  /** Faz 6 staff permissions (docs/adr/0024); SUPER_ADMIN implies all. */
+  adminPermissions?: AdminPermission[];
   address?: { district: string; neighborhood: string; addressLine: string };
   provider?: DemoProvider;
 }
@@ -48,6 +55,28 @@ export const DEV_USERS: readonly DevUser[] = [
     firstName: 'Dev',
     lastName: 'Admin',
     roles: ['CUSTOMER', 'SUPER_ADMIN'],
+  },
+  // Faz 6 staff accounts, one per permission (DEMO; docs/adr/0024).
+  {
+    email: 'destek@ustago.test',
+    firstName: 'Destek',
+    lastName: 'Demo',
+    roles: ['ADMIN'],
+    adminPermissions: ['ADMIN_SUPPORT'],
+  },
+  {
+    email: 'finans@ustago.test',
+    firstName: 'Finans',
+    lastName: 'Demo',
+    roles: ['ADMIN'],
+    adminPermissions: ['ADMIN_FINANCE'],
+  },
+  {
+    email: 'dogrulama@ustago.test',
+    firstName: 'Doğrulama',
+    lastName: 'Demo',
+    roles: ['ADMIN'],
+    adminPermissions: ['ADMIN_VERIFICATION'],
   },
   {
     email: 'musteri@ustago.test',
@@ -140,6 +169,40 @@ export const DEV_USERS: readonly DevUser[] = [
       nowEnabled: false,
       isAvailableNow: false,
       pendingDocument: true,
+    },
+  },
+  {
+    email: 'usta-revizyon@ustago.test',
+    phone: '+905000000006',
+    firstName: 'Burak',
+    lastName: 'Demo',
+    roles: ['CUSTOMER', 'PROVIDER'],
+    provider: {
+      displayName: 'Demo Revizyon Bekleyen Usta',
+      bio: DEMO_BIO,
+      provinceId: DEMO_PROVINCE_ID,
+      categories: ['boya-badana'],
+      districts: ['seyhan'],
+      status: 'DRAFT',
+      nowEnabled: false,
+      isAvailableNow: false,
+    },
+  },
+  {
+    email: 'usta-askida@ustago.test',
+    phone: '+905000000007',
+    firstName: 'Cem',
+    lastName: 'Demo',
+    roles: ['CUSTOMER', 'PROVIDER'],
+    provider: {
+      displayName: 'Demo Askıdaki Usta',
+      bio: DEMO_BIO,
+      provinceId: DEMO_PROVINCE_ID,
+      categories: ['su-tesisati'],
+      districts: ['seyhan', 'yuregir'],
+      status: 'ACTIVE',
+      nowEnabled: false,
+      isAvailableNow: false,
     },
   },
   {
@@ -237,6 +300,12 @@ export async function seedDevData(
       data: devUser.roles.map((role) => ({ userId, role })),
       skipDuplicates: true,
     });
+    if (devUser.adminPermissions) {
+      await prisma.adminPermissionGrant.createMany({
+        data: devUser.adminPermissions.map((permission) => ({ userId, permission })),
+        skipDuplicates: true,
+      });
+    }
     await prisma.customerProfile.upsert({ where: { userId }, create: { userId }, update: {} });
     if (devUser.address) await ensureAddress(prisma, userId, devUser.address);
     if (devUser.provider) await ensureProvider(prisma, userId, devUser.provider, storageDir);
@@ -315,20 +384,17 @@ async function ensureProvider(
       where: { providerId: profile.id },
     });
     if (documents === 0) {
-      const key = `verifications/${profile.id}/${randomUUID()}.png`;
-      const png = demoPng();
-      const path = resolve(storageDir, key);
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, png);
-      await writeFile(`${path}.meta.json`, JSON.stringify({ contentType: 'image/png' }));
+      const file = await writeDemoDocument(storageDir, profile.id);
       await prisma.providerVerification.create({
         data: {
           providerId: profile.id,
           type: 'IDENTITY',
           status: 'PENDING',
-          documentKey: key,
+          documentKey: file.key,
           mimeType: 'image/png',
-          sizeBytes: png.length,
+          sizeBytes: file.sizeBytes,
+          sha256: file.sha256,
+          scanStatus: 'NOT_SCANNED',
           originalFileName: 'DEMO-kimlik-belgesi.png',
         },
       });
@@ -336,8 +402,23 @@ async function ensureProvider(
   }
 }
 
+/** Writes a DEMO placeholder document the way LocalObjectStorage stores uploads. */
+export async function writeDemoDocument(
+  storageDir: string,
+  providerId: string,
+): Promise<{ key: string; sizeBytes: number; sha256: string }> {
+  const key = `verifications/${providerId}/${randomUUID()}.png`;
+  // A per-provider shade, so demo files never look like shared duplicates.
+  const png = demoPng(createHash('sha256').update(providerId).digest()[0] ?? 0);
+  const path = resolve(storageDir, key);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, png);
+  await writeFile(`${path}.meta.json`, JSON.stringify({ contentType: 'image/png' }));
+  return { key, sizeBytes: png.length, sha256: createHash('sha256').update(png).digest('hex') };
+}
+
 /** A plain 240×150 PNG placeholder (grey card with an orange band), built without dependencies. */
-function demoPng(): Buffer {
+function demoPng(variant = 0): Buffer {
   const width = 240;
   const height = 150;
   const rows: Buffer[] = [];
@@ -345,7 +426,7 @@ function demoPng(): Buffer {
     const row = Buffer.alloc(1 + width * 3);
     for (let x = 0; x < width; x += 1) {
       const band = y < 30;
-      const [r, g, b] = band ? [249, 115, 22] : [229, 231, 235];
+      const [r, g, b] = band ? [249, 115 - (variant % 40), 22] : [229, 231, 235];
       row.set([r, g, b], 1 + x * 3);
     }
     rows.push(row);

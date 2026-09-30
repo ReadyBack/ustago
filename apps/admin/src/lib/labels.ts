@@ -1,5 +1,18 @@
 import type {
+  AdminPermission,
+  AlertSeverity,
+  AlertStatus,
   ChangeOrderStatus,
+  ComponentState,
+  DocumentScanStatus,
+  FeePolicyLifecycle,
+  ProviderAccountStatus,
+  ProviderVerificationStatus,
+  ReconciliationRunStatus,
+  RiskSignalStatus,
+  RiskSignalType,
+  SuspensionStatus,
+  WorkerStatus,
   DisciplinaryActionStatus,
   DisciplinaryActionType,
   DisputeReason,
@@ -25,6 +38,7 @@ import type {
   VerificationStatus,
   VerificationType,
 } from '@ustago/types';
+import type { SUSPENSION_REASON_CODES, VERIFICATION_REASON_CODES } from '@ustago/validation';
 
 export const PROVIDER_STATUS_LABELS: Record<ProviderStatus, string> = {
   DRAFT: 'Taslak',
@@ -40,6 +54,8 @@ export const VERIFICATION_TYPE_LABELS: Record<VerificationType, string> = {
   BUSINESS_LICENSE: 'İşletme belgesi',
   TAX_REGISTRATION: 'Vergi levhası',
   CRIMINAL_RECORD: 'Adli sicil kaydı',
+  BUSINESS_DOCUMENT: 'İşletme evrakı',
+  OTHER: 'Diğer belge',
 };
 
 export const VERIFICATION_STATUS_LABELS: Record<VerificationStatus, string> = {
@@ -297,3 +313,180 @@ export const CASH_RESOLVE_LABELS: Record<'CONFIRM_PAID' | 'MARK_UNPAID', string>
   CONFIRM_PAID: 'Ödendi olarak onayla',
   MARK_UNPAID: 'Ödenmedi olarak kaydet',
 };
+
+// ---------------------------------------------------------------------------
+// Güven ve doğrulama (Faz 6)
+// ---------------------------------------------------------------------------
+
+export const PROVIDER_VERIFICATION_STATUS_LABELS: Record<ProviderVerificationStatus, string> = {
+  NOT_STARTED: 'Başlamadı',
+  IN_PROGRESS: 'Hazırlanıyor',
+  SUBMITTED: 'Gönderildi',
+  UNDER_REVIEW: 'İnceleniyor',
+  NEEDS_REVISION: 'Revizyon istendi',
+  VERIFIED: 'Doğrulandı',
+  REJECTED: 'Reddedildi',
+  SUSPENDED: 'Askıda',
+};
+
+/** The statuses the "Doğrulama Talepleri" queue can be filtered by (API default: SUBMITTED). */
+export const VERIFICATION_CASE_FILTERS = [
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'NEEDS_REVISION',
+  'VERIFIED',
+  'REJECTED',
+  'SUSPENDED',
+] as const satisfies readonly ProviderVerificationStatus[];
+
+export const ACCOUNT_STATUS_LABELS: Record<ProviderAccountStatus, string> = {
+  ACTIVE: 'Aktif',
+  LIMITED: 'Kısıtlı',
+  SUSPENDED: 'Askıda',
+  BANNED: 'Kalıcı olarak kapatıldı',
+};
+
+export const DOCUMENT_SCAN_STATUS_LABELS: Record<DocumentScanStatus, string> = {
+  NOT_SCANNED: 'Taranmadı',
+  SAFE: 'Temiz',
+  REJECTED: 'Reddedildi',
+  QUARANTINED: 'Karantinada',
+};
+
+export const VERIFICATION_REASON_LABELS: Record<
+  (typeof VERIFICATION_REASON_CODES)[number],
+  string
+> = {
+  DOCUMENT_UNREADABLE: 'Belge okunamıyor',
+  DOCUMENT_EXPIRED: 'Belgenin süresi dolmuş',
+  DOCUMENT_MISMATCH: 'Belge bilgileri uyuşmuyor',
+  MISSING_DOCUMENT: 'Eksik belge',
+  PROFILE_INCOMPLETE: 'Profil eksik',
+  SUSPECTED_FRAUD: 'Sahtecilik şüphesi',
+  NOT_ELIGIBLE: 'Koşulları sağlamıyor',
+  OTHER: 'Diğer',
+};
+
+export const SUSPENSION_REASON_LABELS: Record<(typeof SUSPENSION_REASON_CODES)[number], string> = {
+  QUALITY_ISSUES: 'Kalite sorunları',
+  POLICY_VIOLATION: 'Kural ihlali',
+  FRAUD_INVESTIGATION: 'Dolandırıcılık incelemesi',
+  DOCUMENT_ISSUE: 'Belge sorunu',
+  PAYMENT_ISSUE: 'Ödeme sorunu',
+  LEGACY_SUSPENSION: 'Eski sistemden askı',
+  OTHER: 'Diğer',
+};
+
+export const SUSPENSION_STATUS_LABELS: Record<SuspensionStatus, string> = {
+  ACTIVE: 'Yürürlükte',
+  LIFTED: 'Kaldırıldı',
+  EXPIRED: 'Süresi doldu',
+  EXPIRED_PENDING_REVIEW: 'Süresi doldu, inceleme bekliyor',
+};
+
+export const SUSPENSION_LEVEL_LABELS: Record<'SUSPENDED' | 'BANNED' | 'LIMITED', string> = {
+  SUSPENDED: 'Askıya alma',
+  BANNED: 'Kalıcı kapatma',
+  LIMITED: 'Kısıtlama',
+};
+
+export const TIMELINE_ACTOR_LABELS: Record<'PROVIDER' | 'ADMIN' | 'SYSTEM', string> = {
+  PROVIDER: 'Usta',
+  ADMIN: 'Yönetici',
+  SYSTEM: 'Sistem',
+};
+
+// ---------------------------------------------------------------------------
+// Operasyon ve güvenlik (Faz 6)
+// ---------------------------------------------------------------------------
+
+export const FEE_POLICY_LIFECYCLE_LABELS: Record<FeePolicyLifecycle, string> = {
+  DRAFT: 'Taslak',
+  SCHEDULED: 'Planlandı',
+  ACTIVE: 'Yürürlükte',
+  RETIRED: 'Kullanımdan kalktı',
+};
+
+export const ALERT_SEVERITY_LABELS: Record<AlertSeverity, string> = {
+  INFO: 'Bilgi',
+  WARNING: 'Uyarı',
+  CRITICAL: 'Kritik',
+};
+
+export const ALERT_STATUS_LABELS: Record<AlertStatus | 'ACTIVE', string> = {
+  ACTIVE: 'Açık ve ilgilenilen',
+  OPEN: 'Açık',
+  ACKNOWLEDGED: 'İlgileniliyor',
+  RESOLVED: 'Kapatıldı',
+};
+
+export const RECONCILIATION_RUN_STATUS_LABELS: Record<ReconciliationRunStatus, string> = {
+  RUNNING: 'Çalışıyor',
+  SUCCEEDED: 'Tamamlandı',
+  FAILED: 'Hata verdi',
+};
+
+export const RECONCILIATION_TRIGGER_LABELS: Record<'SCHEDULED' | 'MANUAL', string> = {
+  SCHEDULED: 'Zamanlanmış',
+  MANUAL: 'Elle',
+};
+
+export const COMPONENT_STATE_LABELS: Record<ComponentState, string> = {
+  up: 'Çalışıyor',
+  down: 'Çalışmıyor',
+  degraded: 'Sorunlu',
+  disabled: 'Kapalı',
+  unknown: 'Bilinmiyor',
+};
+
+export const COMPONENT_LABELS: Record<
+  'api' | 'database' | 'redis' | 'pushOutbox' | 'reconciliation',
+  string
+> = {
+  api: 'API',
+  database: 'Veritabanı',
+  redis: 'Redis',
+  pushOutbox: 'Bildirim kuyruğu',
+  reconciliation: 'Mutabakat',
+};
+
+export const WORKER_HEALTH_LABELS: Record<WorkerStatus['health'], string> = {
+  ok: 'Sağlıklı',
+  stale: 'Gecikmiş',
+  failing: 'Hata veriyor',
+  never_ran: 'Hiç çalışmadı',
+  disabled: 'Kapalı',
+};
+
+export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
+  ADMIN_SUPPORT: 'Destek',
+  ADMIN_VERIFICATION: 'Doğrulama',
+  ADMIN_FINANCE: 'Finans',
+  ADMIN_SUPER: 'Süper yönetici (tüm yetkiler)',
+};
+
+export const RISK_SIGNAL_TYPE_LABELS: Record<RiskSignalType, string> = {
+  OTP_ABUSE: 'Doğrulama kodu kötüye kullanımı',
+  QUOTE_SPAM: 'Teklif spamı',
+  CANCEL_ABUSE: 'İptal kötüye kullanımı',
+  PAYMENT_ABUSE: 'Ödeme kötüye kullanımı',
+  REVIEW_ABUSE: 'Değerlendirme kötüye kullanımı',
+  DEVICE_ANOMALY: 'Cihaz anomalisi',
+  ADMIN_FLAG: 'Yönetici işareti',
+};
+
+export const RISK_SIGNAL_STATUS_LABELS: Record<RiskSignalStatus, string> = {
+  OPEN: 'Açık',
+  REVIEWED: 'İncelendi',
+  DISMISSED: 'Yok sayıldı',
+};
+
+export const PAYOUT_RESOLVE_LABELS: Record<'PAID' | 'FAILED', string> = {
+  PAID: 'Sağlayıcı ödedi (PAID)',
+  FAILED: 'Sağlayıcı ödemedi (FAILED)',
+};
+
+/** Label for a status string from a loosely typed API field; unknown values show as-is. */
+export function labelOf(labels: Record<string, string>, key: string): string {
+  return Object.hasOwn(labels, key) ? (labels[key] as string) : key;
+}

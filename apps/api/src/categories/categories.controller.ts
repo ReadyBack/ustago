@@ -16,6 +16,7 @@ import { type AuthUser, CurrentUser, Public, Roles } from '../common/auth/decora
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { CategoriesService } from './categories.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const categoryNodeSchema = serviceCategorySchema.extend({
   children: z.array(serviceCategorySchema),
@@ -54,7 +55,7 @@ export class CategoriesController {
     @Body(new ZodValidationPipe(createCategoryRequestSchema)) body: CreateCategoryRequest,
     @Req() req: Request,
   ): Promise<ServiceCategory> {
-    return this.categories.create(actor.id, body, req.ip ?? null);
+    return this.categories.create(actor.id, body, clientIp(req));
   }
 
   @Patch(':id')
@@ -69,6 +70,6 @@ export class CategoriesController {
     @Body(new ZodValidationPipe(updateCategoryRequestSchema)) body: UpdateCategoryRequest,
     @Req() req: Request,
   ): Promise<ServiceCategory> {
-    return this.categories.update(actor.id, id, body, req.ip ?? null);
+    return this.categories.update(actor.id, id, body, clientIp(req));
   }
 }

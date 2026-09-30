@@ -7,7 +7,9 @@ export type VerificationType =
   | 'PROFESSIONAL_CERTIFICATE'
   | 'TAX_REGISTRATION'
   | 'BUSINESS_LICENSE'
-  | 'CRIMINAL_RECORD';
+  | 'CRIMINAL_RECORD'
+  | 'BUSINESS_DOCUMENT'
+  | 'OTHER';
 
 export type VerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
 
@@ -92,6 +94,12 @@ export interface PublicProviderProfile {
   serviceAreas: ProviderServiceAreaGroup[];
   /** Approved verification types, shown as badges. */
   verificationBadges: VerificationType[];
+  /**
+   * True only while the provider's account verification case is VERIFIED
+   * and the account is not suspended (docs/adr/0023). Shown as
+   * "Kimliği/hesabı doğrulanmıştır"; it is not a quality guarantee.
+   */
+  isVerified: boolean;
   /** Average of published customer reviews; null until the first one. */
   rating: ProviderRating | null;
   completedJobCount: number;

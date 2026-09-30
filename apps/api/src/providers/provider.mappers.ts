@@ -15,6 +15,7 @@ import type {
   ProviderVerification as VerificationRow,
 } from '../generated/prisma/client.js';
 import { publicUstaScore } from '../quality/domain/usta-score.js';
+import { providerPolicy } from './domain/provider-policy.js';
 
 /** Categories and districts of a provider, for every view that lists them. */
 export const catalogInclude = {
@@ -168,6 +169,7 @@ export const publicProviderInclude = {
   ...catalogInclude,
   verifications: { where: { status: 'APPROVED' }, select: { type: true } },
   score: { select: { score: true, isNewProvider: true, algorithmVersion: true } },
+  verificationCase: { select: { status: true } },
 } satisfies Prisma.ProviderProfileInclude;
 
 type PublicRow = Prisma.ProviderProfileGetPayload<{ include: typeof publicProviderInclude }>;
@@ -192,6 +194,12 @@ export function toPublicProvider(p: PublicRow, stats: PublicProviderStats): Publ
     services: toServiceItems(p.services),
     serviceAreas: toServiceAreaGroups(p.serviceAreas),
     verificationBadges: badges,
+    // Faz 6: the central policy decides; never documents or URLs here.
+    isVerified: providerPolicy({
+      applicationStatus: p.status,
+      verificationStatus: p.verificationCase?.status ?? 'NOT_STARTED',
+      accountStatus: p.accountStatus,
+    }).showVerifiedBadge,
     rating: stats.rating,
     completedJobCount: stats.completedJobCount,
     ustaScore: publicUstaScore(

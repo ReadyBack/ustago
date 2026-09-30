@@ -19,6 +19,7 @@ import {
   payOnline,
   requestPayout,
   setDestination,
+  verifyDestination,
   simulate,
   summaryOf,
   walletOf,
@@ -207,6 +208,12 @@ describe('Finance: online payment, change order difference, wallet and payouts',
     });
     expect(JSON.stringify(row)).not.toContain('0006100519786457841326');
     expect(row.last4).toBe('1326');
+    // Faz 6: a new destination waits for a finance admin.
+    expect(row.verificationStatus).toBe('PENDING_VERIFICATION');
+    await requestPayout(ctx, job.provider, 100000)
+      .expect(403)
+      .expect((res) => expect(res.body.code).toBe('PAYOUT_DESTINATION_NOT_VERIFIED'));
+    await verifyDestination(ctx, admin, job.provider.providerId);
 
     await requestPayout(ctx, job.provider, 5000)
       .expect(422)
@@ -252,6 +259,8 @@ describe('Finance: online payment, change order difference, wallet and payouts',
   });
 
   it('E: two concurrent 1000 requests from 1295: exactly one succeeds', async () => {
+    // D spent most of the per-minute payout request budget.
+    await resetRateLimits(ctx);
     const results = await Promise.all([
       requestPayout(ctx, job.provider, 100000),
       requestPayout(ctx, job.provider, 100000),

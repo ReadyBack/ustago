@@ -1,10 +1,11 @@
-import { type CanActivate, type ExecutionContext, Injectable } from '@nestjs/common';
+import { type CanActivate, type ExecutionContext, Inject, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
 import { IS_PUBLIC_KEY, OPTIONAL_AUTH_KEY } from '../common/auth/decorators.js';
 import { unauthorized } from '../common/http/errors.js';
-import { accountDisabledError } from './auth.service.js';
+import { API_ENV, type ApiEnv } from '../config/env.js';
+import { accountDisabledError, isIdle } from './auth.service.js';
 import { SessionsRepository } from './sessions.repository.js';
 import { InvalidAccessTokenError, TokenService } from './token.service.js';
 
@@ -19,6 +20,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly tokens: TokenService,
     private readonly sessions: SessionsRepository,
+    @Inject(API_ENV) private readonly env: ApiEnv,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -59,11 +61,25 @@ export class JwtAuthGuard implements CanActivate {
       throw unauthorized('SESSION_REVOKED', 'Oturum sonlandırılmış. Lütfen tekrar giriş yapın.');
     }
     if (session.user.status !== 'ACTIVE') throw accountDisabledError(session.user.status);
+    const now = new Date();
+    if (session.isAdmin && isIdle(session.lastUsedAt, now, this.env.ADMIN_IDLE_TIMEOUT_MINUTES)) {
+      await this.sessions.revoke(session.id, 'IDLE_TIMEOUT');
+      throw unauthorized(
+        'SESSION_IDLE_TIMEOUT',
+        'Uzun süre işlem yapılmadı. Lütfen tekrar giriş yapın.',
+      );
+    }
+    // "Son kullanım" for the sessions screen and the admin idle timeout;
+    // written at most once a minute per session.
+    if (now.getTime() - session.lastUsedAt.getTime() > 60_000) {
+      await this.sessions.touch(session.id, now);
+    }
 
     request.user = {
       id: session.userId,
       sessionId: session.id,
       roles: session.user.roles.map((r) => r.role),
+      permissions: session.user.adminPermissions.map((p) => p.permission),
     };
     return true;
   }

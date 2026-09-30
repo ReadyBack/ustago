@@ -108,6 +108,7 @@ export async function createPenalty(
   if (!body.success) return { error: firstIssue(body.error) };
   return send(`/admin/providers/${providerId.data}/penalties`, body.data, [
     `/providers/${providerId.data}`,
+    `/providers/${providerId.data}/360`,
   ]);
 }
 
@@ -120,5 +121,8 @@ export async function revokePenalty(
   if (!id.success || !providerId.success) return INVALID;
   const body = revokePenaltySchema.safeParse({ reason: text(form, 'reason') });
   if (!body.success) return { error: firstIssue(body.error) };
-  return send(`/admin/penalties/${id.data}/revoke`, body.data, [`/providers/${providerId.data}`]);
+  return send(`/admin/penalties/${id.data}/revoke`, body.data, [
+    `/providers/${providerId.data}`,
+    `/providers/${providerId.data}/360`,
+  ]);
 }

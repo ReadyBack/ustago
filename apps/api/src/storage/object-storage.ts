@@ -13,6 +13,8 @@ export interface ObjectStorage {
   head(key: string): Promise<ObjectInfo | null>;
   /** First `length` bytes of the object, for magic-byte checks. */
   readPrefix(key: string, length: number): Promise<Buffer>;
+  /** SHA-256 (hex) of the whole object, for duplicate detection (Faz 6). */
+  sha256(key: string): Promise<string>;
   delete(key: string): Promise<void>;
 }
 

@@ -5,10 +5,13 @@ import {
   adminPayoutDecisionSchema,
   adminRefundSchema,
   idempotencyKeySchema,
+  resolvePayoutRequestSchema,
   uuidSchema,
+  verifyPayoutDestinationRequestSchema,
 } from '@ustago/validation';
 import { revalidatePath } from 'next/cache';
 
+import { FORBIDDEN_MESSAGE } from '@/lib/action-errors';
 import { apiAction } from '@/lib/api';
 import { parseAmountInput, REFUND_STALE_MESSAGE } from '@/lib/finance';
 
@@ -30,6 +33,7 @@ const MESSAGES: Record<string, string> = {
   CASH_SETTLEMENT_NOT_FOUND: 'Nakit ödeme kaydı bulunamadı.',
   CASH_INVALID_STATE: 'Nakit ödeme kaydının durumu değişmiş; sayfayı yenileyin.',
   ROUTE_NOT_FOUND: 'Bu test işlemi yalnızca test ödeme sağlayıcısıyla kullanılabilir.',
+  PAYOUT_DESTINATION_NOT_FOUND: 'Banka hesabı bulunamadı.',
 };
 
 const INVALID = { error: 'Geçersiz istek.' };
@@ -49,7 +53,11 @@ async function send(
   headers?: Record<string, string>,
 ): Promise<FinanceActionState> {
   const result = await apiAction(path, { method: 'POST', body, headers });
-  if (!result.ok) return { error: MESSAGES[result.code] ?? result.message };
+  if (!result.ok) {
+    return {
+      error: MESSAGES[result.code] ?? (result.status === 403 ? FORBIDDEN_MESSAGE : result.message),
+    };
+  }
   for (const p of revalidate) revalidatePath(p);
   return { ok: true };
 }
@@ -129,5 +137,47 @@ export async function resolveCash(
   return send(`/admin/finance/cash-settlements/${id.data}/resolve`, body.data, [
     '/finance',
     '/finance/cash',
+  ]);
+}
+
+/**
+ * Close a payout whose outcome was unknown (NEEDS_RECONCILIATION) after
+ * checking with the payout provider: PAID or FAILED, with a note.
+ */
+export async function resolvePayout(
+  _prev: FinanceActionState,
+  form: FormData,
+): Promise<FinanceActionState> {
+  const id = uuidSchema.safeParse(form.get('id'));
+  if (!id.success) return INVALID;
+  const body = resolvePayoutRequestSchema.safeParse({
+    outcome: text(form, 'outcome'),
+    note: text(form, 'note'),
+  });
+  if (!body.success) {
+    return {
+      error:
+        body.error.issues[0]?.path[0] === 'note'
+          ? 'Not 5–500 karakter olmalı.'
+          : 'Sağlayıcıdaki sonucu seçin.',
+    };
+  }
+  return send(`/admin/finance/payouts/${id.data}/resolve`, body.data, [
+    '/finance',
+    '/finance/payouts',
+  ]);
+}
+
+/** Mark a (TEST) bank account as verified after checking it. */
+export async function verifyPayoutDestination(
+  _prev: FinanceActionState,
+  form: FormData,
+): Promise<FinanceActionState> {
+  const id = uuidSchema.safeParse(form.get('id'));
+  if (!id.success) return INVALID;
+  const body = verifyPayoutDestinationRequestSchema.safeParse({ note: text(form, 'note') });
+  if (!body.success) return { error: 'Not 5–500 karakter olmalı.' };
+  return send(`/admin/finance/payout-destinations/${id.data}/verify`, body.data, [
+    '/finance/payouts',
   ]);
 }

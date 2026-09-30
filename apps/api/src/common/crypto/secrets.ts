@@ -1,5 +1,7 @@
 import { createHmac } from 'node:crypto';
 
+import { isStrictEnv } from '@ustago/config';
+
 import type { ApiEnv } from '../../config/env.js';
 
 /**
@@ -11,12 +13,12 @@ import type { ApiEnv } from '../../config/env.js';
  */
 export function secretFor(
   env: ApiEnv,
-  purpose: 'otp' | 'storage' | 'payment-webhook',
+  purpose: 'otp' | 'storage' | 'payment-webhook' | 'ip-hash',
   configured: string | undefined,
 ): Buffer {
   if (configured) return Buffer.from(configured, 'utf8');
-  if (env.NODE_ENV === 'production') {
-    throw new Error(`Missing ${purpose} secret in production.`);
+  if (isStrictEnv(env.APP_ENV)) {
+    throw new Error(`Missing ${purpose} secret in ${env.APP_ENV}.`);
   }
   return createHmac('sha256', env.JWT_ACCESS_SECRET).update(`ustago:${purpose}:v1`).digest();
 }

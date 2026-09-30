@@ -8,6 +8,7 @@ import type {
   QuoteRevisionKind,
   QuoteStatus,
   ServiceRequestStatus,
+  VerificationType,
 } from '@ustago/types';
 
 import type { Tone } from './theme';
@@ -72,6 +73,28 @@ export const PROVIDER_STATUS: Record<ProviderStatus, Label> = {
   ACTIVE: { label: 'Onaylı usta', tone: 'success' },
   SUSPENDED: { label: 'Askıya alındı', tone: 'danger' },
   REJECTED: { label: 'Başvuru reddedildi', tone: 'danger' },
+};
+
+/** Document types, as the provider uploads them. */
+export const VERIFICATION_TYPE_LABEL: Record<VerificationType, string> = {
+  IDENTITY: 'Kimlik belgesi',
+  PROFESSIONAL_CERTIFICATE: 'Ustalık / mesleki yeterlilik belgesi',
+  TAX_REGISTRATION: 'Vergi levhası',
+  BUSINESS_LICENSE: 'İşyeri ruhsatı',
+  CRIMINAL_RECORD: 'Adli sicil kaydı',
+  BUSINESS_DOCUMENT: 'İşletme belgesi',
+  OTHER: 'Diğer belge',
+};
+
+/** Approved document types, as badges on the public profile. */
+export const VERIFICATION_BADGE: Record<VerificationType, string> = {
+  IDENTITY: '✓ Kimlik doğrulandı',
+  PROFESSIONAL_CERTIFICATE: '✓ Mesleki belge',
+  TAX_REGISTRATION: '✓ Vergi kaydı',
+  BUSINESS_LICENSE: '✓ İşyeri ruhsatı',
+  CRIMINAL_RECORD: '✓ Adli sicil kaydı',
+  BUSINESS_DOCUMENT: '✓ İşletme belgesi',
+  OTHER: '✓ Ek belge',
 };
 
 /** Timeline steps, as both sides read them. */

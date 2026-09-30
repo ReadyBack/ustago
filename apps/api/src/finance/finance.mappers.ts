@@ -42,7 +42,13 @@ export function toPayment(
 }
 
 export function toDestination(d: DestinationRow): PayoutDestination {
-  return { id: d.id, holderName: d.holderName, maskedIban: d.maskedIban, isTest: d.isTest };
+  return {
+    id: d.id,
+    holderName: d.holderName,
+    maskedIban: d.maskedIban,
+    isTest: d.isTest,
+    verificationStatus: d.verificationStatus,
+  };
 }
 
 export function toPayout(p: PayoutRow & { destination: DestinationRow }): Payout {

@@ -107,6 +107,17 @@ describe('payouts', () => {
     expect(payoutTransition('REQUESTED', 'MARK_PAID')).toBeNull();
   });
 
+  it('Faz 6: an unknown provider outcome parks the payout, only a decision ends it', () => {
+    expect(payoutTransition('APPROVED', 'MARK_UNKNOWN')).toBe('NEEDS_RECONCILIATION');
+    expect(payoutTransition('PROCESSING', 'MARK_UNKNOWN')).toBe('NEEDS_RECONCILIATION');
+    expect(payoutTransition('NEEDS_RECONCILIATION', 'MARK_PAID')).toBe('PAID');
+    expect(payoutTransition('NEEDS_RECONCILIATION', 'MARK_FAILED')).toBe('FAILED');
+    // Never cancelled or retried blindly: the bank may have sent the money.
+    expect(payoutTransition('NEEDS_RECONCILIATION', 'CANCEL')).toBeNull();
+    expect(payoutTransition('NEEDS_RECONCILIATION', 'START_PROCESSING')).toBeNull();
+    expect(payoutTransition('REQUESTED', 'MARK_UNKNOWN')).toBeNull();
+  });
+
   it('checks minimum and withdrawable', () => {
     expect(checkPayoutAmount({ amount: 5000n, withdrawable: 229500n, minimum: 10000n })).toEqual({
       ok: false,

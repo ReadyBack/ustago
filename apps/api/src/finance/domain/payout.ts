@@ -4,15 +4,22 @@ import type { PayoutStatus } from '../../generated/prisma/enums.js';
  * Payout state machine (docs/adr/0020). REQUESTED → APPROVED → PROCESSING →
  * PAID | FAILED; REQUESTED/APPROVED → CANCELLED. The money is reserved at
  * request time and released again on FAILED / CANCELLED.
+ *
+ * Faz 6: when the payout provider's answer is lost (timeout, 5xx) the
+ * payout goes to NEEDS_RECONCILIATION. The money stays reserved: releasing
+ * it could pay twice if the bank did send it. Only a finance admin, after
+ * checking with the provider, moves it to PAID or FAILED.
  */
 
-export type PayoutEvent = 'APPROVE' | 'START_PROCESSING' | 'MARK_PAID' | 'MARK_FAILED' | 'CANCEL';
+export type PayoutEvent =
+  'APPROVE' | 'START_PROCESSING' | 'MARK_PAID' | 'MARK_FAILED' | 'MARK_UNKNOWN' | 'CANCEL';
 
 const TRANSITIONS: Record<PayoutEvent, { from: readonly PayoutStatus[]; to: PayoutStatus }> = {
   APPROVE: { from: ['REQUESTED'], to: 'APPROVED' },
   START_PROCESSING: { from: ['APPROVED'], to: 'PROCESSING' },
-  MARK_PAID: { from: ['PROCESSING'], to: 'PAID' },
-  MARK_FAILED: { from: ['APPROVED', 'PROCESSING'], to: 'FAILED' },
+  MARK_PAID: { from: ['PROCESSING', 'NEEDS_RECONCILIATION'], to: 'PAID' },
+  MARK_FAILED: { from: ['APPROVED', 'PROCESSING', 'NEEDS_RECONCILIATION'], to: 'FAILED' },
+  MARK_UNKNOWN: { from: ['APPROVED', 'PROCESSING'], to: 'NEEDS_RECONCILIATION' },
   CANCEL: { from: ['REQUESTED', 'APPROVED'], to: 'CANCELLED' },
 };
 
@@ -30,6 +37,7 @@ export const RESERVED_PAYOUT_STATUSES: readonly PayoutStatus[] = [
   'REQUESTED',
   'APPROVED',
   'PROCESSING',
+  'NEEDS_RECONCILIATION',
 ];
 
 export type PayoutCheck =

@@ -1,13 +1,17 @@
 import { Module } from '@nestjs/common';
 
+import { NotificationsModule } from '../notifications/notifications.module.js';
 import { ProviderCatalogService } from './provider-catalog.service.js';
 import { ProviderVerificationsService } from './provider-verifications.service.js';
 import { ProviderStore } from './provider.store.js';
 import { ProvidersController } from './providers.controller.js';
 import { ProvidersService } from './providers.service.js';
 import { PublicProvidersService } from './public-providers.service.js';
+import { SuspensionsService } from './suspensions.service.js';
+import { VerificationCaseService } from './verification-case.service.js';
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [ProvidersController],
   providers: [
     ProviderStore,
@@ -15,7 +19,9 @@ import { PublicProvidersService } from './public-providers.service.js';
     ProviderCatalogService,
     ProviderVerificationsService,
     PublicProvidersService,
+    VerificationCaseService,
+    SuspensionsService,
   ],
-  exports: [ProviderStore],
+  exports: [ProviderStore, VerificationCaseService, SuspensionsService],
 })
 export class ProvidersModule {}

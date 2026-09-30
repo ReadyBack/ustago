@@ -31,7 +31,11 @@ describe('financeConfigFrom', () => {
   });
 
   it('refuses mock providers in production even if the schema were bypassed', () => {
-    const env = { ...parseEnv(apiEnvSchema, base), NODE_ENV: 'production' as const };
+    const env = {
+      ...parseEnv(apiEnvSchema, base),
+      NODE_ENV: 'production' as const,
+      APP_ENV: 'production' as const,
+    };
     expect(() => financeConfigFrom(env)).toThrow(/not allowed in production/);
   });
 });

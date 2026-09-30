@@ -151,6 +151,8 @@ export const verificationTypeSchema = z.enum([
   'TAX_REGISTRATION',
   'BUSINESS_LICENSE',
   'CRIMINAL_RECORD',
+  'BUSINESS_DOCUMENT',
+  'OTHER',
 ]) satisfies z.ZodType<VerificationType>;
 
 export const verificationStatusSchema = z.enum([
@@ -282,6 +284,7 @@ export const publicProviderProfileSchema = z
     services: z.array(providerServiceItemSchema),
     serviceAreas: z.array(providerServiceAreaGroupSchema),
     verificationBadges: z.array(verificationTypeSchema),
+    isVerified: z.boolean(),
     rating: z.object({ average: z.number(), count: z.number().int() }).nullable(),
     completedJobCount: z.number().int(),
     ustaScore: z.number().int().min(0).max(100).nullable(),

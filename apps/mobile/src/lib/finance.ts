@@ -61,6 +61,7 @@ const PAYOUT_TONE: Record<PayoutStatus, Tone> = {
   PAID: 'success',
   FAILED: 'danger',
   CANCELLED: 'neutral',
+  NEEDS_RECONCILIATION: 'warning',
 };
 
 const EARNING_TONE: Record<ProviderEarningStatus, Tone> = {

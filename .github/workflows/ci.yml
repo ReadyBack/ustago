@@ -64,6 +64,14 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
+      - name: Secret scan and additive-migration guard
+        run: |
+          pnpm security:secrets
+          pnpm db:migration-guard
+
+      - name: Dependency audit (fails on critical)
+        run: pnpm audit --prod --audit-level=critical
+
       - name: Lint
         run: pnpm lint
 
@@ -75,6 +83,27 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Production config guard (Faz 6)
+        # A production process must refuse mock money, demo seed and test KYC,
+        # and start with a complete (throwaway) production-shaped config.
+        run: |
+          if env -i PATH="$PATH" HOME="$HOME" NODE_ENV=production APP_ENV=production \
+              DATABASE_URL="$DATABASE_URL" REDIS_URL="$REDIS_URL" JWT_ACCESS_SECRET="$JWT_ACCESS_SECRET" \
+              PAYMENT_PROVIDER=mock PAYOUT_PROVIDER=mock ALLOW_TEST_KYC=true \
+              ALLOW_DEV_PAYMENT_SIMULATION=true DEMO_SEED=true pnpm -s config:check; then
+            echo "::error::production config with mock providers was accepted"; exit 1
+          fi
+          R=ci-only-production-shaped-secret-0000000000
+          env -i PATH="$PATH" HOME="$HOME" NODE_ENV=production APP_ENV=production \
+            DATABASE_URL="$DATABASE_URL" REDIS_URL="$REDIS_URL" JWT_ACCESS_SECRET="$R-jwt" \
+            OTP_HASH_SECRET="$R-otp" STORAGE_SIGNING_SECRET="$R-sto" IP_HASH_SECRET="$R-ip" \
+            METRICS_TOKEN="$R-met" PAYMENT_PROVIDER=disabled PAYOUT_PROVIDER=disabled \
+            SMS_PROVIDER=disabled PUSH_PROVIDER=disabled STORAGE_DRIVER=disabled \
+            FINANCE_EARNING_HOLD_HOURS=72 FINANCE_MIN_PAYOUT_MINOR=10000 \
+            ACCOUNT_DELETION_GRACE_HOURS=720 API_CORS_ORIGINS=https://admin.example.invalid \
+            RECONCILIATION_INTERVAL_MINUTES=60 LOG_FORMAT=json API_SWAGGER_ENABLED=false \
+            pnpm -s config:check
 
       - name: Prisma validate and migrate
         run: |

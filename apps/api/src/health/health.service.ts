@@ -1,8 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { isStrictEnv } from '@ustago/config';
 import type { DependencyStatus, HealthResponse } from '@ustago/types';
 
 import { withTimeout } from '../common/utils/with-timeout.js';
 import { API_ENV, type ApiEnv } from '../config/env.js';
+import { redactText } from '../observability/redact.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
 
@@ -42,9 +44,10 @@ export class HealthService {
       await withTimeout(fn(), CHECK_TIMEOUT_MS, name);
       return { status: 'up', latencyMs: Math.round(performance.now() - started) };
     } catch (error) {
-      // Only the error message is exposed: connection strings never are.
+      // Public endpoint: in staging/production nothing but "down" is shown.
+      if (isStrictEnv(this.env.APP_ENV)) return { status: 'down' };
       const message = error instanceof Error ? error.message.split('\n')[0] : 'unknown error';
-      return { status: 'down', error: message };
+      return { status: 'down', error: redactText(message ?? 'unknown error') };
     }
   }
 }

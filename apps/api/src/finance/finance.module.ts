@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 
 import { API_ENV, type ApiEnv } from '../config/env.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
+import { AdminFeePoliciesController } from './admin-fee-policies.controller.js';
 import { AdminFinanceController } from './admin-finance.controller.js';
 import { AdminFinanceService } from './admin-finance.service.js';
 import { CashService } from './cash.service.js';
 import { DevFinanceController } from './dev-finance.controller.js';
 import { DevFinanceGuard } from './dev-finance.guard.js';
 import { EarningsService } from './earnings.service.js';
+import { FeePoliciesAdminService } from './fee-policies-admin.service.js';
 import { FeePolicyService } from './fee-policy.service.js';
 import { FINANCE_CONFIG, type FinanceConfig, financeConfigFrom } from './finance.config.js';
 import { FinanceController } from './finance.controller.js';
@@ -41,6 +43,7 @@ import { WebhooksService } from './webhooks.service.js';
     WebhooksController,
     DevFinanceController,
     AdminFinanceController,
+    AdminFeePoliciesController,
   ],
   providers: [
     {
@@ -74,6 +77,7 @@ import { WebhooksService } from './webhooks.service.js';
     WebhooksService,
     ReconciliationService,
     AdminFinanceService,
+    FeePoliciesAdminService,
     FinanceSweepService,
     DevFinanceGuard,
   ],
@@ -85,6 +89,8 @@ import { WebhooksService } from './webhooks.service.js';
     LedgerService,
     ReconciliationService,
     PaymentsService,
+    PayoutsService,
+    WalletService,
   ],
 })
 export class FinanceModule {}

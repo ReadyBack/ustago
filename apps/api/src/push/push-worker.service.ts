@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 
 import { API_ENV, type ApiEnv } from '../config/env.js';
+import { HeartbeatService, WORKERS } from '../ops/heartbeat.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   isDeadTokenError,
@@ -48,6 +49,7 @@ export class PushWorkerService implements OnApplicationBootstrap, OnApplicationS
     private readonly prisma: PrismaService,
     @Inject(PUSH_PROVIDER) private readonly provider: PushProvider,
     @Inject(API_ENV) private readonly env: ApiEnv,
+    private readonly heartbeat: HeartbeatService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -65,7 +67,13 @@ export class PushWorkerService implements OnApplicationBootstrap, OnApplicationS
     if (this.running) return;
     this.running = true;
     try {
-      const result = await this.runOnce();
+      const result = await this.heartbeat.track(
+        WORKERS.PUSH,
+        () => this.runOnce(),
+        (r) => ({
+          ...r,
+        }),
+      );
       if (result.claimed > 0) {
         this.logger.log(
           `Push (${this.provider.name}): ${result.sent} sent, ${result.devLogged} dev-logged, ` +
@@ -147,9 +155,12 @@ export class PushWorkerService implements OnApplicationBootstrap, OnApplicationS
       return 'skipped';
     }
 
-    const data = isStringRecord(n.data)
-      ? { ...n.data, notificationId: n.id }
-      : { notificationId: n.id };
+    // The app opens `deepLink` on tap (Faz 6); ids only, no personal data.
+    const data = {
+      ...(isStringRecord(n.data) ? n.data : {}),
+      notificationId: n.id,
+      ...(n.deepLink ? { deepLink: n.deepLink } : {}),
+    };
     let tickets: PushTicketResult[];
     try {
       tickets = await this.provider.send(

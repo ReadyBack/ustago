@@ -345,3 +345,5 @@ export {
   walletSchema,
   walletStatementSchema,
 } from './finance.js';
+export * from './trust.js';
+export * from './ops.js';

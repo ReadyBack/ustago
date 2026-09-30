@@ -19,8 +19,8 @@ export class ConsolePushProvider implements PushProvider {
   private readonly logger = new Logger('ConsolePush');
 
   constructor(nodeEnv: string) {
-    if (nodeEnv === 'production') {
-      throw new Error('ConsolePushProvider must not be used in production.');
+    if (nodeEnv === 'production' || nodeEnv === 'staging') {
+      throw new Error('ConsolePushProvider must not be used in staging or production.');
     }
   }
 

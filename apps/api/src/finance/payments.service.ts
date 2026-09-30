@@ -15,6 +15,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { Payment as PaymentRow, PaymentTransaction } from '../generated/prisma/client.js';
 import { NotificationEvent } from '../notifications/notification-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { RuntimeFlagsService } from '../ops/runtime-flags.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RateLimitService } from '../rate-limit/rate-limit.service.js';
 import { canDisputeCash, hasConfirmed } from './domain/cash.js';
@@ -95,6 +96,7 @@ export class PaymentsService {
     private readonly rateLimit: RateLimitService,
     @Inject(FINANCE_CONFIG) private readonly config: FinanceConfig,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
+    private readonly flags: RuntimeFlagsService,
   ) {}
 
   private get onlineEnabled(): boolean {
@@ -227,6 +229,7 @@ export class PaymentsService {
   ): Promise<JobPaymentSummary> {
     if (method === 'CASH' && !this.config.cashEnabled) throw cashDisabled();
     if (method === 'IN_APP' && !this.onlineEnabled) throw paymentsDisabled();
+    await this.flags.assertEnabled(method === 'CASH' ? 'cash' : 'payments');
     const cancelled: PaymentWithAttempts[] = [];
     await this.prisma.$transaction(async (tx) => {
       const p = await jobForParty(tx, jobId, user.id, true);
@@ -317,6 +320,7 @@ export class PaymentsService {
     ipAddress: string | null,
   ): Promise<Payment> {
     if (!this.onlineEnabled) throw paymentsDisabled();
+    await this.flags.assertEnabled('payments');
     const replay = await this.replayed(user.id, jobId, idempotencyKey);
     if (replay) return replay;
     await this.rateLimit.enforceWithCode('FINANCE_RATE_LIMITED', {
@@ -573,6 +577,18 @@ export class PaymentsService {
           failureCode: failureCode ?? 'PROVIDER_ERROR',
         },
       });
+      // Faz 6: the payer learns about it and can retry from the link.
+      await this.notifications.enqueueIn(tx, [
+        {
+          userId: payment.payerId,
+          type: NotificationEvent.PAYMENT_FAILED,
+          title: 'Ödemeniz tamamlanamadı.',
+          body: this.provider.isTestMode
+            ? 'TEST ortamı: tekrar deneyebilirsiniz, gerçek para çekilmedi.'
+            : 'Kartınızdan tutar çekilmedi. Tekrar deneyebilirsiniz.',
+          data: { jobId: payment.jobId, paymentId: payment.id },
+        },
+      ]);
       return { outcome: 'PROCESSED', refundIds: [] };
     }
     if (decision.to !== 'SUCCEEDED') return { outcome: 'PROCESSED', refundIds: [] };

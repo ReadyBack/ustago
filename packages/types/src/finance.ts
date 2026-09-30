@@ -36,7 +36,14 @@ export type RefundReason =
   | 'OTHER';
 export type ProviderEarningStatus = 'PENDING' | 'HELD' | 'AVAILABLE' | 'REVERSED';
 export type PayoutStatus =
-  'REQUESTED' | 'APPROVED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED';
+  | 'REQUESTED'
+  | 'APPROVED'
+  | 'PROCESSING'
+  | 'PAID'
+  | 'FAILED'
+  | 'CANCELLED'
+  /** Faz 6: the provider's answer was lost; money stays reserved until checked. */
+  | 'NEEDS_RECONCILIATION';
 export type LedgerAccountType =
   | 'PROVIDER_PENDING'
   | 'PROVIDER_AVAILABLE'
@@ -203,6 +210,11 @@ export interface PayoutDestination {
   /** "TR** **** **** **** **** **12 34": the full IBAN is never stored. */
   maskedIban: string;
   isTest: boolean;
+  /**
+   * Payouts need VERIFIED. Faz 6 verifies manually (finance admin); a real
+   * account-ownership check is a provider decision (docs/decisions).
+   */
+  verificationStatus: 'UNVERIFIED' | 'PENDING_VERIFICATION' | 'VERIFIED';
 }
 
 export interface Payout {

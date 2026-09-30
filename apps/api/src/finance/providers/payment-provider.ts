@@ -103,6 +103,18 @@ export interface PaymentProvider {
 
 export const PAYMENT_PROVIDER = Symbol('PAYMENT_PROVIDER');
 
+/**
+ * The payout provider definitely refused the payout (e.g. invalid account):
+ * the money can be released. Any other error means the outcome is unknown
+ * and the payout goes to NEEDS_RECONCILIATION (Faz 6).
+ */
+export class PayoutRejectedError extends Error {
+  constructor(readonly code: string) {
+    super(`Payout rejected: ${code}`);
+    this.name = 'PayoutRejectedError';
+  }
+}
+
 /** Payouts to providers' bank accounts (docs/adr/0020). */
 export interface PayoutProvider {
   readonly name: string;

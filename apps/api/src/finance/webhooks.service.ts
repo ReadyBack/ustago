@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { httpError, notFound } from '../common/http/errors.js';
 import { Prisma } from '../generated/prisma/client.js';
 import type { WebhookEventOutcome } from '../generated/prisma/client.js';
+import { metrics } from '../observability/metrics.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { FINANCE_CONFIG, type FinanceConfig } from './finance.config.js';
 import { PaymentsService } from './payments.service.js';
@@ -67,6 +68,7 @@ export class WebhooksService {
     } catch (error) {
       if (error instanceof WebhookVerificationError) {
         this.logger.warn(`Rejected ${providerName} webhook: ${error.code}`);
+        metrics.domainEvents.inc({ event: 'webhook.rejected' });
         if (error.code === 'WEBHOOK_MALFORMED') {
           throw httpError(400, error.code, 'Webhook gövdesi okunamadı.');
         }
@@ -78,7 +80,10 @@ export class WebhooksService {
     const seen = await this.prisma.webhookEvent.findUnique({
       where: { provider_eventId: { provider: providerName, eventId: event.eventId } },
     });
-    if (seen) return { received: true, duplicate: true, outcome: seen.outcome };
+    if (seen) {
+      metrics.domainEvents.inc({ event: 'webhook.duplicate' });
+      return { received: true, duplicate: true, outcome: seen.outcome };
+    }
 
     let refundIds: string[] = [];
     let outcome: WebhookEventOutcome;
@@ -103,6 +108,7 @@ export class WebhooksService {
       // The same event delivered twice at the same time: the second
       // transaction rolled back as a whole; the first one counts.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        metrics.domainEvents.inc({ event: 'webhook.duplicate' });
         return { received: true, duplicate: true, outcome: null };
       }
       throw error;

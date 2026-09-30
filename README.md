@@ -96,6 +96,11 @@ etiketi vardır.
 | `demo-musteri-elif@…`       | 500 000 00 13         | Geçmiş müşteri (Faz 4): 5 yıldız, montaj işi                                               |
 | `admin@ustago.test`         | (e-posta + şifre)     | SUPER_ADMIN, admin paneli                                                                  |
 | `usta@ustago.test`          | (e-posta + şifre)     | İstanbul'da onaylı usta (Faz 2 demo hesabı)                                                |
+| `destek@ustago.test`        | (e-posta + şifre)     | Faz 6: ADMIN + yalnız `ADMIN_SUPPORT` (anlaşmazlık, yorum, ceza, risk)                     |
+| `finans@ustago.test`        | (e-posta + şifre)     | Faz 6: ADMIN + yalnız `ADMIN_FINANCE` (iade, para çekme, komisyon politikası)              |
+| `dogrulama@ustago.test`     | (e-posta + şifre)     | Faz 6: ADMIN + yalnız `ADMIN_VERIFICATION` (usta doğrulama, askıya alma)                   |
+| `usta-revizyon@ustago.test` | (e-posta + şifre)     | Faz 6: doğrulaması "Düzeltme gerekli" (reddedilen kimlik belgesi, gerekçeli)               |
+| `usta-askida@ustago.test`   | (e-posta + şifre)     | Faz 6: hesabı askıda usta (teklif veremez, para çekemez)                                   |
 
 - **OTP kodu**: gerçek SMS gönderilmez (`SMS_PROVIDER=console`). "Kod Gönder"e bastıktan sonra API
   çıktısında şu satırı arayın: `[DEV SMS → +90500*****01] OTP KODU: 123456`. Kod 3 dakika geçerli.
@@ -209,6 +214,65 @@ Seed sonrası beklenen çıktı: 2 ödeme, 1 iade, 2 kazanç, 1 para çekme, 1 n
 kaydı; borç ₺10.390 = alacak ₺10.390, **DENGELİ**, uyumsuzluk 0. Mutabakat hiçbir şeyi otomatik
 düzeltmez. Ayrıntı: ADR-0018, 0019, 0020 ve [docs/api](docs/api/README.md) Faz 5 bölümü.
 
+## FAZ 6 LOCAL DEMO
+
+**Bu faz üretime hazırlık mimarisidir; üretim kurulumu değildir.** Gerçek KYC, gerçek belge
+deposu, gerçek SMS, gerçek ödeme veya banka bağlantısı yoktur. Yerelde belgeler `apps/api/.data/storage/`
+altında tutulur (git'e girmez); kimlik doğrulama yalnız admin incelemesiyle (TEST) yapılır. TC
+Kimlik numarası ham hâliyle saklanmaz.
+
+Seed'e ek hesaplar (şifre `DemoPass2026!`): `destek@`, `finans@`, `dogrulama@ustago.test` (rollerine
+göre kısıtlı admin), **Demo Revizyon Ustası** (500 000 00 06, belgesi reddedilmiş) ve **Demo Askıdaki
+Usta** (500 000 00 07, askıya alınmış).
+
+- **A — Usta doğrulama (mobil):** 500 000 00 06 ile girin, usta modunda **Hesap Durumu** kartı →
+  **Eksikleri tamamla**. Beş adım: Neler gerekli?, Kimlik belgesi, Ek belgeler, Kontrol et, Durum.
+  Reddedilen belgenin nedeni görünür; yeni belge yükleyin → **İncelemeye Gönder**. Kategoriye göre
+  zorunlu belgeler admin **Belge kuralları** sayfasından gelir.
+- **B — Admin doğrulama:** `dogrulama@ustago.test` → **Doğrulama talepleri** → talep → **İncelemeye
+  al** → **Onayla**, **Revizyon iste** ya da **Reddet** (gerekçe zorunlu). Mobilde durum
+  "Doğrulandı" olur ve usta profilinde "✓ Kimliği/hesabı doğrulanmıştır" rozeti çıkar. Acil (NOW) işler ve para
+  çekme yalnız doğrulanmış ustaya açıktır; doğrulaması olmayan eski aktif ustalar listelenir ve
+  teklif verebilir.
+- **C — Askıya alma:** admin → usta → **Usta 360 → Cezalar**: **Askıya al** (süreli ya da süresiz,
+  gerekçe ve onay zorunlu) / **Askıyı kaldır**. 500 000 00 07 ile giren usta yeni talep göremez,
+  teklif veremez; hesabı "Askıda" gösterilir ve itiraz yolu yazılıdır. Mevcut işler ve kazançlar
+  silinmez.
+- **D — Komisyon politikası:** `finans@ustago.test` → **Komisyon politikaları** → yeni taslak (kod
+  küçük harf ve tire, ör. `yaz-2027`), oran, başlangıç → önizleme (₺500 … ₺10.000 için ücret ve
+  ustaya kalan) → **Yayınla** (onay). Yayınlanan politika veritabanında değiştirilemez; aynı anda
+  iki yayından biri kazanır. Anlaşması yapılmış iş eski oranını korur. `DEV-DEFAULT-1500` nihai
+  ticari oran değildir.
+- **E — Oturum yönetimi:** mobil **Profil → Güvenlik ve hesap → Aktif Oturumlar**: cihazlar, bu
+  cihaz işaretli, tek tek **Oturumu kapat** ve **Diğer tüm oturumları kapat**. Refresh token her kullanımda
+  döner; eski token tekrar kullanılırsa o oturum ailesi kapatılır. Admin oturumu en çok
+  `ADMIN_SESSION_MAX_HOURS` saat, boşta `ADMIN_IDLE_TIMEOUT_MINUTES` dakika yaşar. MFA yoktur
+  (sahte MFA eklenmedi).
+- **F — Operasyon:** `admin@ustago.test` → **Operasyon**: bileşen durumu, kuyruklar, son mutabakat,
+  arka plan işleri, **Özellik anahtarları** (ödemeler, para çekme, nakit, yeni işler; gerekçe
+  zorunlu, denetime yazılır) ve **Uyarılar** (onayla / çöz). **Yetkiler** sayfası rol → izin
+  matrisini, **Denetim kayıtları** sayfası tüm yönetici işlemlerini gösterir. `destek@` ile yetkisiz bir
+  işlem "Bu işlem için yetkiniz yok." döner. Sağlık: `GET /api/v1/health/ready`; metrikler:
+  `GET /api/v1/metrics` (üretimde `METRICS_TOKEN` zorunlu).
+- **G — Finans mutabakatı zamanlaması:** geliştirmede `RECONCILIATION_INTERVAL_MINUTES=0`
+  (yalnız elle: admin **Operasyon → Mutabakat** ya da `pnpm finance:reconcile`). Staging/üretimde
+  0 ise API başlamaz. Mutabakat hiçbir şeyi otomatik düzeltmez; uyumsuzluk kritik uyarı açar.
+  Mock para çekmede kuruş `,13` sonucu belirsiz yapar (PAYOUT_OUTCOME_UNKNOWN + kritik uyarı,
+  admin **Finans → Para çekme** üzerinden çözer), `,14` reddedilir.
+- **H — Üretim güvenliği:** `pnpm config:check` ortam değişkenlerini doğrular.
+  `APP_ENV=production` iken mock ödeme/para çekme, TEST KYC, geliştirici ödeme simülasyonu, demo
+  seed, localhost/http CORS, eksik gizli anahtarlar gibi durumlarda API **başlamaz** (çıkış kodu 1)
+  ve sorunları listeler. Üretim derlemesi `.env` dosyasını okumaz. Ayrıntı:
+  [docs/runbooks/production-release-checklist.md](docs/runbooks/production-release-checklist.md),
+  ADR-0021 … 0027.
+
+```bash
+pnpm config:check -- --local   # kök .env ile kontrol
+APP_ENV=production PAYMENT_PROVIDER=mock pnpm config:check   # çıkış kodu 1 beklenir
+pnpm security:secrets          # izlenen dosyalarda gizli anahtar taraması
+pnpm db:migration-guard        # Faz 5 sonrası migration'lar yalnız ekleme yapar
+```
+
 ## Troubleshooting
 
 | Belirti                                                  | Çözüm                                                                                                                                                             |
@@ -291,6 +355,9 @@ fotoğraf yüklemeleri geliştirmede `apps/api/.data/storage` altında durur (gi
 | `pnpm db:reset`                     | Lokal veritabanını sıfırlar, migration + seed (Prisma CLI)            |
 | `pnpm db:validate`                  | Prisma şemasını doğrular                                              |
 | `pnpm finance:reconcile`            | Defter ve finans kayıtlarının mutabakatı (salt okunur)                |
+| `pnpm config:check`                 | Ortam değişkenlerini API açılışıyla aynı kurallarla doğrular (Faz 6)  |
+| `pnpm security:secrets`             | Repodaki dosyalarda sır/anahtar taraması                              |
+| `pnpm db:migration-guard`           | Faz 5 sonrası migration'ların yalnız ekleme yaptığını doğrular        |
 
 ## Kurallar (özet)
 
@@ -310,11 +377,20 @@ Tam liste: PROJECT.md §31.
   0009 OTP/SMS, 0010 usta yaşam döngüsü ve NOW, 0011 belge ve depolama, 0012 konum verisi,
   0013 admin oturumu, 0014 talep, teklif, pazarlık ve NOW, 0015 iş yaşam döngüsü ve ek iş,
   0016 değerlendirme ve UstaScore V1, 0017 bildirim outbox ve Expo push, 0018 finansal defter,
-  0019 ödeme sağlayıcı soyutlaması, 0020 platform ücreti ve usta kazancı)
+  0019 ödeme sağlayıcı soyutlaması, 0020 platform ücreti ve usta kazancı, 0021 üretim hazırlığı
+  seviyeleri, 0022 ortam ayrımı ve fail-closed config, 0023 usta doğrulama ve güven,
+  0024 oturum ve kimlik doğrulama güvenliği, 0025 komisyon politikası ve finans sertleştirme,
+  0026 gözlemlenebilirlik ve operasyon uyarıları, 0027 kişisel veri ve veri yaşam döngüsü)
+- Runbook'lar: [docs/runbooks](docs/runbooks) (üretim sürüm kontrol listesi, felaket kurtarma,
+  belirsiz para çekme, mutabakat uyumsuzluğu)
+- Bekleyen kararlar (DECISION REQUIRED): [docs/decisions](docs/decisions)
+- Veri sınıflandırma ve saklama (Legal review required): [docs/security](docs/security)
 - Türkiye il/ilçe verisinin kaynağı: [docs/reference-data](docs/reference-data/turkey-locations.md)
 
 ## CI
 
-`.github/workflows/ci.yml`: install → format check → lint → typecheck → test → build → Prisma validate +
+`.github/workflows/ci.yml`: install → format check → sır taraması + ekleme-only migration kontrolü →
+bağımlılık denetimi (kritikte kırmızı) → lint → typecheck → test → build → üretim config kontrolü (mock sağlayıcı/demo seed reddedilmeli, eksiksiz üretim config'i
+kabul edilmeli) → Prisma validate +
 migrate deploy + şema/migration fark kontrolü → seed (iki kez, idempotent) → API e2e
 (GitHub Actions servis konteynerlerinde PostgreSQL + Redis).

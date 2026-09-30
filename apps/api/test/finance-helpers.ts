@@ -126,6 +126,19 @@ export function setDestination(
     .send({ holderName: 'Test Usta', iban });
 }
 
+/** Faz 6: a finance admin verifies the provider's active (TEST) destination. */
+export async function verifyDestination(ctx: TestContext, admin: Actor, providerId: string) {
+  const row = await ctx.prisma.payoutDestination.findFirstOrThrow({
+    where: { providerId, deactivatedAt: null },
+  });
+  return ctx
+    .http()
+    .post(`/api/v1/admin/finance/payout-destinations/${row.id}/verify`)
+    .set('Authorization', bearer(admin))
+    .send({ note: 'e2e: TEST hesabı kontrol edildi.' })
+    .expect(200);
+}
+
 export function requestPayout(
   ctx: TestContext,
   provider: Actor,

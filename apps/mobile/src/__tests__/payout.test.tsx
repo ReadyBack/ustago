@@ -35,6 +35,7 @@ const destination: PayoutDestination = {
   holderName: 'Demo Usta',
   maskedIban: 'TR** **** **** **** **** **13 26',
   isTest: true,
+  verificationStatus: 'VERIFIED',
 };
 
 const payout = (overrides: Partial<Payout> = {}): Payout => ({

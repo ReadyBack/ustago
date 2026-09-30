@@ -20,8 +20,8 @@ export class FakeSmsProvider implements SmsProvider {
   failNext = 0;
 
   constructor(nodeEnv: string) {
-    if (nodeEnv === 'production') {
-      throw new Error('FakeSmsProvider must not be used in production.');
+    if (nodeEnv === 'production' || nodeEnv === 'staging') {
+      throw new Error('FakeSmsProvider must not be used in staging or production.');
     }
   }
 
