@@ -116,7 +116,8 @@ export interface JobPaymentActions {
 
 /**
  * GET /jobs/:id/payment-summary. All amounts computed by the server:
- * outstanding = job total − (succeeded + in-flight payments).
+ * paid = captured online payments + cash confirmed by both sides;
+ * outstanding = job total − paid (an in-flight payment is shown separately).
  */
 export interface JobPaymentSummary {
   jobId: string;

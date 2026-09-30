@@ -26,6 +26,7 @@ import { type ApiState, useApi } from '../../hooks/useApi';
 import { useSubmit } from '../../hooks/useSubmit';
 import { confirm } from '../../lib/confirm';
 import {
+  awaitsProviderDecision,
   cashStatus,
   IntentKey,
   isStaleFinanceError,
@@ -96,7 +97,9 @@ function Totals({ summary: s }: { summary: JobPaymentSummary }) {
       {s.refunded.amountMinor > 0 ? (
         <InfoRow label="İade edilen" value={formatMoney(s.refunded)} />
       ) : null}
-      {s.inFlight ? <InfoRow label="İşlemde" value={formatMoney(s.inFlight.amount)} /> : null}
+      {s.inFlight && awaitsProviderDecision(s.inFlight) ? (
+        <InfoRow label="İşlemde" value={formatMoney(s.inFlight.amount)} />
+      ) : null}
       <InfoRow label="Kalan" value={formatMoney(s.outstanding)} strong />
     </>
   );
@@ -140,7 +143,7 @@ function CustomerPayment({ summary }: { summary: Summary }) {
     if (p.status === 'SUCCEEDED') {
       setStarted(null);
       setOutcome({ ok: true, message: `${formatMoney(p.amount)} ödendi. Teşekkürler!` });
-    } else if (p.status === 'FAILED' || p.status === 'CANCELLED') {
+    } else if (p.status === 'FAILED' || p.status === 'CANCELLED' || !awaitsProviderDecision(p)) {
       setStarted(null);
       setOutcome({
         ok: false,
@@ -181,7 +184,8 @@ function CustomerPayment({ summary }: { summary: Summary }) {
 
   if (!s) return null;
   const a = s.actions;
-  const inFlight = started ?? s.inFlight;
+  const inFlight =
+    started ?? (s.inFlight && awaitsProviderDecision(s.inFlight) ? s.inFlight : null);
   const options = (['IN_APP', 'CASH'] as const).filter((m) =>
     m === 'IN_APP' ? s.onlineEnabled : s.cashEnabled,
   );

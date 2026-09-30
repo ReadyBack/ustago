@@ -123,14 +123,19 @@ export class PaymentsService {
         refundRows.find((r) => r.paymentId === id)?._sum.amountMinor ?? 0n;
       const captured = payments.filter((x) => isCaptured(x.status));
       const inFlight = payments.find((x) => isInFlight(x.status)) ?? null;
-      const paid = captured.reduce((a, x) => a + x.amountMinor, 0n);
+      const cash = await tx.cashSettlement.findUnique({ where: { jobId } });
+      // Cash both sides confirmed counts as paid (UstaGO never held it, so
+      // no payment row and no refund exists for it).
+      const cashPaid = cash?.status === 'CONFIRMED' ? cash.amountMinor : 0n;
+      const paid = captured.reduce((a, x) => a + x.amountMinor, 0n) + cashPaid;
       const refunded = captured.reduce((a, x) => a + refundedOf(x.id), 0n);
+      // An in-flight payment is not subtracted: after a declined attempt
+      // the customer retries the same amount on the same payment.
       const outstanding = outstandingAmount({
         jobTotal: job.currentTotalMinor,
         captured: paid,
         inFlight: 0n,
       });
-      const cash = await tx.cashSettlement.findUnique({ where: { jobId } });
       const view = (x: PaymentWithAttempts): Payment =>
         toPayment(x, refundedOf(x.id), this.provider.isTestMode && x.gateway === 'mock');
 

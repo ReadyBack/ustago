@@ -59,6 +59,8 @@ describe('Finance: cash, refunds, cancellation and disputes', () => {
     const both = await confirmCash(ctx, job.provider, job.jobId).expect(200);
     expect(both.body.cash.status).toBe('CONFIRMED');
     expect(both.body.cash.amount.amountMinor).toBe(220000);
+    expect(both.body.paid.amountMinor).toBe(220000);
+    expect(both.body.outstanding.amountMinor).toBe(0);
     w = await walletOf(ctx, job.provider);
     expect(w.balances.platformDebt.amountMinor).toBe(33000);
     expect(w.balances.available.amountMinor).toBe(0);

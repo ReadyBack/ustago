@@ -20,7 +20,12 @@ import { TestModeBanner } from '../../components/TestModeBanner';
 import { Body, Heading, Small } from '../../components/Text';
 import { useApi } from '../../hooks/useApi';
 import { useSubmit } from '../../hooks/useSubmit';
-import { earningStatus, formatSigned, WALLET_BUCKET_LABEL } from '../../lib/finance';
+import {
+  earningStatus,
+  formatSigned,
+  netAfterRefunds,
+  WALLET_BUCKET_LABEL,
+} from '../../lib/finance';
 import { formatDateTime, formatMoney } from '../../lib/format';
 import { colors, spacing } from '../../lib/theme';
 
@@ -172,7 +177,7 @@ export function WalletScreen() {
               <Card
                 key={e.id}
                 testID={`earning-${e.id}`}
-                accessibilityLabel={`${e.jobTitle}, net ${formatMoney(e.net)}, ${s.label}`}
+                accessibilityLabel={`${e.jobTitle}, net ${formatMoney(netAfterRefunds(e))}, ${s.label}`}
                 onPress={() => router.push(`/earnings/${e.id}`)}
               >
                 <Text style={styles.title} numberOfLines={1}>
@@ -182,7 +187,7 @@ export function WalletScreen() {
                   {e.categoryName} · {formatDateTime(e.createdAt)}
                 </Small>
                 <View style={styles.rowBetween}>
-                  <Text style={styles.price}>{formatMoney(e.net)}</Text>
+                  <Text style={styles.price}>{formatMoney(netAfterRefunds(e))}</Text>
                   <Badge label={s.label} tone={s.tone} />
                 </View>
               </Card>

@@ -11,7 +11,7 @@ import { Screen } from '../../src/components/Screen';
 import { ErrorState, LoadingState } from '../../src/components/States';
 import { Heading, Small } from '../../src/components/Text';
 import { useApi } from '../../src/hooks/useApi';
-import { earningStatus } from '../../src/lib/finance';
+import { earningStatus, netAfterRefunds } from '../../src/lib/finance';
 import { formatDateTime, formatMoney } from '../../src/lib/format';
 
 /** One job's earning: gross, platform fee, net and when it becomes available. */
@@ -42,7 +42,7 @@ export default function EarningDetail() {
         {e.refunded.amountMinor > 0 ? (
           <InfoRow label="İade" value={`−${formatMoney(e.refunded)}`} />
         ) : null}
-        <InfoRow label="Net kazancınız" value={formatMoney(e.net)} strong />
+        <InfoRow label="Net kazancınız" value={formatMoney(netAfterRefunds(e))} strong />
         {e.status === 'PENDING' || e.status === 'HELD' ? (
           <InfoRow
             label="Kullanılabilir olacağı zaman"

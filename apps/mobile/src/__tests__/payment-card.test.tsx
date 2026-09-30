@@ -150,6 +150,45 @@ describe('Payment card (customer)', () => {
     expect(screen.getByTestId('pay-button')).toBeTruthy();
   });
 
+  it('offers a retry when the server keeps a declined payment pending', async () => {
+    // The API answers a declined attempt with the payment still PENDING
+    // (a retry adds a new attempt) and its latest attempt FAILED.
+    const declinedAttempt = {
+      id: 'att-1',
+      attemptNumber: 1,
+      status: 'FAILED' as const,
+      failureCode: 'CARD_DECLINED',
+      createdAt: '2026-09-30T10:00:00.000Z',
+      completedAt: '2026-09-30T10:00:05.000Z',
+    };
+    const declined = paymentFixture({
+      lastFailureCode: 'CARD_DECLINED',
+      attempts: [declinedAttempt],
+    });
+    await show(
+      paymentSummaryFixture({
+        outstanding: tl(220000),
+        inFlight: paymentFixture({ attempts: [{ ...declinedAttempt, status: 'PENDING' }] }),
+        actions: { canPayOnline: true },
+      }),
+    );
+    api.simulate.mockResolvedValue(declined);
+    api.summary.mockResolvedValue(
+      paymentSummaryFixture({
+        outstanding: tl(220000),
+        inFlight: declined,
+        actions: { canPayOnline: true },
+      }),
+    );
+    await fireEvent.press(screen.getByText('Başarısız ödeme (TEST)'));
+    await waitFor(() =>
+      expect(screen.getByText('Ödeme alınamadı. Lütfen tekrar deneyin.')).toBeTruthy(),
+    );
+    expect(screen.queryByText('Başarılı ödeme (TEST)')).toBeNull();
+    expect(screen.queryByText('İşlemde')).toBeNull();
+    expect(screen.getByTestId('pay-button')).toBeTruthy();
+  });
+
   it('sends one payment request for a double tap', async () => {
     await show(paymentSummaryFixture({ actions: { canPayOnline: true } }));
     let finish: (p: Payment) => void = () => undefined;

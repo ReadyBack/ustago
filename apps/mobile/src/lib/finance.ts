@@ -1,5 +1,7 @@
 import type {
   CashSettlementStatus,
+  Money,
+  Payment,
   PaymentMethodChoice,
   PaymentStatus,
   PayoutStatus,
@@ -172,7 +174,28 @@ export class IntentKey {
   }
 }
 
+/**
+ * A started payment that still waits for the payment provider's decision.
+ * A declined attempt leaves the payment PENDING on the server (the customer
+ * may retry with a new attempt), so a pending payment whose latest attempt
+ * failed is not waiting for anything: the customer pays again.
+ */
+export function awaitsProviderDecision(payment: Payment): boolean {
+  if (payment.status === 'AUTHORIZED') return true;
+  if (payment.status !== 'PENDING') return false;
+  const last = payment.attempts.reduce<Payment['attempts'][number] | null>(
+    (latest, a) => (latest === null || a.attemptNumber > latest.attemptNumber ? a : latest),
+    null,
+  );
+  return last === null || last.status === 'PENDING';
+}
+
 /** "+₺150" / "-₺45,50" for a signed wallet change. */
 export function formatSigned(amountMinor: number): string {
   return `${amountMinor > 0 ? '+' : ''}${formatMoney(amountMinor)}`;
+}
+
+/** An earning's net (gross − fee) minus the provider's part of any refund. */
+export function netAfterRefunds(e: { net: Money; refunded: Money }): Money {
+  return { ...e.net, amountMinor: e.net.amountMinor - e.refunded.amountMinor };
 }
