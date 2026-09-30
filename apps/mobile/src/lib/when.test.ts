@@ -20,4 +20,11 @@ describe('windowFor', () => {
       expect(Date.parse(w.end ?? '')).toBeGreaterThan(Date.parse(w.start ?? ''));
     }
   });
+
+  it('keeps "Bugün" valid after 23:00', () => {
+    const late = new Date(2026, 8, 30, 23, 30);
+    const w = windowFor('TODAY', late);
+    expect(Date.parse(w.end ?? '')).toBeGreaterThan(Date.parse(w.start ?? ''));
+    expect(Date.parse(w.end ?? '') - late.getTime()).toBe(60 * 60_000);
+  });
 });

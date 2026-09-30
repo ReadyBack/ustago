@@ -14,8 +14,13 @@ export function windowFor(
   switch (when) {
     case 'FLEX':
       return { start: null, end: null };
-    case 'TODAY':
-      return { start: now.toISOString(), end: at(0, 23).toISOString() };
+    case 'TODAY': {
+      // Late in the evening "today" still means the next hour, never an
+      // end before the start (the server rejects that window).
+      const end = at(0, 23);
+      const latest = end > now ? end : new Date(now.getTime() + 60 * 60_000);
+      return { start: now.toISOString(), end: latest.toISOString() };
+    }
     case 'TOMORROW':
       return { start: at(1, 9).toISOString(), end: at(1, 19).toISOString() };
     case 'WEEK':
