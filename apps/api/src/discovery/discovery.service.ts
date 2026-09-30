@@ -45,6 +45,7 @@ import { ProviderCardsBuilder } from './provider-cards.builder.js';
 const CATALOG_CACHE_MS = 60_000;
 const DISCOVERY_CANDIDATE_LIMIT = 1000;
 const HOME_SECTION = 6;
+const FAVORITES_PER_HOUR = 120;
 const ACTIVE_JOB_STATUSES = [
   'CREATED',
   'CONFIRMED',
@@ -313,6 +314,13 @@ export class DiscoveryService {
 
   async addFavorite(user: AuthUser, providerId: string): Promise<void> {
     const customerId = await this.requireCustomer(user.id);
+    // Favorites feed the provider's analytics: cap toggling spam.
+    await this.rateLimit.enforce({
+      bucket: 'favorite',
+      subject: user.id,
+      limit: FAVORITES_PER_HOUR,
+      windowSeconds: 3600,
+    });
     const provider = await this.prisma.providerProfile.findFirst({
       where: {
         id: providerId,
