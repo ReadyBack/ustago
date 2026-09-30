@@ -246,6 +246,9 @@ export const createQuoteSchema = z
       v.laborMinor === null ||
       v.materialMinor === undefined ||
       v.materialMinor === null ||
+      // With servis/diğer lines the four-line rule below applies instead.
+      typeof v.serviceMinor === 'number' ||
+      typeof v.otherMinor === 'number' ||
       v.laborMinor + v.materialMinor === v.totalMinor,
     { path: ['totalMinor'], message: 'İşçilik ve malzeme toplamı, toplam tutara eşit olmalı.' },
   )

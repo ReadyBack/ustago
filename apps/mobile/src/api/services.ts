@@ -24,8 +24,6 @@ import type {
   ProviderVerification,
   ProviderVerificationCaseView,
   Province,
-  PublicProviderProfile,
-  PublicReview,
   Quote,
   Review,
   ServiceCategoryNode,
@@ -232,15 +230,6 @@ export interface ReviewInput {
 export const reviewApi = {
   create: (jobId: string, body: ReviewInput) => api.post<Review>(`/jobs/${jobId}/review`, body),
   update: (id: string, body: Partial<ReviewInput>) => api.patch<Review>(`/reviews/${id}`, body),
-};
-
-export const publicProviderApi = {
-  get: (id: string) => api.get<PublicProviderProfile>(`/providers/${id}`, { auth: false }),
-  reviews: (id: string, cursor?: string) =>
-    api.get<Paginated<PublicReview>>(
-      `/providers/${id}/reviews?limit=10${cursor ? `&cursor=${cursor}` : ''}`,
-      { auth: false },
-    ),
 };
 
 export const notificationApi = {

@@ -137,14 +137,16 @@ describe('Teklif formu V2', () => {
     });
   });
 
-  it('explains the labour + material + servis case the shared schema still refuses', () => {
+  it('sends labour + material + servis lines together', () => {
     const result = buildQuotePayload({
       ...EMPTY_QUOTE_FORM,
       lines: { labor: '1000', material: '200', service: '100', other: '' },
       eta: 'TODAY',
     });
-    expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/^Şimdilik/) });
-    // Without material the extra line is accepted.
+    expect(result).toMatchObject({
+      ok: true,
+      body: { totalMinor: 130000, laborMinor: 100000, materialMinor: 20000, serviceMinor: 10000 },
+    });
     expect(
       buildQuotePayload({
         ...EMPTY_QUOTE_FORM,
