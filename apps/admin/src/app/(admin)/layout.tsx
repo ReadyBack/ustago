@@ -20,11 +20,16 @@ export default async function AdminLayout({ children }: LayoutProps<'/'>) {
           </Link>
           <Link href="/service-requests">İş talepleri</Link>
           <Link href="/jobs">İşler</Link>
+          <Link href="/marketplace" style={{ fontWeight: 600 }}>
+            Pazar yeri
+          </Link>
           <Link href="/disputes">Sorun bildirimleri</Link>
+          <Link href="/message-reports">Mesaj şikayetleri</Link>
           <Link href="/reviews">Değerlendirmeler</Link>
           <Link href="/providers">Usta başvuruları</Link>
           <Link href="/verifications/cases">Doğrulama talepleri</Link>
           <Link href="/verifications">Belge kuyruğu</Link>
+          <Link href="/categories">Kategori içerikleri</Link>
           <Link href="/category-requirements">Belge kuralları</Link>
           <Link href="/finance" style={{ fontWeight: 600 }}>
             Finans
