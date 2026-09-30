@@ -12,10 +12,10 @@ import { PayoutStatusPill } from '@/components/finance-pills';
 import { apiRequest } from '@/lib/api';
 import { requireAdmin } from '@/lib/auth';
 import { listFilterQuery, parsePayoutFilter } from '@/lib/finance';
-import { formatDate, PAYOUT_STATUS_LABELS } from '@/lib/labels';
+import { formatDate, PAYOUT_RESOLVE_LABELS, PAYOUT_STATUS_LABELS } from '@/lib/labels';
 
 import { ModerationForm } from '../../moderation-form';
-import { decidePayout } from '../actions';
+import { decidePayout, resolvePayout, verifyPayoutDestination } from '../actions';
 
 export default async function PayoutsPage(props: PageProps<'/finance/payouts'>) {
   const filter = parsePayoutFilter(await props.searchParams);
@@ -104,6 +104,32 @@ export default async function PayoutsPage(props: PageProps<'/finance/payouts'>) 
                     {p.destination.isTest ? (
                       <span className="pill pill-warning">Test hesabı</span>
                     ) : null}
+                    {p.destination.verificationStatus === 'PENDING_VERIFICATION' ? (
+                      <details style={{ marginTop: spacing.xs }}>
+                        <summary style={{ cursor: 'pointer', fontSize: 13 }}>
+                          Hesap doğrulama bekliyor
+                        </summary>
+                        <div style={{ marginTop: spacing.xs, minWidth: 220 }}>
+                          <ModerationForm
+                            action={verifyPayoutDestination}
+                            hidden={{ id: p.destination.id }}
+                            submitLabel="Hesabı doğrula"
+                            label="Banka hesabını doğrula"
+                            doneMessage="Hesap doğrulandı."
+                          >
+                            <textarea
+                              name="note"
+                              required
+                              minLength={5}
+                              maxLength={500}
+                              rows={2}
+                              placeholder="Nasıl doğrulandı? (zorunlu)"
+                              aria-label="Doğrulama notu"
+                            />
+                          </ModerationForm>
+                        </div>
+                      </details>
+                    ) : null}
                   </td>
                   <td>
                     {formatDate(p.createdAt)}
@@ -141,6 +167,40 @@ export default async function PayoutsPage(props: PageProps<'/finance/payouts'>) 
                             placeholder="Not (isteğe bağlı)"
                             aria-label="İptal notu"
                           />
+                        </ModerationForm>
+                      ) : null}
+                      {p.status === 'NEEDS_RECONCILIATION' ? (
+                        <ModerationForm
+                          action={resolvePayout}
+                          hidden={{ id: p.id }}
+                          submitLabel="Sonucu kaydet"
+                          tone="primary"
+                          label="Sonucu bilinmeyen para çekmeyi kapat"
+                          doneMessage="Sonuç kaydedildi."
+                        >
+                          <select name="outcome" required defaultValue="" aria-label="Sonuç">
+                            <option value="" disabled>
+                              Sağlayıcıdaki sonuç
+                            </option>
+                            {(['PAID', 'FAILED'] as const).map((o) => (
+                              <option key={o} value={o}>
+                                {PAYOUT_RESOLVE_LABELS[o]}
+                              </option>
+                            ))}
+                          </select>
+                          <textarea
+                            name="note"
+                            required
+                            minLength={5}
+                            maxLength={500}
+                            rows={2}
+                            placeholder="Sağlayıcıda nasıl kontrol edildi? (zorunlu)"
+                            aria-label="Kontrol notu"
+                          />
+                          <span style={{ color: colors.textSecondary, fontSize: 13 }}>
+                            Önce ödeme sağlayıcısında gerçek sonucu kontrol edin. Başarısız
+                            seçilirse tutar ustanın bakiyesine döner.
+                          </span>
                         </ModerationForm>
                       ) : null}
                       {testMode && p.status === 'PROCESSING' ? (

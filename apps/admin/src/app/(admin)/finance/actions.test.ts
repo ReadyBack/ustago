@@ -8,7 +8,8 @@ vi.mock('next/headers', () => ({ cookies: () => Promise.resolve(cookies.store) }
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.stubGlobal('fetch', fetchMock);
 
-const { decidePayout, refundPayment, resolveCash } = await import('./actions');
+const { decidePayout, refundPayment, resolveCash, resolvePayout, verifyPayoutDestination } =
+  await import('./actions');
 
 const ID = '0190a000-0000-7000-8000-00000000000a';
 const KEY = '0190a0000000700080000000000000ff';
@@ -168,5 +169,51 @@ describe('resolveCash', () => {
     expect(state).toEqual({ ok: true });
     expect(lastCall().url).toMatch(new RegExp(`/admin/finance/cash-settlements/${ID}/resolve$`));
     expect(lastCall().body).toEqual({ outcome: 'MARK_UNPAID', note: 'Müşteri ödeme yapmadı.' });
+  });
+});
+
+describe('resolvePayout', () => {
+  beforeEach(() => fetchMock.mockReset());
+
+  it('needs an outcome and a note', async () => {
+    expect(
+      (await resolvePayout({}, form({ id: ID, outcome: '', note: 'Kontrol edildi.' }))).error,
+    ).toMatch(/sonucu seçin/);
+    expect((await resolvePayout({}, form({ id: ID, outcome: 'PAID', note: 'ok' }))).error).toMatch(
+      /5–500/,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('records what the payout provider did', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, {}));
+    const state = await resolvePayout(
+      {},
+      form({ id: ID, outcome: 'FAILED', note: 'Sağlayıcı paneli: iade edildi.' }),
+    );
+    expect(state).toEqual({ ok: true });
+    expect(lastCall().url).toMatch(new RegExp(`/admin/finance/payouts/${ID}/resolve$`));
+    expect(lastCall().body).toEqual({ outcome: 'FAILED', note: 'Sağlayıcı paneli: iade edildi.' });
+  });
+
+  it('says clearly when the admin lacks the finance permission', async () => {
+    fetchMock.mockResolvedValueOnce(apiError(403, 'ADMIN_PERMISSION_REQUIRED'));
+    const state = await resolvePayout(
+      {},
+      form({ id: ID, outcome: 'PAID', note: 'Kontrol edildi.' }),
+    );
+    expect(state).toEqual({ error: 'Bu işlem için yetkiniz yok.' });
+  });
+});
+
+describe('verifyPayoutDestination', () => {
+  beforeEach(() => fetchMock.mockReset());
+
+  it('verifies a destination with a note', async () => {
+    expect((await verifyPayoutDestination({}, form({ id: ID, note: '' }))).error).toBeTruthy();
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, {}));
+    await verifyPayoutDestination({}, form({ id: ID, note: 'Test hesabı kontrol edildi.' }));
+    expect(lastCall().url).toMatch(new RegExp(`/admin/finance/payout-destinations/${ID}/verify$`));
+    expect(lastCall().body).toEqual({ note: 'Test hesabı kontrol edildi.' });
   });
 });

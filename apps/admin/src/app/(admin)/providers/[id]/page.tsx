@@ -35,6 +35,11 @@ export default async function ProviderDetailPage(props: PageProps<'/providers/[i
         <h1>{p.displayName}</h1>
         <ProviderStatusPill status={p.status} />
       </header>
+      <p>
+        <Link href={`/providers/${p.id}/360`}>Usta 360</Link> ·{' '}
+        <Link href={`/verifications/cases/${p.id}`}>Doğrulama talebi</Link> ·{' '}
+        <Link href={`/providers/${p.id}/360?tab=sanctions`}>Hesap askıları</Link>
+      </p>
       {p.statusReason ? (
         <p className="card" style={{ borderColor: colors.warning }}>
           <strong>Son karar sebebi:</strong> {p.statusReason}

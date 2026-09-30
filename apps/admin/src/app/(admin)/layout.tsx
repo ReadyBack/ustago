@@ -23,10 +23,17 @@ export default async function AdminLayout({ children }: LayoutProps<'/'>) {
           <Link href="/disputes">Sorun bildirimleri</Link>
           <Link href="/reviews">Değerlendirmeler</Link>
           <Link href="/providers">Usta başvuruları</Link>
+          <Link href="/verifications/cases">Doğrulama talepleri</Link>
           <Link href="/verifications">Belge kuyruğu</Link>
+          <Link href="/category-requirements">Belge kuralları</Link>
           <Link href="/finance" style={{ fontWeight: 600 }}>
             Finans
           </Link>
+          <Link href="/fee-policies">Komisyon politikaları</Link>
+          <Link href="/operations">Operasyon</Link>
+          <Link href="/audit">Denetim kayıtları</Link>
+          <Link href="/permissions">Yetkiler</Link>
+          <Link href="/security">Güvenlik</Link>
           {serverEnv.isProduction ? null : <Link href="/dev/status">Geliştirici durumu</Link>}
         </nav>
         <div style={{ display: 'flex', gap: spacing.md, alignItems: 'center' }}>
