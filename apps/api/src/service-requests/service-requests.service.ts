@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { Paginated, ServiceRequest, ServiceRequestListItem } from '@ustago/types';
+import type {
+  CategoryAnswerSnapshot,
+  Paginated,
+  ServiceRequest,
+  ServiceRequestListItem,
+} from '@ustago/types';
 import type {
   CancelServiceRequest,
   CreateServiceRequest,
@@ -7,16 +12,20 @@ import type {
   UpdateServiceRequest,
 } from '@ustago/validation';
 
+import { MarketplaceEventsService } from '../analytics/marketplace-events.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth/auth-user.js';
 import { conflict, unprocessable } from '../common/http/errors.js';
 import { toMinor } from '../common/money.js';
+import { DispatchService } from '../dispatch/dispatch.service.js';
+import { coarsen } from '../geo/distance.js';
 import { Prisma, type ServiceRequestStatus } from '../generated/prisma/client.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { RuntimeFlagsService } from '../ops/runtime-flags.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RateLimitService } from '../rate-limit/rate-limit.service.js';
 import { OPEN_QUOTE_STATUSES } from '../quotes/domain/quote-negotiation.js';
+import { validateCategoryAnswers } from '../categories/domain/category-answers.js';
 import {
   type EditableField,
   editableFields,
@@ -60,6 +69,8 @@ export class ServiceRequestsService {
     private readonly audit: AuditService,
     private readonly rateLimit: RateLimitService,
     private readonly flags: RuntimeFlagsService,
+    private readonly dispatch: DispatchService,
+    private readonly events: MarketplaceEventsService,
   ) {}
 
   async create(
@@ -85,9 +96,17 @@ export class ServiceRequestsService {
       const id = await this.prisma.$transaction(async (tx) => {
         const address = await tx.address.findFirst({
           where: { id: input.addressId, userId: user.id, deletedAt: null },
-          select: { id: true, provinceId: true, districtId: true },
+          select: {
+            id: true,
+            provinceId: true,
+            districtId: true,
+            latitude: true,
+            longitude: true,
+            district: { select: { latitude: true, longitude: true } },
+          },
         });
         if (!address) throw unprocessable('ADDRESS_NOT_FOUND', 'Adres bulunamadı.');
+        const preference = await this.checkPreference(tx, customerId, input);
         await this.store.assertServiceAvailable(
           tx,
           input.type,
@@ -96,6 +115,7 @@ export class ServiceRequestsService {
           address.districtId,
         );
 
+        const answers = await this.answerSnapshot(tx, input.categoryId, input.answers);
         const now = new Date();
         const status = input.publish
           ? (transitionFor('DRAFT', 'PUBLISH', input.type) ?? 'DRAFT')
@@ -112,6 +132,16 @@ export class ServiceRequestsService {
             title: input.title,
             description: input.description,
             budgetMinor: input.budgetMinor === null ? null : toMinor(input.budgetMinor),
+            budgetMaxMinor:
+              input.budgetMaxMinor === null || input.budgetMaxMinor === undefined
+                ? null
+                : toMinor(input.budgetMaxMinor),
+            scheduleOption: input.scheduleOption ?? null,
+            ...(answers.length > 0 ? { answers: answers as unknown as Prisma.InputJsonValue } : {}),
+            ...approxPoint(address),
+            preferredProviderId: preference.preferredProviderId,
+            preferredOnly: preference.preferredOnly,
+            rehireOfJobId: preference.rehireOfJobId,
             currency: 'TRY',
             preferredStartAt: toDate(input.preferredStartAt),
             preferredEndAt: toDate(input.preferredEndAt),
@@ -137,8 +167,20 @@ export class ServiceRequestsService {
             districtId: request.districtId,
             hasBudget: request.budgetMinor !== null,
             photoCount: photos.length,
+            preferred: request.preferredProviderId !== null,
+            rehire: request.rehireOfJobId !== null,
           },
         });
+        if (request.rehireOfJobId) {
+          await this.events.recordIn(tx, {
+            type: 'provider_rehired',
+            serviceRequestId: request.id,
+            providerId: request.preferredProviderId,
+            categoryId: request.categoryId,
+            provinceId: request.provinceId,
+            districtId: request.districtId,
+          });
+        }
         if (input.publish) await this.store.onPublished(tx, request, user.id);
         return request.id;
       });
@@ -163,7 +205,93 @@ export class ServiceRequestsService {
       include: customerRequestInclude,
     });
     if (!row) throw requestNotFound();
-    return toServiceRequest(row);
+    return toServiceRequest(row, row.publishedAt ? await this.dispatch.summary(row.id) : null);
+  }
+
+  /** "Arama alanını genişlet" (docs/adr/0028). */
+  async expandSearch(
+    user: AuthUser,
+    id: string,
+    includeOtherProviders: boolean,
+  ): Promise<ServiceRequest> {
+    await this.dispatch.expand(user.id, id, includeOtherProviders);
+    return this.get(user.id, id);
+  }
+
+  /**
+   * "Bu ustadan teklif iste" / rehire: the provider must be publicly listed
+   * and offer the category; a rehire must point at the customer's own
+   * completed job with that provider. The old job is never changed.
+   */
+  private async checkPreference(
+    tx: Tx,
+    customerId: string,
+    input: CreateServiceRequest,
+  ): Promise<{
+    preferredProviderId: string | null;
+    preferredOnly: boolean;
+    rehireOfJobId: string | null;
+  }> {
+    let preferredProviderId = input.preferredProviderId ?? null;
+    const rehireOfJobId = input.rehireOfJobId ?? null;
+    if (rehireOfJobId) {
+      const job = await tx.job.findFirst({
+        where: { id: rehireOfJobId, customerId, status: 'COMPLETED' },
+        select: { providerId: true },
+      });
+      if (!job) {
+        throw unprocessable('REHIRE_JOB_NOT_FOUND', 'Tekrar çağırmak için tamamlanmış bir işin olmalı.');
+      }
+      if (preferredProviderId && preferredProviderId !== job.providerId) {
+        throw unprocessable('REHIRE_PROVIDER_MISMATCH', 'Tekrar çağrılan usta bu işin ustası değil.');
+      }
+      preferredProviderId = job.providerId;
+    }
+    if (preferredProviderId) {
+      const provider = await tx.providerProfile.findFirst({
+        where: {
+          id: preferredProviderId,
+          status: 'ACTIVE',
+          accountStatus: { in: ['ACTIVE', 'LIMITED'] },
+          deletedAt: null,
+          services: { some: { categoryId: input.categoryId } },
+        },
+        select: { id: true },
+      });
+      if (!provider) {
+        throw unprocessable(
+          'PREFERRED_PROVIDER_UNAVAILABLE',
+          'Bu usta şu an bu hizmet için talep alamıyor. Talebini diğer ustalara gönderebilirsin.',
+        );
+      }
+    }
+    return {
+      preferredProviderId,
+      preferredOnly: Boolean(preferredProviderId) && (input.preferredOnly ?? false),
+      rehireOfJobId,
+    };
+  }
+
+  /**
+   * The category questions' answers, validated against the live questions
+   * and stored as a snapshot (label + display value) on the request.
+   */
+  private async answerSnapshot(
+    tx: Tx,
+    categoryId: string,
+    answers: CreateServiceRequest['answers'],
+  ): Promise<CategoryAnswerSnapshot[]> {
+    const questions = await tx.categoryQuestion.findMany({
+      where: { categoryId, isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { key: 'asc' }],
+    });
+    const result = validateCategoryAnswers(questions, answers);
+    if (!result.ok) {
+      throw unprocessable('INVALID_CATEGORY_ANSWERS', 'Kategori sorularının cevapları geçersiz.', {
+        errors: result.errors,
+      });
+    }
+    return result.snapshot;
   }
 
   async listMine(
@@ -343,10 +471,15 @@ export class ServiceRequestsService {
           status: to,
           cancelledAt: new Date(),
           cancelReason: input.reason ?? null,
+          nextDispatchAt: null,
           version: { increment: 1 },
         },
       });
       await this.closeOpenQuotes(tx, id, 'EXPIRED', 'service_request.cancelled');
+      await tx.requestDispatch.updateMany({
+        where: { serviceRequestId: id, result: 'PENDING' },
+        data: { result: 'CLOSED' },
+      });
       await tx.emergencyDispatchOffer.updateMany({
         where: { serviceRequestId: id, status: { in: ['SENT', 'SEEN'] } },
         data: { status: 'SUPERSEDED' },
@@ -410,8 +543,29 @@ export class ServiceRequestsService {
       where: { id },
       include: customerRequestInclude,
     });
-    return toServiceRequest(row);
+    return toServiceRequest(row, row.publishedAt ? await this.dispatch.summary(row.id) : null);
   }
+}
+
+/**
+ * The request's approximate point (docs/adr/0029): the address pin rounded
+ * to ~1 km, else the district centre. The exact pin stays on the address.
+ */
+function approxPoint(a: {
+  latitude: Prisma.Decimal | null;
+  longitude: Prisma.Decimal | null;
+  district: { latitude: Prisma.Decimal | null; longitude: Prisma.Decimal | null };
+}): { approxLatitude: number; approxLongitude: number } | Record<string, never> {
+  if (a.latitude !== null && a.longitude !== null) {
+    return { approxLatitude: coarsen(Number(a.latitude)), approxLongitude: coarsen(Number(a.longitude)) };
+  }
+  if (a.district.latitude !== null && a.district.longitude !== null) {
+    return {
+      approxLatitude: coarsen(Number(a.district.latitude), 4),
+      approxLongitude: coarsen(Number(a.district.longitude), 4),
+    };
+  }
+  return {};
 }
 
 function toDate(value: string | null | undefined): Date | null {
