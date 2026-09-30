@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { Prisma, type ServiceRequestType } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NEW_PROVIDER_RANKING_SCORE } from '../quality/domain/usta-score.js';
 
 type Db = Prisma.TransactionClient | PrismaService;
 
@@ -20,6 +21,8 @@ type Db = Prisma.TransactionClient | PrismaService;
  * - NOW: category supports NOW, provider `now_enabled` AND
  *   `is_available_now`, and the province × category row (if any) has NOW
  *   enabled. The flag on the provider is never trusted alone.
+ * - admin sanctions in force (docs/adr/0016): JOB_RESTRICTION hides every
+ *   new request, NOW_SUSPENSION hides NOW requests.
  */
 const ELIGIBLE = Prisma.sql`
   pr.status = 'ACTIVE' AND pr.deleted_at IS NULL
@@ -34,6 +37,12 @@ const ELIGIBLE = Prisma.sql`
               WHERE ps.provider_id = pr.id AND ps.category_id = sr.category_id)
   AND EXISTS (SELECT 1 FROM provider_service_areas pa
               WHERE pa.provider_id = pr.id AND pa.district_id = sr.district_id)
+  AND NOT EXISTS (SELECT 1 FROM disciplinary_actions da
+                  WHERE da.subject_id = pr.user_id AND da.subject_role = 'PROVIDER'
+                    AND da.status IN ('ACTIVE', 'UNDER_APPEAL')
+                    AND da.starts_at <= now() AND (da.ends_at IS NULL OR da.ends_at > now())
+                    AND (da.type = 'JOB_RESTRICTION'
+                         OR (da.type = 'NOW_SUSPENSION' AND sr.type = 'NOW')))
   AND (
     (sr.type = 'QUOTE' AND c.supports_quote)
     OR (sr.type = 'NOW' AND c.supports_now
@@ -94,7 +103,10 @@ export class MatchingRepository {
   /**
    * Providers who can take a request right now (for NOW dispatch and "new
    * job nearby" notifications). Bounded: one wave, not every provider in
-   * the country (PROJECT.md §6.3).
+   * the country (PROJECT.md §6.3). Ordered by the ranking score
+   * (docs/adr/0016): eligibility above decides who may take the job at
+   * all, the score only who hears first; new providers rank at a neutral
+   * score so they are neither buried nor boosted.
    */
   async eligibleProviders(
     db: Db,
@@ -105,8 +117,11 @@ export class MatchingRepository {
       SELECT pr.id, pr.user_id AS "userId" FROM service_requests sr
       ${JOINS}
       CROSS JOIN provider_profiles pr
+      LEFT JOIN provider_scores ps ON ps.provider_id = pr.id
       WHERE sr.id = ${requestId}::uuid AND ${ELIGIBLE}
-      ORDER BY pr.approved_at ASC NULLS LAST, pr.id
+      ORDER BY (CASE WHEN ps.provider_id IS NULL OR ps.is_new_provider
+                     THEN ${NEW_PROVIDER_RANKING_SCORE}::numeric ELSE ps.score END) DESC,
+               pr.approved_at ASC NULLS LAST, pr.id
       LIMIT ${limit}`;
   }
 }

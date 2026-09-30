@@ -62,6 +62,16 @@ Tüm hatalar aynı gövdeyi döner (`ApiErrorResponse`):
 | 409  | `VERIFICATION_ALREADY_REVIEWED`                                                                              | Belge başka bir admin tarafından zaten incelendi                             |
 | 409  | `VERIFICATION_ALREADY_PENDING`                                                                               | Aktif ustanın aynı türde incelenen belgesi var                               |
 | 409  | `STORAGE_OBJECT_EXISTS`                                                                                      | Bağlantı zaten kullanıldı (yükleme tek seferlik)                             |
+| 403  | `JOB_WRONG_PARTY`                                                                                            | İşin adımı diğer tarafa ait (ör. müşteri "yola çıktım" diyemez)              |
+| 403  | `REVIEW_NOT_ALLOWED`                                                                                         | Değerlendirmeyi yalnız işin müşterisi yapar                                  |
+| 404  | `JOB_NOT_FOUND`, `CHANGE_ORDER_NOT_FOUND`, `REVIEW_NOT_FOUND`, `DISPUTE_NOT_FOUND`, `PENALTY_NOT_FOUND`      | Kayıt yok **veya çağıranın değil** (ayrım yapılmaz)                          |
+| 409  | `JOB_INVALID_TRANSITION`                                                                                     | İşin mevcut durumunda bu adım yapılamaz (`details.status`)                   |
+| 409  | `JOB_HAS_PENDING_CHANGE_ORDER`                                                                               | Bekleyen ek iş varken tamamlama istenemez                                    |
+| 409  | `CHANGE_ORDER_NOT_ALLOWED`, `CHANGE_ORDER_ALREADY_PENDING`                                                   | Ek iş yalnız iş sürerken ve tek tek istenir                                  |
+| 409  | `CHANGE_ORDER_NOT_PENDING`, `CHANGE_ORDER_STALE`                                                             | Ek iş zaten yanıtlandı / iş toplamı değişti (→ güncel hali çek)              |
+| 409  | `DISPUTE_ALREADY_OPEN`, `DISPUTE_ALREADY_RESOLVED`                                                           | Açık bildirim var / başka admin zaten karar verdi                            |
+| 409  | `REVIEW_NOT_ALLOWED`, `REVIEW_ALREADY_EXISTS`, `REVIEW_NOT_EDITABLE`                                         | İş tamamlanmadı / iş başına tek yorum / 30 günlük düzenleme süresi doldu     |
+| 409  | `REVIEW_MODERATION_CONFLICT`, `PENALTY_NOT_ACTIVE`                                                           | Moderasyon durumu değişmiş / yaptırım artık yürürlükte değil                 |
 | 413  | `FILE_TOO_LARGE`                                                                                             | Yüklenen dosya imzalı sınırı aşıyor                                          |
 | 422  | `PROVIDER_ONBOARDING_INCOMPLETE`                                                                             | Başvuru eksik (`details.missingSteps`)                                       |
 | 422  | `PROVIDER_PROFILE_INCOMPLETE`                                                                                | Onay/aktif usta için profil, hizmet veya bölge eksik                         |
@@ -73,6 +83,9 @@ Tüm hatalar aynı gövdeyi döner (`ApiErrorResponse`):
 | 422  | `NOW_CATEGORY_NOT_SUPPORTED`                                                                                 | Kategori NOW (acil) desteklemiyor                                            |
 | 422  | `NOW_NOT_AVAILABLE`                                                                                          | Bu il × kategori çiftlerinde NOW kapalı veya tercih kapalı                   |
 | 422  | `ADDRESS_LIMIT_REACHED`                                                                                      | Kullanıcı başına en fazla 20 adres                                           |
+| 422  | `CHANGE_ORDER_INVALID_AMOUNT`                                                                                | Ek iş tutarı üst sınırı aşıyor                                               |
+| 422  | `DISPUTE_REASON_NOT_ALLOWED`                                                                                 | Usta gelmeden yalnız `NO_SHOW` bildirilebilir                                |
+| 422  | `PENALTY_INVALID_WINDOW`                                                                                     | Yaptırım bitişi geçmişte veya başlangıçtan önce                              |
 | 429  | `RATE_LIMITED`, `OTP_RATE_LIMITED`                                                                           | Çok fazla istek (`details.retryAfterSeconds`, `Retry-After` başlığı)         |
 | 429  | `OTP_TOO_MANY_ATTEMPTS`                                                                                      | Kod kilitlendi (→ yeni kod iste)                                             |
 | 500  | `INTERNAL_ERROR`                                                                                             | Beklenmeyen hata                                                             |
@@ -95,68 +108,83 @@ kodu yoktur.
 
 Kilit: 🔓 herkese açık, 🔐 giriş gerekli, rol belirtilmişse o rol gerekli (`SUPER_ADMIN`, `ADMIN`'i kapsar).
 
-| Uç nokta                                                                       | Erişim         | Açıklama                                                                           |
-| ------------------------------------------------------------------------------ | -------------- | ---------------------------------------------------------------------------------- |
-| `GET /health`, `GET /health/live`                                              | 🔓             | Hazırlık / canlılık                                                                |
-| `POST /auth/register`                                                          | 🔓             | Müşteri veya usta hesabı (`accountType`)                                           |
-| `POST /auth/login`                                                             | 🔓             | E-posta + şifre                                                                    |
-| `POST /auth/otp/request`                                                       | 🔓 / 🔐        | Kod gönderir. `REGISTER_OR_LOGIN` (varsayılan) veya `VERIFY_PHONE` (giriş gerekli) |
-| `POST /auth/otp/verify`                                                        | 🔓 / 🔐        | Kodla giriş/kayıt veya telefon doğrulama                                           |
-| `POST /auth/refresh`                                                           | 🔓             | Refresh token rotation                                                             |
-| `POST /auth/logout`                                                            | 🔐             | Bu oturumu kapatır, cihazın push token'ını siler                                   |
-| `POST /auth/logout-all`                                                        | 🔐             | Tüm oturumları ve cihaz token'larını kapatır                                       |
-| `GET /me`, `PATCH /me`                                                         | 🔐             | Kullanıcı, roller, profiller / ad, soyad, dil                                      |
-| `POST /me/devices`, `DELETE /me/devices/:id`                                   | 🔐             | Cihaz / push token kaydı                                                           |
-| `GET /me/addresses`, `POST /me/addresses`                                      | 🔐             | Adres listesi (varsayılan önce) / ekleme (ilk adres varsayılan)                    |
-| `GET /me/addresses/:id`, `PATCH /me/addresses/:id`, `DELETE /me/addresses/:id` | 🔐             | Tek adres; silme yumuşaktır, varsayılan en yeni adrese geçer                       |
-| `PUT /me/addresses/:id/default`                                                | 🔐             | Varsayılan adresi değiştirir                                                       |
-| `POST /providers/me`                                                           | 🔐             | Usta profili açar (DRAFT), `PROVIDER` rolü ekler                                   |
-| `GET /providers/me`, `PATCH /providers/me`                                     | 🔐 PROVIDER    | Usta profili                                                                       |
-| `GET /providers/me/onboarding`                                                 | 🔐 PROVIDER    | Adımlar, eksikler, `canSubmit`, son karar sebebi                                   |
-| `GET/PUT /providers/me/services`                                               | 🔐 PROVIDER    | Hizmet kategorileri (liste tümüyle değişir)                                        |
-| `GET/PUT /providers/me/service-areas`                                          | 🔐 PROVIDER    | Hizmet ilçeleri, il bazında gruplu                                                 |
-| `PATCH /providers/me/availability`                                             | 🔐 PROVIDER    | `nowEnabled` tercihi, `isAvailableNow` müsaitlik                                   |
-| `GET /providers/me/verifications`                                              | 🔐 PROVIDER    | Belgeler (depolama anahtarı dönmez)                                                |
-| `POST /providers/me/verifications/upload-intent`                               | 🔐 PROVIDER    | İmzalı yükleme adresi                                                              |
-| `POST /providers/me/verifications`                                             | 🔐 PROVIDER    | Yüklenen dosyayı incelemeye gönderir                                               |
-| `POST /providers/me/submit`                                                    | 🔐 PROVIDER    | DRAFT → PENDING_REVIEW (idempotent)                                                |
-| `POST /providers/me/reapply`                                                   | 🔐 PROVIDER    | REJECTED → DRAFT                                                                   |
-| `GET /providers/:id`                                                           | 🔓             | Aktif ustanın public profili (yalnızca izinli alanlar)                             |
-| `GET /categories`, `GET /categories/:slug`                                     | 🔓             | Aktif kategori ağacı / tek kategori                                                |
-| `POST /categories`, `PATCH /categories/:id`                                    | 🔐 ADMIN       | Kategori yönetimi                                                                  |
-| `GET /locations/provinces`                                                     | 🔓             | 81 il; `?active=true` yalnızca açık iller                                          |
-| `GET /locations/provinces/:id/districts`                                       | 🔓             | İlin ilçeleri; `includeInactive=true` yalnızca admin                               |
-| `GET /locations/provinces/:id/categories`                                      | 🔓             | İlde açık kategoriler ve NOW durumu; `includeInactive=true` yalnızca admin         |
-| `PATCH /locations/provinces/:id`                                               | 🔐 ADMIN       | İli açar/kapatır                                                                   |
-| `PUT /locations/provinces/:id/categories/:categoryId`                          | 🔐 ADMIN       | Kategori bu ilde açık mı, NOW açık mı                                              |
-| `GET /admin/providers`                                                         | 🔐 ADMIN       | Başvurular (`status`, varsayılan PENDING_REVIEW; en eski önce)                     |
-| `GET /admin/providers/:id`, `GET /admin/providers/:id/verifications`           | 🔐 ADMIN       | Başvuru detayı / belgeleri                                                         |
-| `POST /admin/providers/:id/{approve,reject,suspend,reinstate}`                 | 🔐 ADMIN       | Karar; `reject` ve `suspend` için `{ reason }` zorunlu                             |
-| `GET /admin/provider-verifications`                                            | 🔐 ADMIN       | Belge kuyruğu (`status`, `type`)                                                   |
-| `POST /admin/provider-verifications/:id/document-url`                          | 🔐 ADMIN       | 2 dakikalık imzalı okuma adresi (audit'e yazılır)                                  |
-| `POST /admin/provider-verifications/:id/{approve,reject}`                      | 🔐 ADMIN       | Belge kararı; `reject` için `{ reason }`                                           |
-| `GET /admin/audit-events`                                                      | 🔐 ADMIN       | Denetim kaydı (`entityType`, `entityId`, `actorId`, `action`)                      |
-| `POST /service-requests`                                                       | 🔐             | Talep (QUOTE / NOW); `budgetMinor` null olabilir, tavan değildir; `idempotencyKey` |
-| `POST /service-requests/photos/upload-intent`                                  | 🔐             | Talep fotoğrafı için imzalı yükleme (JPEG/PNG, 10 MB, en fazla 5)                  |
-| `GET /service-requests/:id`, `PATCH /service-requests/:id`                     | 🔐             | Müşterinin kendi talebi / düzenleme (teklif sonrası kategori ve adres kilitli)     |
-| `POST /service-requests/:id/publish`, `POST /service-requests/:id/cancel`      | 🔐             | Yayınlama (tekrar etkisiz) / iptal (anlaşma sonrası 409)                           |
-| `GET /service-requests/:id/photos/:photoId/url`                                | 🔐             | Fotoğraf için 5 dakikalık imzalı adres                                             |
-| `GET /me/service-requests`                                                     | 🔐             | Taleplerim: `group=OPEN`, `AGREED`, `CLOSED`                                       |
-| `POST /service-requests/:id/quotes`                                            | 🔐 PROVIDER    | İlk teklif (bütçenin üstünde olabilir); usta başına tek teklif                     |
-| `GET /service-requests/:id/quotes`                                             | 🔐             | Gelen teklifler, revizyonlarıyla (yalnız talep sahibi)                             |
-| `GET /quotes/:id`                                                              | 🔐             | Pazarlık dizisi (yalnız müşteri ve teklifin ustası)                                |
-| `POST /quotes/:id/counter`                                                     | 🔐             | Karşı teklif, sıra kimdeyse; `expectedRevisionNo` zorunlu. NOW'da yok              |
-| `POST /quotes/:id/accept`                                                      | 🔐             | Kabul: fiyat kilitlenir, iş oluşur, rakip teklifler kapanır                        |
-| `POST /quotes/:id/reject`, `POST /quotes/:id/withdraw`                         | 🔐             | Müşteri reddeder / usta geri çeker                                                 |
-| `GET /providers/me/opportunities`, `GET /providers/me/opportunities/:id`       | 🔐 PROVIDER    | Size uygun açık işler (yalnız il/ilçe; müşteri kimliği ve açık adres yok)          |
-| `GET /providers/me/quotes`                                                     | 🔐 PROVIDER    | Tekliflerim (`filter=WAITING`, `NEGOTIATING`, …)                                   |
-| `GET /jobs`, `GET /jobs/:id`                                                   | 🔐             | İşler (`role=CUSTOMER`/`PROVIDER`); detayda anlaşılan fiyat, tam adres, iletişim   |
-| `GET /me/notifications`, `POST /me/notifications/read`                         | 🔐             | Uygulama içi bildirimler (outbox; push yok)                                        |
-| `GET /admin/stats`                                                             | 🔐 ADMIN       | Dashboard sayıları (`tz`, varsayılan Europe/Istanbul)                              |
-| `GET /admin/service-requests`, `GET /admin/service-requests/:id`               | 🔐 ADMIN       | Talepler (`status`, `type`, `provinceId`, `categoryId`) / detay (maskeli)          |
-| `GET /admin/system-status`                                                     | 🔐 ADMIN       | Ortam, sürücüler, DB/Redis durumu; secret içermez                                  |
-| `GET /users`, `GET /users/:id`, `PATCH /users/:id/status`                      | 🔐 ADMIN       | Kullanıcı yönetimi                                                                 |
-| `PUT/DELETE /users/:id/roles/:role`                                            | 🔐 SUPER_ADMIN | `ADMIN` / `SUPER_ADMIN` verir / kaldırır                                           |
+| Uç nokta                                                                       | Erişim         | Açıklama                                                                            |
+| ------------------------------------------------------------------------------ | -------------- | ----------------------------------------------------------------------------------- |
+| `GET /health`, `GET /health/live`                                              | 🔓             | Hazırlık / canlılık                                                                 |
+| `POST /auth/register`                                                          | 🔓             | Müşteri veya usta hesabı (`accountType`)                                            |
+| `POST /auth/login`                                                             | 🔓             | E-posta + şifre                                                                     |
+| `POST /auth/otp/request`                                                       | 🔓 / 🔐        | Kod gönderir. `REGISTER_OR_LOGIN` (varsayılan) veya `VERIFY_PHONE` (giriş gerekli)  |
+| `POST /auth/otp/verify`                                                        | 🔓 / 🔐        | Kodla giriş/kayıt veya telefon doğrulama                                            |
+| `POST /auth/refresh`                                                           | 🔓             | Refresh token rotation                                                              |
+| `POST /auth/logout`                                                            | 🔐             | Bu oturumu kapatır, cihazın push token'ını siler                                    |
+| `POST /auth/logout-all`                                                        | 🔐             | Tüm oturumları ve cihaz token'larını kapatır                                        |
+| `GET /me`, `PATCH /me`                                                         | 🔐             | Kullanıcı, roller, profiller / ad, soyad, dil                                       |
+| `POST /me/devices`, `DELETE /me/devices/:id`                                   | 🔐             | Cihaz / push token kaydı                                                            |
+| `GET /me/addresses`, `POST /me/addresses`                                      | 🔐             | Adres listesi (varsayılan önce) / ekleme (ilk adres varsayılan)                     |
+| `GET /me/addresses/:id`, `PATCH /me/addresses/:id`, `DELETE /me/addresses/:id` | 🔐             | Tek adres; silme yumuşaktır, varsayılan en yeni adrese geçer                        |
+| `PUT /me/addresses/:id/default`                                                | 🔐             | Varsayılan adresi değiştirir                                                        |
+| `POST /providers/me`                                                           | 🔐             | Usta profili açar (DRAFT), `PROVIDER` rolü ekler                                    |
+| `GET /providers/me`, `PATCH /providers/me`                                     | 🔐 PROVIDER    | Usta profili                                                                        |
+| `GET /providers/me/onboarding`                                                 | 🔐 PROVIDER    | Adımlar, eksikler, `canSubmit`, son karar sebebi                                    |
+| `GET/PUT /providers/me/services`                                               | 🔐 PROVIDER    | Hizmet kategorileri (liste tümüyle değişir)                                         |
+| `GET/PUT /providers/me/service-areas`                                          | 🔐 PROVIDER    | Hizmet ilçeleri, il bazında gruplu                                                  |
+| `PATCH /providers/me/availability`                                             | 🔐 PROVIDER    | `nowEnabled` tercihi, `isAvailableNow` müsaitlik                                    |
+| `GET /providers/me/verifications`                                              | 🔐 PROVIDER    | Belgeler (depolama anahtarı dönmez)                                                 |
+| `POST /providers/me/verifications/upload-intent`                               | 🔐 PROVIDER    | İmzalı yükleme adresi                                                               |
+| `POST /providers/me/verifications`                                             | 🔐 PROVIDER    | Yüklenen dosyayı incelemeye gönderir                                                |
+| `POST /providers/me/submit`                                                    | 🔐 PROVIDER    | DRAFT → PENDING_REVIEW (idempotent)                                                 |
+| `POST /providers/me/reapply`                                                   | 🔐 PROVIDER    | REJECTED → DRAFT                                                                    |
+| `GET /providers/:id`                                                           | 🔓             | Aktif ustanın public profili (yalnızca izinli alanlar)                              |
+| `GET /categories`, `GET /categories/:slug`                                     | 🔓             | Aktif kategori ağacı / tek kategori                                                 |
+| `POST /categories`, `PATCH /categories/:id`                                    | 🔐 ADMIN       | Kategori yönetimi                                                                   |
+| `GET /locations/provinces`                                                     | 🔓             | 81 il; `?active=true` yalnızca açık iller                                           |
+| `GET /locations/provinces/:id/districts`                                       | 🔓             | İlin ilçeleri; `includeInactive=true` yalnızca admin                                |
+| `GET /locations/provinces/:id/categories`                                      | 🔓             | İlde açık kategoriler ve NOW durumu; `includeInactive=true` yalnızca admin          |
+| `PATCH /locations/provinces/:id`                                               | 🔐 ADMIN       | İli açar/kapatır                                                                    |
+| `PUT /locations/provinces/:id/categories/:categoryId`                          | 🔐 ADMIN       | Kategori bu ilde açık mı, NOW açık mı                                               |
+| `GET /admin/providers`                                                         | 🔐 ADMIN       | Başvurular (`status`, varsayılan PENDING_REVIEW; en eski önce)                      |
+| `GET /admin/providers/:id`, `GET /admin/providers/:id/verifications`           | 🔐 ADMIN       | Başvuru detayı / belgeleri                                                          |
+| `POST /admin/providers/:id/{approve,reject,suspend,reinstate}`                 | 🔐 ADMIN       | Karar; `reject` ve `suspend` için `{ reason }` zorunlu                              |
+| `GET /admin/provider-verifications`                                            | 🔐 ADMIN       | Belge kuyruğu (`status`, `type`)                                                    |
+| `POST /admin/provider-verifications/:id/document-url`                          | 🔐 ADMIN       | 2 dakikalık imzalı okuma adresi (audit'e yazılır)                                   |
+| `POST /admin/provider-verifications/:id/{approve,reject}`                      | 🔐 ADMIN       | Belge kararı; `reject` için `{ reason }`                                            |
+| `GET /admin/audit-events`                                                      | 🔐 ADMIN       | Denetim kaydı (`entityType`, `entityId`, `actorId`, `action`)                       |
+| `POST /service-requests`                                                       | 🔐             | Talep (QUOTE / NOW); `budgetMinor` null olabilir, tavan değildir; `idempotencyKey`  |
+| `POST /service-requests/photos/upload-intent`                                  | 🔐             | Talep fotoğrafı için imzalı yükleme (JPEG/PNG, 10 MB, en fazla 5)                   |
+| `GET /service-requests/:id`, `PATCH /service-requests/:id`                     | 🔐             | Müşterinin kendi talebi / düzenleme (teklif sonrası kategori ve adres kilitli)      |
+| `POST /service-requests/:id/publish`, `POST /service-requests/:id/cancel`      | 🔐             | Yayınlama (tekrar etkisiz) / iptal (anlaşma sonrası 409)                            |
+| `GET /service-requests/:id/photos/:photoId/url`                                | 🔐             | Fotoğraf için 5 dakikalık imzalı adres                                              |
+| `GET /me/service-requests`                                                     | 🔐             | Taleplerim: `group=OPEN`, `AGREED`, `CLOSED`                                        |
+| `POST /service-requests/:id/quotes`                                            | 🔐 PROVIDER    | İlk teklif (bütçenin üstünde olabilir); usta başına tek teklif                      |
+| `GET /service-requests/:id/quotes`                                             | 🔐             | Gelen teklifler, revizyonlarıyla (yalnız talep sahibi)                              |
+| `GET /quotes/:id`                                                              | 🔐             | Pazarlık dizisi (yalnız müşteri ve teklifin ustası)                                 |
+| `POST /quotes/:id/counter`                                                     | 🔐             | Karşı teklif, sıra kimdeyse; `expectedRevisionNo` zorunlu. NOW'da yok               |
+| `POST /quotes/:id/accept`                                                      | 🔐             | Kabul: fiyat kilitlenir, iş oluşur, rakip teklifler kapanır                         |
+| `POST /quotes/:id/reject`, `POST /quotes/:id/withdraw`                         | 🔐             | Müşteri reddeder / usta geri çeker                                                  |
+| `GET /providers/me/opportunities`, `GET /providers/me/opportunities/:id`       | 🔐 PROVIDER    | Size uygun açık işler (yalnız il/ilçe; müşteri kimliği ve açık adres yok)           |
+| `GET /providers/me/quotes`                                                     | 🔐 PROVIDER    | Tekliflerim (`filter=WAITING`, `NEGOTIATING`, …)                                    |
+| `GET /jobs`, `GET /jobs/:id`                                                   | 🔐             | İşler (`role=CUSTOMER`/`PROVIDER`); detayda anlaşılan fiyat, tam adres, iletişim    |
+| `POST /jobs/:id/{en-route,arrive,start,request-completion}`                    | 🔐 (usta)      | İş adımları; tekrar çağrı etkisiz (200, aynı iş)                                    |
+| `POST /jobs/:id/complete`, `POST /jobs/:id/dispute`                            | 🔐 (müşteri)   | Tamamlandı onayı / sorun bildirimi `{ reason, description }`                        |
+| `POST /jobs/:id/cancel`                                                        | 🔐             | Usta yola çıkmadan iptal `{ reason }`                                               |
+| `GET /jobs/:id/change-orders`, `POST /jobs/:id/change-orders`                  | 🔐             | Ek işler / usta ek iş ister `{ amountMinor, description }`                          |
+| `POST /change-orders/:id/{accept,reject,cancel}`                               | 🔐             | Müşteri onaylar/reddeder, usta geri çeker                                           |
+| `POST /jobs/:id/review`, `PATCH /reviews/:id`                                  | 🔐 (müşteri)   | Değerlendirme (iş başına bir) / 30 gün içinde düzenleme                             |
+| `GET /providers/:id/reviews`                                                   | 🔓             | Yayındaki yorumlar, maskeli adla                                                    |
+| `GET /me/notifications`, `POST /me/notifications/read`                         | 🔐             | Uygulama içi bildirimler (imleçli), okundu işareti (seçili veya tümü)               |
+| `GET /me/notifications/unread-count`                                           | 🔐             | Zil rozeti                                                                          |
+| `GET/PATCH /me/notification-preferences`                                       | 🔐             | Push tercihleri (iş güncellemeleri kapatılamaz)                                     |
+| `GET /admin/jobs`, `GET /admin/jobs/:id`                                       | 🔐 ADMIN       | İşler (`status`, `providerId`, `customerId`, `provinceId`, `categoryId`, `from/to`) |
+| `GET /admin/disputes`, `GET /admin/disputes/:id`                               | 🔐 ADMIN       | Sorun bildirimleri (`group=OPEN/RESOLVED`)                                          |
+| `POST /admin/disputes/:id/resolve`                                             | 🔐 ADMIN       | `{ outcome, note }`; iki tarafa bildirim                                            |
+| `GET /admin/reviews`, `POST /admin/reviews/:id/{hide,restore}`                 | 🔐 ADMIN       | Moderasyon `{ reason }`                                                             |
+| `GET /admin/providers/:id/quality`                                             | 🔐 ADMIN       | UstaScore etkenleri, sayılar, yaptırımlar                                           |
+| `POST /admin/providers/:id/penalties`, `POST /admin/penalties/:id/revoke`      | 🔐 ADMIN       | Yaptırım ver / kaldır (gerekçe zorunlu)                                             |
+| `GET /admin/stats`                                                             | 🔐 ADMIN       | Dashboard sayıları (`tz`, varsayılan Europe/Istanbul)                               |
+| `GET /admin/service-requests`, `GET /admin/service-requests/:id`               | 🔐 ADMIN       | Talepler (`status`, `type`, `provinceId`, `categoryId`) / detay (maskeli)           |
+| `GET /admin/system-status`                                                     | 🔐 ADMIN       | Ortam, sürücüler, DB/Redis durumu; secret içermez                                   |
+| `GET /users`, `GET /users/:id`, `PATCH /users/:id/status`                      | 🔐 ADMIN       | Kullanıcı yönetimi                                                                  |
+| `PUT/DELETE /users/:id/roles/:role`                                            | 🔐 SUPER_ADMIN | `ADMIN` / `SUPER_ADMIN` verir / kaldırır                                            |
 
 Auth uç noktaları IP (login'de ayrıca e-posta) başına rate limit'lidir: varsayılan 60 sn'de 10 istek.
 
@@ -194,3 +222,16 @@ budgetMinor: 150000 | null }` (kuruş). `null` = "Bütçem belli değil".
    teklif yoktur.
 
 Kurallar ve eşzamanlılık: [ADR-0014](../adr/0014-talep-teklif-pazarlik-ve-now.md).
+
+## İş yaşam döngüsü, ek iş, değerlendirme (Faz 4)
+
+1. Usta sırayla `en-route` → `arrive` → `start` → `request-completion`; müşteri `complete`.
+   Her yanıt güncel `Job` döner; `actions` alanı o an izin verilen adımları söyler.
+2. İş sürerken usta `POST /jobs/:id/change-orders { amountMinor: 50000, description }`; müşteri
+   `accept` → `currentTotal` 270000 olur, `agreedPrice` 220000 kalır.
+3. Tamamlanan işte müşteri `POST /jobs/:id/review { rating: 5, qualityRating?, …, comment? }`.
+4. Bildirimler aynı transaction'da yazılır; push outbox'tan işçi tarafından gönderilir.
+
+Kurallar: [ADR-0015](../adr/0015-is-yasam-dongusu-ve-ek-is.md),
+[ADR-0016](../adr/0016-ustascore-v1-ve-usta-kalite-modeli.md),
+[ADR-0017](../adr/0017-bildirim-outbox-ve-expo-push.md).

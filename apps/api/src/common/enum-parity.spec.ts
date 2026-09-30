@@ -1,10 +1,17 @@
 import {
+  changeOrderStatusSchema,
+  disciplinaryActionStatusSchema,
+  disciplinaryActionTypeSchema,
+  disputeReasonSchema,
+  disputeStatusSchema,
+  jobActorSchema,
   jobStatusSchema,
   otpPurposeSchema,
   providerStatusSchema,
   providerTypeSchema,
   quoteRevisionKindSchema,
   quoteStatusSchema,
+  reviewStatusSchema,
   roleSchema,
   serviceRequestStatusSchema,
   serviceRequestTypeSchema,
@@ -14,12 +21,19 @@ import {
 } from '@ustago/validation';
 
 import {
+  ChangeOrderStatus,
+  DisciplinaryActionStatus,
+  DisciplinaryActionType,
+  DisputeReason,
+  DisputeStatus,
+  JobActor,
   JobStatus,
   OtpPurpose,
   ProviderStatus,
   ProviderType,
   QuoteRevisionKind,
   QuoteStatus,
+  ReviewStatus,
   Role,
   ServiceRequestStatus,
   ServiceRequestType,
@@ -43,6 +57,13 @@ describe('enum parity between Prisma and @ustago/validation', () => {
     ['QuoteStatus', QuoteStatus, quoteStatusSchema.options],
     ['QuoteRevisionKind', QuoteRevisionKind, quoteRevisionKindSchema.options],
     ['JobStatus', JobStatus, jobStatusSchema.options],
+    ['JobActor', JobActor, jobActorSchema.options],
+    ['ChangeOrderStatus', ChangeOrderStatus, changeOrderStatusSchema.options],
+    ['DisputeReason', DisputeReason, disputeReasonSchema.options],
+    ['DisputeStatus', DisputeStatus, disputeStatusSchema.options],
+    ['ReviewStatus', ReviewStatus, reviewStatusSchema.options],
+    ['DisciplinaryActionType', DisciplinaryActionType, disciplinaryActionTypeSchema.options],
+    ['DisciplinaryActionStatus', DisciplinaryActionStatus, disciplinaryActionStatusSchema.options],
   ])('%s', (_name, prismaEnum, shared) => {
     expect([...shared].sort()).toEqual(Object.values(prismaEnum).sort());
   });

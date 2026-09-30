@@ -15,6 +15,14 @@ import type {
 } from '@ustago/types';
 import { z } from 'zod';
 
+import {
+  changeOrderSchema,
+  jobActionsSchema,
+  jobActorSchema,
+  jobDisputeSchema,
+  jobTimelineEntrySchema,
+  reviewSchema,
+} from './lifecycle.js';
 import { moneySchema, pricePartMinorSchema, priceMinorSchema } from './money.js';
 
 /** Photos per request; enough to show the problem, small enough to review. */
@@ -228,6 +236,8 @@ export type ListProviderQuotesQuery = z.infer<typeof listProviderQuotesQuerySche
 
 export const listJobsQuerySchema = z.object({
   role: z.enum(['CUSTOMER', 'PROVIDER']).default('CUSTOMER'),
+  /** ACTIVE: agreed and not finished (home screen "Aktif işiniz"). */
+  scope: z.enum(['ALL', 'ACTIVE', 'FINISHED']).default('ALL'),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   cursor: z.uuid().optional(),
 });
@@ -451,12 +461,28 @@ export const jobSchema = z.object({
   customer: z.object({ name: z.string(), phone: z.string().nullable() }),
   acceptedRevision: quoteRevisionSchema.nullable(),
   viewerRole: z.enum(['CUSTOMER', 'PROVIDER']),
+  enRouteAt: nullableDate,
+  arrivedAt: nullableDate,
+  startedAt: nullableDate,
+  completionRequestedAt: nullableDate,
+  completedAt: nullableDate,
+  disputedAt: nullableDate,
+  cancelledAt: nullableDate,
+  cancellationActor: jobActorSchema.nullable(),
+  cancellationReason: z.string().nullable(),
+  timeline: z.array(jobTimelineEntrySchema),
+  changeOrders: z.array(changeOrderSchema),
+  review: reviewSchema.nullable(),
+  dispute: jobDisputeSchema.nullable(),
+  actions: jobActionsSchema,
 }) satisfies z.ZodType<Job>;
 
 export const jobListItemSchema = z.object({
   id: z.uuid(),
   status: jobStatusSchema,
+  requestType: serviceRequestTypeSchema,
   agreedPrice: moneySchema,
+  currentTotal: moneySchema,
   title: z.string(),
   category: categoryRefSchema,
   location: approximateLocationSchema,

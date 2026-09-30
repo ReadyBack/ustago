@@ -1,9 +1,12 @@
-import type { ServiceCategoryNode } from '@ustago/types';
+import type { JobListItem, Paginated, ServiceCategoryNode } from '@ustago/types';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { catalogApi } from '../../src/api/services';
+import { catalogApi, jobApi } from '../../src/api/services';
 import { useAuth } from '../../src/auth/AuthContext';
+import { ActiveJobCard } from '../../src/components/ActiveJobCard';
+import { NotificationBell } from '../../src/components/NotificationBell';
+import { PushPrompt } from '../../src/components/PushPrompt';
 import { Screen } from '../../src/components/Screen';
 import { ErrorState, LoadingState } from '../../src/components/States';
 import { Body, Heading } from '../../src/components/Text';
@@ -15,13 +18,27 @@ export default function CustomerHome() {
   const router = useRouter();
   const { user } = useAuth();
   const categories = useApi<ServiceCategoryNode[]>('categories', catalogApi.categories);
+  const active = useApi<Paginated<JobListItem>>(
+    'jobs:customer:active',
+    () => jobApi.list('CUSTOMER', 'ACTIVE'),
+    { pollMs: 15_000 },
+  );
+  const refresh = () => void Promise.all([categories.refresh(), active.refresh()]);
 
   return (
-    <Screen edges={['top']} onRefresh={categories.refresh} refreshing={categories.refreshing}>
-      <View>
-        <Text style={styles.hello}>Merhaba {user?.firstName} 👋</Text>
-        <Body muted>Bugün ne yaptırmak istersiniz?</Body>
+    <Screen edges={['top']} onRefresh={refresh} refreshing={categories.refreshing}>
+      <View style={styles.header}>
+        <View style={styles.flex}>
+          <Text style={styles.hello}>Merhaba {user?.firstName} 👋</Text>
+          <Body muted>Bugün ne yaptırmak istersiniz?</Body>
+        </View>
+        <NotificationBell />
       </View>
+
+      {(active.data?.items ?? []).map((job) => (
+        <ActiveJobCard key={job.id} job={job} viewer="CUSTOMER" />
+      ))}
+      <PushPrompt viewer="CUSTOMER" />
 
       <Pressable
         testID="emergency-button"
@@ -77,6 +94,8 @@ export default function CustomerHome() {
 }
 
 const styles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  flex: { flex: 1 },
   hello: { fontSize: 24, fontWeight: '800', color: colors.textPrimary, marginTop: spacing.sm },
   emergency: {
     backgroundColor: colors.emergency,

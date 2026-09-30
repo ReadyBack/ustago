@@ -1,4 +1,4 @@
-import { adminProviderDetailSchema, uuidSchema } from '@ustago/validation';
+import { adminProviderDetailSchema, providerQualitySchema, uuidSchema } from '@ustago/validation';
 import { colors, spacing } from '@ustago/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -9,6 +9,7 @@ import { requireAdmin } from '@/lib/auth';
 import { formatDate, ONBOARDING_STEP_LABELS, VERIFICATION_TYPE_LABELS } from '@/lib/labels';
 
 import { ReviewForm } from '../review-form';
+import { QualityCard } from './quality-card';
 
 export default async function ProviderDetailPage(props: PageProps<'/providers/[id]'>) {
   const { id: rawId } = await props.params;
@@ -16,9 +17,10 @@ export default async function ProviderDetailPage(props: PageProps<'/providers/[i
   if (!id.success) notFound();
   await requireAdmin(`/providers/${id.data}`);
 
-  const result = await apiRequest(`/admin/providers/${id.data}`, {
-    schema: adminProviderDetailSchema,
-  });
+  const [result, quality] = await Promise.all([
+    apiRequest(`/admin/providers/${id.data}`, { schema: adminProviderDetailSchema }),
+    apiRequest(`/admin/providers/${id.data}/quality`, { schema: providerQualitySchema }),
+  ]);
   if (!result.ok) {
     if (result.status === 404) notFound();
     return <p role="alert">{result.message}</p>;
@@ -138,6 +140,16 @@ export default async function ProviderDetailPage(props: PageProps<'/providers/[i
           ))}
         </div>
       </section>
+
+      {quality.ok ? (
+        <QualityCard quality={quality.data} />
+      ) : (
+        <p role="alert">Kalite bilgisi alınamadı: {quality.message}</p>
+      )}
+      <p>
+        <Link href={`/jobs?providerId=${p.id}`}>Ustanın işleri</Link> ·{' '}
+        <Link href={`/reviews?providerId=${p.id}`}>Değerlendirmeleri</Link>
+      </p>
 
       <section className="card">
         <h2>Karar</h2>

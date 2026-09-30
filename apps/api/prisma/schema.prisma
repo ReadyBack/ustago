@@ -77,8 +77,8 @@ model User {
   /// Soft delete; personal data is anonymised by a later KVKK job.
   deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(3)
 
-  roles              UserRole[]             @relation("UserRoles")
-  grantedRoles       UserRole[]             @relation("RoleGrantedBy")
+  roles              UserRole[]              @relation("UserRoles")
+  grantedRoles       UserRole[]              @relation("RoleGrantedBy")
   customerProfile    CustomerProfile?
   providerProfile    ProviderProfile?
   addresses          Address[]
@@ -86,25 +86,27 @@ model User {
   devices            Device[]
   otpChallenges      OtpChallenge[]
   uploadIntents      UploadIntent[]
-  providersReviewed  ProviderProfile[]      @relation("ProviderReviewedBy")
+  providersReviewed  ProviderProfile[]       @relation("ProviderReviewedBy")
   notifications      Notification[]
   quoteRevisions     QuoteRevision[]
   jobStatusChanges   JobStatusHistory[]
-  jobsCancelled      Job[]                  @relation("JobCancelledBy")
-  changeOrdersAsked  ChangeOrder[]          @relation("ChangeOrderRequestedBy")
-  changeOrdersAnswer ChangeOrder[]          @relation("ChangeOrderRespondedBy")
+  jobsCancelled      Job[]                   @relation("JobCancelledBy")
+  changeOrdersAsked  ChangeOrder[]           @relation("ChangeOrderRequestedBy")
+  changeOrdersAnswer ChangeOrder[]           @relation("ChangeOrderRespondedBy")
   paymentsMade       Payment[]
-  reviewsWritten     Review[]               @relation("ReviewAuthor")
-  reviewsReceived    Review[]               @relation("ReviewTarget")
+  reviewsWritten     Review[]                @relation("ReviewAuthor")
+  reviewsReceived    Review[]                @relation("ReviewTarget")
+  reviewsModerated   Review[]                @relation("ReviewModeratedBy")
+  notificationPrefs  NotificationPreference?
   verificationsDone  ProviderVerification[]
   trustEvents        TrustEvent[]
-  disciplinary       DisciplinaryAction[]   @relation("DisciplineSubject")
-  disciplineDecided  DisciplinaryAction[]   @relation("DisciplineDecidedBy")
-  appeals            Appeal[]               @relation("AppealBy")
-  appealsReviewed    Appeal[]               @relation("AppealReviewedBy")
-  disputesOpened     Dispute[]              @relation("DisputeOpenedBy")
-  disputesAgainst    Dispute[]              @relation("DisputeAgainst")
-  disputesResolved   Dispute[]              @relation("DisputeResolvedBy")
+  disciplinary       DisciplinaryAction[]    @relation("DisciplineSubject")
+  disciplineDecided  DisciplinaryAction[]    @relation("DisciplineDecidedBy")
+  appeals            Appeal[]                @relation("AppealBy")
+  appealsReviewed    Appeal[]                @relation("AppealReviewedBy")
+  disputesOpened     Dispute[]               @relation("DisputeOpenedBy")
+  disputesAgainst    Dispute[]               @relation("DisputeAgainst")
+  disputesResolved   Dispute[]               @relation("DisputeResolvedBy")
   evidence           Evidence[]
   auditLogs          AuditLog[]
 
@@ -218,21 +220,25 @@ enum PushProvider {
 }
 
 model Device {
-  id           String         @id @default(uuid(7)) @db.Uuid
-  userId       String         @map("user_id") @db.Uuid
-  platform     DevicePlatform
-  pushProvider PushProvider?  @map("push_provider")
+  id                     String         @id @default(uuid(7)) @db.Uuid
+  userId                 String         @map("user_id") @db.Uuid
+  platform               DevicePlatform
+  pushProvider           PushProvider?  @map("push_provider")
   /// A push token belongs to one device install; re-registering moves it.
-  pushToken    String?        @unique @map("push_token") @db.VarChar(512)
-  deviceName   String?        @map("device_name") @db.VarChar(120)
-  appVersion   String?        @map("app_version") @db.VarChar(40)
-  lastSeenAt   DateTime       @default(now()) @map("last_seen_at") @db.Timestamptz(3)
-  revokedAt    DateTime?      @map("revoked_at") @db.Timestamptz(3)
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  pushToken              String?        @unique @map("push_token") @db.VarChar(512)
+  deviceName             String?        @map("device_name") @db.VarChar(120)
+  appVersion             String?        @map("app_version") @db.VarChar(40)
+  lastSeenAt             DateTime       @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  revokedAt              DateTime?      @map("revoked_at") @db.Timestamptz(3)
+  /// Set when the push service reported the token dead (DeviceNotRegistered);
+  /// the token itself is cleared so nothing is sent to it again.
+  pushTokenInvalidatedAt DateTime?      @map("push_token_invalidated_at") @db.Timestamptz(3)
+  createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessions AuthSession[]
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions    AuthSession[]
+  pushTickets PushTicket[]
 
   @@index([userId])
   @@map("devices")
@@ -777,6 +783,14 @@ enum JobStatus {
   CANCELLED
 }
 
+/// Who performed an action on a job.
+enum JobActor {
+  CUSTOMER
+  PROVIDER
+  ADMIN
+  SYSTEM
+}
+
 enum PaymentMethod {
   IN_APP
   CASH
@@ -786,31 +800,40 @@ enum PaymentMethod {
 /// Created when a quote is accepted or a NOW offer is accepted. Booking and
 /// job are one aggregate (ADR-0008): scheduling fields live here.
 model Job {
-  id                 String         @id @default(uuid(7)) @db.Uuid
+  id                    String         @id @default(uuid(7)) @db.Uuid
   /// Unique: one job per request, so two accepts cannot both succeed.
-  serviceRequestId   String         @unique @map("service_request_id") @db.Uuid
-  quoteId            String?        @unique @map("quote_id") @db.Uuid
-  acceptedRevisionId String?        @map("accepted_revision_id") @db.Uuid
-  customerId         String         @map("customer_id") @db.Uuid
-  providerId         String         @map("provider_id") @db.Uuid
-  categoryId         String         @map("category_id") @db.Uuid
-  status             JobStatus      @default(CREATED)
+  serviceRequestId      String         @unique @map("service_request_id") @db.Uuid
+  quoteId               String?        @unique @map("quote_id") @db.Uuid
+  acceptedRevisionId    String?        @map("accepted_revision_id") @db.Uuid
+  customerId            String         @map("customer_id") @db.Uuid
+  providerId            String         @map("provider_id") @db.Uuid
+  categoryId            String         @map("category_id") @db.Uuid
+  status                JobStatus      @default(CREATED)
   /// AGREED_PRICE: locked when the job is created and never updated.
-  agreedPriceMinor   BigInt         @map("agreed_price_minor")
+  agreedPriceMinor      BigInt         @map("agreed_price_minor")
   /// agreedPriceMinor + accepted change orders. Changes only through an
   /// accepted ChangeOrder, in the same transaction.
-  currentTotalMinor  BigInt         @map("current_total_minor")
-  currency           CurrencyCode   @default(TRY)
-  paymentMethod      PaymentMethod? @map("payment_method")
-  scheduledStartAt   DateTime?      @map("scheduled_start_at") @db.Timestamptz(3)
-  startedAt          DateTime?      @map("started_at") @db.Timestamptz(3)
-  completedAt        DateTime?      @map("completed_at") @db.Timestamptz(3)
-  cancelledAt        DateTime?      @map("cancelled_at") @db.Timestamptz(3)
-  cancelledById      String?        @map("cancelled_by_id") @db.Uuid
-  cancellationReason String?        @map("cancellation_reason") @db.VarChar(500)
-  version            Int            @default(0)
-  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  currentTotalMinor     BigInt         @map("current_total_minor")
+  currency              CurrencyCode   @default(TRY)
+  paymentMethod         PaymentMethod? @map("payment_method")
+  scheduledStartAt      DateTime?      @map("scheduled_start_at") @db.Timestamptz(3)
+  /// Step timestamps (docs/adr/0015): written once by the job state
+  /// machine, never changed afterwards (a database trigger refuses it).
+  enRouteAt             DateTime?      @map("en_route_at") @db.Timestamptz(3)
+  arrivedAt             DateTime?      @map("arrived_at") @db.Timestamptz(3)
+  startedAt             DateTime?      @map("started_at") @db.Timestamptz(3)
+  completionRequestedAt DateTime?      @map("completion_requested_at") @db.Timestamptz(3)
+  completedAt           DateTime?      @map("completed_at") @db.Timestamptz(3)
+  disputedAt            DateTime?      @map("disputed_at") @db.Timestamptz(3)
+  cancelledAt           DateTime?      @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById         String?        @map("cancelled_by_id") @db.Uuid
+  /// Which side cancelled: only PROVIDER cancellations count against the
+  /// provider's quality score (docs/adr/0016).
+  cancellationActor     JobActor?      @map("cancellation_actor")
+  cancellationReason    String?        @map("cancellation_reason") @db.VarChar(500)
+  version               Int            @default(0)
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   serviceRequest   ServiceRequest     @relation(fields: [serviceRequestId], references: [id], onDelete: Restrict)
   quote            Quote?             @relation(fields: [quoteId], references: [id], onDelete: Restrict)
@@ -827,8 +850,10 @@ model Job {
   ledgerEntries    LedgerEntry[]
 
   @@index([customerId, createdAt])
+  @@index([customerId, status])
   @@index([providerId, status])
   @@index([status])
+  @@index([completedAt])
   @@map("jobs")
 }
 
@@ -866,7 +891,8 @@ model ChangeOrder {
   jobId              String            @map("job_id") @db.Uuid
   requestedById      String            @map("requested_by_id") @db.Uuid
   description        String            @db.VarChar(1000)
-  /// Signed: positive adds work, negative removes it.
+  /// Extra work only: always positive (DB check). Removing work would be a
+  /// separate, explicit flow.
   amountDeltaMinor   BigInt            @map("amount_delta_minor")
   currency           CurrencyCode      @default(TRY)
   /// Job total when the change was proposed and the total it would become.
@@ -883,6 +909,8 @@ model ChangeOrder {
   requestedBy User  @relation("ChangeOrderRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
   respondedBy User? @relation("ChangeOrderRespondedBy", fields: [respondedById], references: [id], onDelete: SetNull)
 
+  /// One open (PENDING) change order per job at a time.
+  @@unique([jobId], map: "change_orders_one_pending_per_job_key", where: raw("status = 'PENDING'"))
   @@index([jobId, status])
   @@map("change_orders")
 }
@@ -1065,15 +1093,20 @@ model Review {
   priceRating         Int?            @map("price_rating") @db.SmallInt
   comment             String?         @db.VarChar(2000)
   status              ReviewStatus    @default(PUBLISHED)
+  /// Last admin moderation (hide / restore); the history is in audit_logs.
+  moderatedAt         DateTime?       @map("moderated_at") @db.Timestamptz(3)
+  moderatedById       String?         @map("moderated_by_id") @db.Uuid
+  moderationReason    String?         @map("moderation_reason") @db.VarChar(500)
   createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  job    Job  @relation(fields: [jobId], references: [id], onDelete: Restrict)
-  author User @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
-  target User @relation("ReviewTarget", fields: [targetId], references: [id], onDelete: Restrict)
+  job         Job   @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  author      User  @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  target      User  @relation("ReviewTarget", fields: [targetId], references: [id], onDelete: Restrict)
+  moderatedBy User? @relation("ReviewModeratedBy", fields: [moderatedById], references: [id], onDelete: SetNull)
 
   @@unique([jobId, direction])
-  @@index([targetId, status])
+  @@index([targetId, status, createdAt])
   @@map("reviews")
 }
 
@@ -1159,6 +1192,7 @@ model DisciplinaryAction {
   appeals   Appeal[]
 
   @@index([subjectId, subjectRole, status])
+  @@index([status, endsAt])
   @@map("disciplinary_actions")
 }
 
@@ -1234,8 +1268,10 @@ model Dispute {
   evidence            Evidence[]
   disciplinaryActions DisciplinaryAction[]
 
+  /// At most one unresolved dispute per job.
+  @@unique([jobId], map: "disputes_one_open_per_job_key", where: raw("status = ANY (ARRAY['OPEN'::\"DisputeStatus\", 'AWAITING_EVIDENCE'::\"DisputeStatus\", 'UNDER_REVIEW'::\"DisputeStatus\"])"))
   @@index([jobId])
-  @@index([status])
+  @@index([status, createdAt])
   @@map("disputes")
 }
 
@@ -1305,10 +1341,104 @@ model Notification {
   createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushDelivery PushDelivery?
 
   @@index([userId, createdAt])
+  @@index([userId, readAt, createdAt])
   @@map("notifications")
+}
+
+/// Per-user switches (docs/adr/0017). Job updates are transactional and
+/// always delivered in the app and by push; only these categories can be
+/// turned off.
+model NotificationPreference {
+  userId           String   @id @map("user_id") @db.Uuid
+  /// New quotes, counter offers, accepted / rejected quotes.
+  quoteUpdatesPush Boolean  @default(true) @map("quote_updates_push")
+  /// Campaigns. Nothing is sent in this phase; stored for consent.
+  marketingPush    Boolean  @default(false) @map("marketing_push")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+enum PushDeliveryStatus {
+  /// Waiting for the push worker (first try or a retry).
+  PENDING
+  /// Handed to the push service for at least one device.
+  SENT
+  /// Development only: written to the API log by the console provider.
+  /// Nothing left the server; never reported as a real delivery.
+  DEV_LOGGED
+  /// Gave up after the last retry.
+  FAILED
+  /// Nothing to send: no registered device, or the user turned it off.
+  SKIPPED
+}
+
+/// Push outbox (docs/adr/0017). Written in the same transaction as the
+/// in-app notification; the worker sends it after commit. The in-app row
+/// stays the source of truth whatever happens here. Delivery attempts are
+/// kept here, never in audit_logs.
+model PushDelivery {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  notificationId String             @unique @map("notification_id") @db.Uuid
+  status         PushDeliveryStatus @default(PENDING)
+  attemptCount   Int                @default(0) @map("attempt_count") @db.SmallInt
+  nextAttemptAt  DateTime           @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  lastAttemptAt  DateTime?          @map("last_attempt_at") @db.Timestamptz(3)
+  lastError      String?            @map("last_error") @db.VarChar(500)
+  sentAt         DateTime?          @map("sent_at") @db.Timestamptz(3)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  tickets      PushTicket[]
+
+  @@index([status, nextAttemptAt])
+  @@map("push_deliveries")
+}
+
+enum PushTicketStatus {
+  /// Accepted by the push service; a receipt follows.
+  OK
+  ERROR
+}
+
+enum PushReceiptStatus {
+  PENDING
+  OK
+  ERROR
+  /// No receipt id (ticket error) or the provider has no receipts.
+  NOT_APPLICABLE
+}
+
+/// One device's answer from the push service for a delivery.
+model PushTicket {
+  id               String            @id @default(uuid(7)) @db.Uuid
+  deliveryId       String            @map("delivery_id") @db.Uuid
+  deviceId         String            @map("device_id") @db.Uuid
+  /// "expo" or "console"; console tickets are never real deliveries.
+  provider         String            @db.VarChar(20)
+  /// The push service's ticket id, used to fetch the receipt.
+  ticketId         String?           @map("ticket_id") @db.VarChar(100)
+  status           PushTicketStatus
+  error            String?           @db.VarChar(100)
+  receiptStatus    PushReceiptStatus @default(PENDING) @map("receipt_status")
+  receiptError     String?           @map("receipt_error") @db.VarChar(100)
+  receiptCheckedAt DateTime?         @map("receipt_checked_at") @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  delivery PushDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  device   Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([receiptStatus, createdAt])
+  @@index([deliveryId])
+  @@map("push_tickets")
 }
 
 /// Append-only log of security-relevant and admin actions.

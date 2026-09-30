@@ -1,14 +1,16 @@
-import type { Opportunity, Paginated, ProviderProfile } from '@ustago/types';
+import type { JobListItem, Opportunity, Paginated, ProviderProfile } from '@ustago/types';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
 
-import { providerApi } from '../../src/api/services';
+import { jobApi, providerApi } from '../../src/api/services';
 import { useAuth } from '../../src/auth/AuthContext';
+import { ActiveJobCard } from '../../src/components/ActiveJobCard';
 import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { ProviderGate } from '../../src/components/ProviderGate';
+import { PushPrompt } from '../../src/components/PushPrompt';
 import { Screen } from '../../src/components/Screen';
 import { EmptyState, ErrorState, FormError, LoadingState } from '../../src/components/States';
 import { Body, Heading, Small } from '../../src/components/Text';
@@ -39,6 +41,11 @@ function Feed() {
   const feed = useApi<Paginated<Opportunity>>('opportunities', () => providerApi.opportunities(), {
     pollMs: 10_000,
   });
+  const active = useApi<Paginated<JobListItem>>(
+    'jobs:provider:active',
+    () => jobApi.list('PROVIDER', 'ACTIVE'),
+    { pollMs: 15_000 },
+  );
 
   const toggle = useSubmit(async (body: { nowEnabled?: boolean; isAvailableNow?: boolean }) => {
     profile.setData(await providerApi.availability(body));
@@ -52,9 +59,13 @@ function Feed() {
 
   return (
     <Screen
-      onRefresh={() => void Promise.all([profile.refresh(), feed.refresh()])}
+      onRefresh={() => void Promise.all([profile.refresh(), feed.refresh(), active.refresh()])}
       refreshing={feed.refreshing}
     >
+      {(active.data?.items ?? []).map((job) => (
+        <ActiveJobCard key={job.id} job={job} viewer="PROVIDER" />
+      ))}
+      <PushPrompt viewer="PROVIDER" />
       {p ? (
         <Card highlight={p.isAvailableNow ? 'success' : undefined}>
           {p.nowEnabled ? (

@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router/js-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { NotificationBell } from '../../src/components/NotificationBell';
 import { TabIcon } from '../../src/components/TabIcon';
 import { colors } from '../../src/lib/theme';
 
@@ -12,6 +13,8 @@ export default function ProviderTabs() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         headerTitleStyle: { fontWeight: '700' },
+        headerRight: () => <NotificationBell />,
+        headerRightContainerStyle: { paddingRight: 8 },
         tabBarLabelStyle: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
         // Room for the emoji icon and the label, above the home indicator.
         tabBarStyle: {

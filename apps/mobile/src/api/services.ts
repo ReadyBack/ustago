@@ -1,10 +1,14 @@
 import type {
   Address,
   AppNotification,
+  ChangeOrder,
   CurrentUser,
+  Device,
   District,
+  DisputeReason,
   Job,
   JobListItem,
+  NotificationPreferences,
   Opportunity,
   OtpRequestResponse,
   OtpVerifyResponse,
@@ -16,11 +20,15 @@ import type {
   ProviderServiceItem,
   ProviderVerification,
   Province,
+  PublicProviderProfile,
+  PublicReview,
   Quote,
+  Review,
   ServiceCategoryNode,
   ServiceRequest,
   ServiceRequestListItem,
   SignedUrl,
+  UnreadNotificationCount,
   UploadIntentResponse,
   VerificationType,
 } from '@ustago/types';
@@ -178,12 +186,68 @@ export const providerApi = {
     ),
 };
 
+export type JobScope = 'ALL' | 'ACTIVE' | 'FINISHED';
+
 export const jobApi = {
-  list: (role: 'CUSTOMER' | 'PROVIDER') =>
-    api.get<Paginated<JobListItem>>(`/jobs?role=${role}&limit=50`),
+  list: (role: 'CUSTOMER' | 'PROVIDER', scope: JobScope = 'ALL') =>
+    api.get<Paginated<JobListItem>>(`/jobs?role=${role}&scope=${scope}&limit=50`),
   get: (id: string) => api.get<Job>(`/jobs/${id}`),
+  enRoute: (id: string) => api.post<Job>(`/jobs/${id}/en-route`),
+  arrive: (id: string) => api.post<Job>(`/jobs/${id}/arrive`),
+  start: (id: string) => api.post<Job>(`/jobs/${id}/start`),
+  requestCompletion: (id: string) => api.post<Job>(`/jobs/${id}/request-completion`),
+  complete: (id: string) => api.post<Job>(`/jobs/${id}/complete`),
+  cancel: (id: string, reason: string) => api.post<Job>(`/jobs/${id}/cancel`, { reason }),
+  dispute: (id: string, reason: DisputeReason, description: string) =>
+    api.post<Job>(`/jobs/${id}/dispute`, { reason, description }),
+};
+
+export const changeOrderApi = {
+  create: (jobId: string, amountMinor: number, description: string) =>
+    api.post<ChangeOrder>(`/jobs/${jobId}/change-orders`, { amountMinor, description }),
+  accept: (id: string) => api.post<ChangeOrder>(`/change-orders/${id}/accept`),
+  reject: (id: string) => api.post<ChangeOrder>(`/change-orders/${id}/reject`),
+  cancel: (id: string) => api.post<ChangeOrder>(`/change-orders/${id}/cancel`),
+};
+
+export interface ReviewInput {
+  rating: number;
+  qualityRating?: number | null;
+  communicationRating?: number | null;
+  punctualityRating?: number | null;
+  valueRating?: number | null;
+  comment?: string | null;
+}
+
+export const reviewApi = {
+  create: (jobId: string, body: ReviewInput) => api.post<Review>(`/jobs/${jobId}/review`, body),
+  update: (id: string, body: Partial<ReviewInput>) => api.patch<Review>(`/reviews/${id}`, body),
+};
+
+export const publicProviderApi = {
+  get: (id: string) => api.get<PublicProviderProfile>(`/providers/${id}`, { auth: false }),
+  reviews: (id: string, cursor?: string) =>
+    api.get<Paginated<PublicReview>>(
+      `/providers/${id}/reviews?limit=10${cursor ? `&cursor=${cursor}` : ''}`,
+      { auth: false },
+    ),
 };
 
 export const notificationApi = {
-  list: () => api.get<Paginated<AppNotification>>('/me/notifications?limit=30'),
+  list: (cursor?: string) =>
+    api.get<Paginated<AppNotification>>(
+      `/me/notifications?limit=30${cursor ? `&cursor=${cursor}` : ''}`,
+    ),
+  unreadCount: () => api.get<UnreadNotificationCount>('/me/notifications/unread-count'),
+  markRead: async (ids?: string[]): Promise<void> => {
+    await api.post<unknown>('/me/notifications/read', ids ? { ids } : {});
+  },
+  preferences: () => api.get<NotificationPreferences>('/me/notification-preferences'),
+  updatePreferences: (body: { quoteUpdatesPush?: boolean; marketingPush?: boolean }) =>
+    api.patch<NotificationPreferences>('/me/notification-preferences', body),
+};
+
+export const deviceApi = {
+  register: (body: { platform: 'IOS' | 'ANDROID'; pushProvider: 'EXPO'; pushToken: string }) =>
+    api.post<Device>('/me/devices', body),
 };

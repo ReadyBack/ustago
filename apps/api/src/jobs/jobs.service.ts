@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 import type { Job, JobListItem, Paginated } from '@ustago/types';
 import type { ListJobsQuery } from '@ustago/validation';
 
-import { notFound } from '../common/http/errors.js';
 import { toMoney } from '../common/money.js';
-import type { Job as JobRow, Prisma } from '../generated/prisma/client.js';
+import type { Job as JobRow, JobStatus, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toQuoteRevision } from '../quotes/quote.mappers.js';
+import { editableUntil } from '../reviews/domain/review-policy.js';
 import {
   categoryRefSelect,
   fullName,
@@ -15,10 +15,16 @@ import {
   toServiceAddress,
 } from '../service-requests/service-request.mappers.js';
 import { type AcceptedDeal, jobFromAcceptedDeal } from './domain/job-creation.js';
+import {
+  ACTIVE_JOB_STATUSES,
+  availableActions,
+  buildTimeline,
+  FINISHED_JOB_STATUSES,
+} from './domain/job-state-machine.js';
+import { jobNotFound } from './job-errors.js';
+import { OPEN_DISPUTE_STATUSES, toChangeOrder, toJobDispute, toReview } from './job.mappers.js';
 
 type Tx = Prisma.TransactionClient;
-
-const jobNotFound = () => notFound('JOB_NOT_FOUND', 'İş bulunamadı.');
 
 const jobInclude = {
   category: { select: categoryRefSelect },
@@ -43,12 +49,16 @@ const jobInclude = {
   provider: {
     select: { id: true, displayName: true, user: { select: { id: true, phone: true } } },
   },
+  changeOrders: { orderBy: { createdAt: 'asc' } },
+  reviews: { where: { direction: 'CUSTOMER_TO_PROVIDER' } },
+  disputes: { orderBy: { createdAt: 'desc' }, take: 1 },
 } satisfies Prisma.JobInclude;
 
 const listInclude = {
   category: { select: categoryRefSelect },
   serviceRequest: {
     select: {
+      type: true,
       title: true,
       province: { select: { id: true, name: true } },
       district: { select: { id: true, name: true } },
@@ -58,12 +68,18 @@ const listInclude = {
   provider: { select: { displayName: true } },
 } satisfies Prisma.JobInclude;
 
+const SCOPES: Record<ListJobsQuery['scope'], readonly JobStatus[] | null> = {
+  ALL: null,
+  ACTIVE: ACTIVE_JOB_STATUSES,
+  FINISHED: FINISHED_JOB_STATUSES,
+};
+
 /**
- * Jobs (docs/adr/0008, 0014). Created only inside the accept transaction;
- * visible to exactly two users, its customer and its provider. Once they
- * agreed, each side sees what it needs to meet: the full address and the
- * other side's name and phone. Status changes (en route, start, complete)
- * come with Faz 7's job state machine.
+ * Jobs (docs/adr/0008, 0014, 0015). Created only inside the accept
+ * transaction; visible to exactly two users, its customer and its
+ * provider. Once they agreed, each side sees what it needs to meet: the
+ * full address and the other side's name and phone. Status changes go
+ * through JobLifecycleService and the job state machine.
  */
 @Injectable()
 export class JobsService {
@@ -95,6 +111,22 @@ export class JobsService {
     });
     if (!job) throw jobNotFound();
     const viewerRole = job.customer.user.id === userId ? 'CUSTOMER' : 'PROVIDER';
+    const review = job.reviews[0] ?? null;
+    const dispute = job.disputes[0] ?? null;
+    const actions = availableActions(
+      {
+        status: job.status,
+        hasPendingChangeOrder: job.changeOrders.some((c) => c.status === 'PENDING'),
+        hasOpenDispute:
+          dispute !== null && (OPEN_DISPUTE_STATUSES as readonly string[]).includes(dispute.status),
+        review: {
+          exists: review !== null,
+          editableUntil:
+            review && review.status === 'PUBLISHED' ? editableUntil(review.createdAt) : null,
+        },
+      },
+      viewerRole,
+    );
     return {
       id: job.id,
       status: job.status,
@@ -102,6 +134,20 @@ export class JobsService {
       currentTotal: toMoney(job.currentTotalMinor, job.currency),
       scheduledStartAt: job.scheduledStartAt?.toISOString() ?? null,
       createdAt: job.createdAt.toISOString(),
+      enRouteAt: job.enRouteAt?.toISOString() ?? null,
+      arrivedAt: job.arrivedAt?.toISOString() ?? null,
+      startedAt: job.startedAt?.toISOString() ?? null,
+      completionRequestedAt: job.completionRequestedAt?.toISOString() ?? null,
+      completedAt: job.completedAt?.toISOString() ?? null,
+      disputedAt: job.disputedAt?.toISOString() ?? null,
+      cancelledAt: job.cancelledAt?.toISOString() ?? null,
+      cancellationActor: job.cancellationActor,
+      cancellationReason: job.cancellationReason,
+      timeline: buildTimeline(job),
+      changeOrders: job.changeOrders.map(toChangeOrder),
+      review: review ? toReview(review) : null,
+      dispute: dispute ? toJobDispute(dispute) : null,
+      actions,
       serviceRequest: {
         id: job.serviceRequest.id,
         type: job.serviceRequest.type,
@@ -122,9 +168,11 @@ export class JobsService {
   }
 
   async list(userId: string, query: ListJobsQuery): Promise<Paginated<JobListItem>> {
+    const statuses = SCOPES[query.scope];
     const rows = await this.prisma.job.findMany({
       where: {
         ...(query.role === 'CUSTOMER' ? { customer: { userId } } : { provider: { userId } }),
+        ...(statuses ? { status: { in: [...statuses] } } : {}),
         ...(query.cursor ? { id: { lt: query.cursor } } : {}),
       },
       include: listInclude,
@@ -136,7 +184,9 @@ export class JobsService {
       items: page.map((j) => ({
         id: j.id,
         status: j.status,
+        requestType: j.serviceRequest.type,
         agreedPrice: toMoney(j.agreedPriceMinor, j.currency),
+        currentTotal: toMoney(j.currentTotalMinor, j.currency),
         title: j.serviceRequest.title,
         category: toCategoryRef(j.category),
         location: toLocation(j.serviceRequest),

@@ -96,12 +96,14 @@ describe('apiEnvSchema', () => {
       API_CORS_ORIGINS: 'https://admin.ustago.example',
       SMS_PROVIDER: 'console',
       STORAGE_DRIVER: 'local',
+      PUSH_PROVIDER: 'console',
     });
     expect(result.success).toBe(false);
     const paths = result.error?.issues.map((issue) => issue.path.join('.'));
     expect(paths).toEqual(
       expect.arrayContaining([
         'SMS_PROVIDER',
+        'PUSH_PROVIDER',
         'STORAGE_DRIVER',
         'OTP_HASH_SECRET',
         'STORAGE_SIGNING_SECRET',
@@ -116,6 +118,7 @@ describe('apiEnvSchema', () => {
       API_CORS_ORIGINS: 'https://admin.ustago.example',
       SMS_PROVIDER: 'disabled',
       STORAGE_DRIVER: 'disabled',
+      PUSH_PROVIDER: 'expo',
       OTP_HASH_SECRET: 'x'.repeat(40),
       STORAGE_SIGNING_SECRET: 'y'.repeat(40),
     });

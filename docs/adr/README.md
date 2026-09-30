@@ -21,3 +21,6 @@
 | [0012](0012-turkiye-konum-referans-verisi.md)         | Türkiye konum referans verisi                | Kabul edildi |
 | [0013](0013-admin-kimlik-dogrulama.md)                | Admin paneli kimlik doğrulama (BFF)          | Kabul edildi |
 | [0014](0014-talep-teklif-pazarlik-ve-now.md)          | Talep, teklif, pazarlık, fiyat kilidi ve NOW | Kabul edildi |
+| [0015](0015-is-yasam-dongusu-ve-ek-is.md)             | İş yaşam döngüsü, ek iş ve sorun bildirimi   | Kabul edildi |
+| [0016](0016-ustascore-v1-ve-usta-kalite-modeli.md)    | Değerlendirme, UstaScore V1, yaptırımlar     | Kabul edildi |
+| [0017](0017-bildirim-outbox-ve-expo-push.md)          | Bildirimler, outbox ve Expo push             | Kabul edildi |

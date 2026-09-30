@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import type { AppNotification } from '@ustago/types';
+import type { AppNotification, NotificationPreferences, Paginated } from '@ustago/types';
+import type { ListNotificationsQuery, UpdateNotificationPreferences } from '@ustago/validation';
 
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { DEFAULT_PUSH_PREFERENCES, wantsPush } from './notification-events.js';
 
 export interface NotificationDraft {
   userId: string;
-  /** Event key, e.g. "quote.created", "now.new_request". */
+  /** Event key, see NotificationEvent (e.g. "job.en_route"). */
   type: string;
   title: string;
   body: string;
@@ -15,11 +17,14 @@ export interface NotificationDraft {
 }
 
 /**
- * In-app notifications, written as an outbox (docs/adr/0014): rows are
- * inserted in the same transaction as the business change, so nothing is
- * announced for a change that rolled back. They are shown in the app
- * (pull-to-refresh / polling). A push worker that sends PENDING rows to
- * Expo Push / FCM is a later phase; until then no push is sent.
+ * Notifications as an outbox (docs/adr/0014, 0017).
+ *
+ * `enqueueIn` runs inside the business transaction: the in-app row and,
+ * when the user gets pushes for this kind of event, a PENDING push
+ * delivery are written together with the state change, so nothing is
+ * announced for a change that rolled back and nothing is lost if the push
+ * service is down. The push worker sends after commit; the in-app row is
+ * the source of truth whatever happens to the push.
  */
 @Injectable()
 export class NotificationsService {
@@ -27,34 +32,59 @@ export class NotificationsService {
 
   async enqueueIn(tx: Prisma.TransactionClient, drafts: NotificationDraft[]): Promise<void> {
     if (drafts.length === 0) return;
-    await tx.notification.createMany({
+    const rows = await tx.notification.createManyAndReturn({
       data: drafts.map((d) => ({
         userId: d.userId,
         type: d.type,
-        channel: 'IN_APP',
-        status: 'PENDING',
+        channel: 'IN_APP' as const,
+        status: 'PENDING' as const,
         title: d.title.slice(0, 140),
         body: d.body.slice(0, 1000),
         ...(d.data ? { data: d.data } : {}),
       })),
+      select: { id: true, userId: true, type: true },
     });
+    const prefs = await tx.notificationPreference.findMany({
+      where: { userId: { in: [...new Set(rows.map((r) => r.userId))] } },
+      select: { userId: true, quoteUpdatesPush: true },
+    });
+    const prefsBy = new Map(prefs.map((p) => [p.userId, p]));
+    const push = rows.filter((r) =>
+      wantsPush(r.type, prefsBy.get(r.userId) ?? DEFAULT_PUSH_PREFERENCES),
+    );
+    if (push.length > 0) {
+      await tx.pushDelivery.createMany({ data: push.map((r) => ({ notificationId: r.id })) });
+    }
   }
 
-  async list(userId: string, limit = 30): Promise<AppNotification[]> {
+  async list(userId: string, query: ListNotificationsQuery): Promise<Paginated<AppNotification>> {
     const rows = await this.prisma.notification.findMany({
-      where: { userId, channel: 'IN_APP' },
+      where: {
+        userId,
+        channel: 'IN_APP',
+        ...(query.unreadOnly ? { readAt: null } : {}),
+        ...(query.cursor ? { id: { lt: query.cursor } } : {}),
+      },
       orderBy: { id: 'desc' },
-      take: limit,
+      take: query.limit + 1,
     });
-    return rows.map((n) => ({
-      id: n.id,
-      type: n.type,
-      title: n.title,
-      body: n.body,
-      data: isStringRecord(n.data) ? n.data : null,
-      readAt: n.readAt?.toISOString() ?? null,
-      createdAt: n.createdAt.toISOString(),
-    }));
+    const page = rows.slice(0, query.limit);
+    return {
+      items: page.map((n) => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        body: n.body,
+        data: isStringRecord(n.data) ? n.data : null,
+        readAt: n.readAt?.toISOString() ?? null,
+        createdAt: n.createdAt.toISOString(),
+      })),
+      nextCursor: rows.length > query.limit ? (page.at(-1)?.id ?? null) : null,
+    };
+  }
+
+  unreadCount(userId: string): Promise<number> {
+    return this.prisma.notification.count({ where: { userId, channel: 'IN_APP', readAt: null } });
   }
 
   async markRead(userId: string, ids?: string[]): Promise<number> {
@@ -64,6 +94,33 @@ export class NotificationsService {
     });
     return result.count;
   }
+
+  async preferences(userId: string): Promise<NotificationPreferences> {
+    const row = await this.prisma.notificationPreference.findUnique({ where: { userId } });
+    return toPreferences(row);
+  }
+
+  async updatePreferences(
+    userId: string,
+    input: UpdateNotificationPreferences,
+  ): Promise<NotificationPreferences> {
+    const row = await this.prisma.notificationPreference.upsert({
+      where: { userId },
+      create: { userId, ...input },
+      update: input,
+    });
+    return toPreferences(row);
+  }
+}
+
+function toPreferences(
+  row: { quoteUpdatesPush: boolean; marketingPush: boolean } | null,
+): NotificationPreferences {
+  return {
+    jobUpdatesPush: true,
+    quoteUpdatesPush: row?.quoteUpdatesPush ?? DEFAULT_PUSH_PREFERENCES.quoteUpdatesPush,
+    marketingPush: row?.marketingPush ?? false,
+  };
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {

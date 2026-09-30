@@ -91,6 +91,9 @@ etiketi vardır.
 | `usta-elektrik@ustago.test` | 500 000 00 03         | Onaylı elektrikçi, NOW açık ama müsait değil                                               |
 | `usta-tesisat@ustago.test`  | 500 000 00 04         | Onaylı tesisatçı, yalnızca teklif (NOW kapalı), Çukurova                                   |
 | `usta-bekleyen@ustago.test` | 500 000 00 05         | İnceleme bekleyen başvuru (admin panelinde onay/red denemesi için)                         |
+| `demo-musteri-zeynep@…`     | 500 000 00 11         | Geçmiş müşteri (Faz 4): Demo Klima Ustası'na 5 yıldız vermiş tamamlanmış iş                |
+| `demo-musteri-ali@…`        | 500 000 00 12         | Geçmiş müşteri (Faz 4): 4 yıldız, "yarım saat geç geldi" yorumu                            |
+| `demo-musteri-elif@…`       | 500 000 00 13         | Geçmiş müşteri (Faz 4): 5 yıldız, montaj işi                                               |
 | `admin@ustago.test`         | (e-posta + şifre)     | SUPER_ADMIN, admin paneli                                                                  |
 | `usta@ustago.test`          | (e-posta + şifre)     | İstanbul'da onaylı usta (Faz 2 demo hesabı)                                                |
 
@@ -125,6 +128,44 @@ Müşteri ve usta için iki ayrı tarayıcı penceresi (biri gizli pencere) en r
    sayılar), İş talepleri (filtreler, pazarlık geçmişi), Usta başvuruları (500 000 00 05'i onaylayın).
 
 Temiz bir başlangıç için `pnpm dev:reset` (onay ister; yalnız yerel veritabanında çalışır).
+
+## FAZ 4 — 10 DAKİKALIK DEMO
+
+Faz 3 demosunun 1-6. adımlarıyla (Klima, bütçe 1.500 → teklif 2.500 → 2.000 → 2.200 → anlaşma)
+bir iş oluşturun. Müşteri (500 000 00 01) ve usta (500 000 00 02) iki ayrı pencerede açık kalsın.
+Ekranlar 10 saniyede bir kendini yeniler; zil ikonu okunmamış bildirim sayısını gösterir.
+
+1. **Ana sayfa kartı**: müşteri Ana Sayfa'da "AKTİF İŞİNİZ" kartını, usta "İşler" sekmesinin
+   başında "AKTİF İŞ" kartını görür. Karta dokunun.
+2. **Usta yola çıkar**: usta iş ekranında tek büyük düğme **YOLA ÇIKTIM** → onay. Müşteride
+   durum "Usta yolda" olur, zaman çizelgesinde gerçek saat yazar, 🔔 bildirim gelir.
+3. **Varış ve başlangıç**: usta **ADRESE ULAŞTIM**, sonra **İŞE BAŞLADIM**. İki tarafta da
+   "📞 Ara" düğmesi karşı tarafın telefonunu açar.
+4. **Ek iş**: usta "+ Ek iş onayı iste" → **500** TL, "Kompresör rölesi değişti" → onay. Müşteri
+   "Ek iş onayı bekleniyor" kartında **Onayla** der; pencere "Yeni toplam ₺2.700 olacak." yazar.
+   Anlaşılan fiyat ₺2.200 olarak kalır, güncel toplam ₺2.700 olur.
+5. **Reddedilen ek iş**: usta 300 TL daha ister, müşteri **Reddet** der → toplam ₺2.700 kalır.
+   Ek iş beklerken usta "İŞİ TAMAMLADIM"a basamaz: "Önce bekleyen ek iş talebinin sonuçlanması
+   gerekiyor."
+6. **Tamamlama**: usta **İŞİ TAMAMLADIM** → "İşi tamamladığınızı müşteriye bildirmek istiyor
+   musunuz?" → Bildir. Müşteride **İŞ TAMAMLANDI** ve **SORUN BİLDİR** çıkar; İŞ TAMAMLANDI → Onayla.
+   Otomatik tamamlama yoktur.
+7. **Değerlendirme**: müşteri yıldızlara dokunur (genel puan zorunlu, alt puanlar isteğe bağlı),
+   en fazla 1000 karakter yorum → Gönder. 30 gün içinde düzenlenebilir.
+8. **Usta profili**: iş ekranında "Usta profilini gör". Puan yalnızca gerçek yorumlardan gelir
+   (seed'deki 3 DEMO yorumla ⭐ 4.7); yorum yazan adları maskelidir ("Zeynep D."), telefon/e-posta
+   görünmez. Hiç yorumu olmayan usta "Yeni Usta" görünür.
+9. **Sorun bildirimi**: yeni bir işte usta adrese vardıktan sonra müşteri **SORUN BİLDİR** →
+   neden + açıklama → iş "Sorun bildirildi" olur. (Usta gelmeden yalnızca "Usta gelmedi" seçilir.)
+10. **Admin** (http://localhost:3001): **İşler** (filtreler, iş detayı: durum geçmişi, pazarlık,
+    ek işler, denetim kaydı) → **Sorun bildirimleri** → bildirimi açın, sonucu ve notu yazıp
+    **Sonuçlandır** → **Değerlendirmeler** (gerekçeyle gizle / geri al) → **Usta başvuruları** →
+    Demo Klima Ustası → **Kalite ve UstaScore** (etkenler, ağırlıklar, yaptırım verme/kaldırma).
+
+**Push bildirimi hakkında:** yerelde `PUSH_PROVIDER=console`'dur. Bildirimler uygulama içinde
+(🔔) gerçekten oluşur; push kopyası yalnızca API çıktısına `[DEV PUSH]` satırı olarak yazılır ve
+sunucudan dışarı hiçbir şey gönderilmez. Gerçek cihaza push için EAS `projectId` ile derlenmiş bir
+uygulama ve `PUSH_PROVIDER=expo` gerekir (ADR-0017).
 
 ## Troubleshooting
 
@@ -224,7 +265,8 @@ Tam liste: PROJECT.md §31.
 - Domain modeli: [docs/architecture/domain-model.md](docs/architecture/domain-model.md)
 - Kararlar: [docs/adr](docs/adr/README.md) (0005 rol modeli, 0006 para, 0007 auth, 0008 domain,
   0009 OTP/SMS, 0010 usta yaşam döngüsü ve NOW, 0011 belge ve depolama, 0012 konum verisi,
-  0013 admin oturumu, 0014 talep, teklif, pazarlık ve NOW)
+  0013 admin oturumu, 0014 talep, teklif, pazarlık ve NOW, 0015 iş yaşam döngüsü ve ek iş,
+  0016 değerlendirme ve UstaScore V1, 0017 bildirim outbox ve Expo push)
 - Türkiye il/ilçe verisinin kaynağı: [docs/reference-data](docs/reference-data/turkey-locations.md)
 
 ## CI

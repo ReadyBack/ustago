@@ -62,6 +62,23 @@ export const apiEnvSchema = z
      */
     SMS_PROVIDER: z.enum(['console', 'fake', 'disabled']).default('console'),
 
+    // --- Push (docs/adr/0017-bildirim-outbox-ve-expo-push.md) ---
+    /**
+     * console: logs "[DEV PUSH]" lines and records the attempt as a
+     * development ticket; nothing is sent (development only).
+     * expo: sends through the Expo Push API (needs a real device token).
+     * disabled: push rows are skipped; in-app notifications still work.
+     */
+    PUSH_PROVIDER: z.enum(['console', 'expo', 'disabled']).default('console'),
+    /** Optional Expo access token (only when "Enhanced push security" is on). */
+    EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
+    /** Seconds between push worker runs; 0 turns the worker off (tests). */
+    PUSH_WORKER_INTERVAL_SECONDS: z.coerce.number().int().min(0).max(3600).default(5),
+    /** Attempts before a push delivery is marked FAILED (exponential backoff between). */
+    PUSH_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(5),
+    /** Expo keeps receipts ~24h and recommends checking after ~15 minutes. */
+    PUSH_RECEIPT_DELAY_SECONDS: z.coerce.number().int().min(0).max(86400).default(900),
+
     // --- Object storage (docs/adr/0011-dogrulama-belgeleri-ve-nesne-depolama.md) ---
     /**
      * local: files on disk behind short-lived signed URLs served by the API
@@ -159,6 +176,13 @@ export const apiEnvSchema = z
         code: 'custom',
         path: ['SMS_PROVIDER'],
         message: 'console/fake SMS providers are not allowed in production',
+      });
+    }
+    if (env.PUSH_PROVIDER === 'console') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['PUSH_PROVIDER'],
+        message: 'the console push provider is not allowed in production',
       });
     }
     if (env.STORAGE_DRIVER === 'local') {

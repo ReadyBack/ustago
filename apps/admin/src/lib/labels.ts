@@ -1,5 +1,15 @@
 import type {
+  ChangeOrderStatus,
+  DisciplinaryActionStatus,
+  DisciplinaryActionType,
+  DisputeReason,
+  DisputeStatus,
+  JobActor,
   JobStatus,
+  JobStep,
+  PenaltySeverity,
+  QualityFactorKey,
+  ReviewStatus,
   OnboardingStep,
   ProviderStatus,
   QuoteRevisionKind,
@@ -91,6 +101,105 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   IN_PROGRESS: 'Devam ediyor',
   AWAITING_COMPLETION_CONFIRMATION: 'Tamamlanma onayı bekleniyor',
   COMPLETED: 'Tamamlandı',
-  DISPUTED: 'Anlaşmazlık',
+  DISPUTED: 'Sorun bildirildi',
   CANCELLED: 'İptal edildi',
+};
+
+export const JOB_ACTOR_LABELS: Record<JobActor, string> = {
+  CUSTOMER: 'Müşteri',
+  PROVIDER: 'Usta',
+  ADMIN: 'Yönetici',
+  SYSTEM: 'Sistem',
+};
+
+export const JOB_STEP_LABELS: Record<JobStep, string> = {
+  AGREED: 'Anlaşma',
+  EN_ROUTE: 'Yola çıktı',
+  ARRIVED: 'Adrese ulaştı',
+  STARTED: 'İşe başladı',
+  COMPLETION_REQUESTED: 'Usta tamamladı',
+  COMPLETED: 'Müşteri onayladı',
+};
+
+export const CHANGE_ORDER_STATUS_LABELS: Record<ChangeOrderStatus, string> = {
+  PENDING: 'Onay bekliyor',
+  ACCEPTED: 'Onaylandı',
+  REJECTED: 'Reddedildi',
+  CANCELLED: 'Geri çekildi',
+  EXPIRED: 'Sonuçlanmadan kapandı',
+};
+
+export const DISPUTE_REASON_LABELS: Record<DisputeReason, string> = {
+  NO_SHOW: 'Usta gelmedi',
+  POOR_QUALITY: 'İş kalitesi',
+  PRICE_DISAGREEMENT: 'Fiyat anlaşmazlığı',
+  PAYMENT_ISSUE: 'Ödeme sorunu',
+  DAMAGE: 'Hasar',
+  MISCONDUCT: 'Uygunsuz davranış',
+  OTHER: 'Diğer',
+};
+
+export const DISPUTE_STATUS_LABELS: Record<DisputeStatus, string> = {
+  OPEN: 'Açık',
+  AWAITING_EVIDENCE: 'Kanıt bekleniyor',
+  UNDER_REVIEW: 'İnceleniyor',
+  RESOLVED_FOR_CUSTOMER: 'Müşteri lehine',
+  RESOLVED_FOR_PROVIDER: 'Usta lehine',
+  RESOLVED_PARTIAL: 'Kısmen haklı',
+  CLOSED: 'Kapatıldı',
+};
+
+/** The outcomes an admin can pick when resolving. */
+export const DISPUTE_OUTCOMES = [
+  'RESOLVED_FOR_CUSTOMER',
+  'RESOLVED_FOR_PROVIDER',
+  'RESOLVED_PARTIAL',
+  'CLOSED',
+] as const satisfies readonly DisputeStatus[];
+
+export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
+  PUBLISHED: 'Yayında',
+  UNDER_MODERATION: 'İnceleniyor',
+  HIDDEN: 'Gizlendi',
+};
+
+export const PENALTY_TYPE_LABELS: Record<DisciplinaryActionType, string> = {
+  WARNING: 'Uyarı',
+  VISIBILITY_REDUCTION: 'Sıralamada geri düşürme',
+  NOW_SUSPENSION: 'Acil işlerden uzaklaştırma',
+  JOB_RESTRICTION: 'Yeni iş kısıtlaması',
+  TEMPORARY_SUSPENSION: 'Geçici askıya alma',
+  PERMANENT_BAN: 'Kalıcı kapatma',
+};
+
+/** Created from the quality card; account suspension stays in the provider review flow. */
+export const PENALTY_TYPES = [
+  'WARNING',
+  'VISIBILITY_REDUCTION',
+  'NOW_SUSPENSION',
+  'JOB_RESTRICTION',
+] as const satisfies readonly DisciplinaryActionType[];
+
+export const PENALTY_STATUS_LABELS: Record<DisciplinaryActionStatus, string> = {
+  ACTIVE: 'Yürürlükte',
+  UNDER_APPEAL: 'İtirazda',
+  REVOKED: 'Kaldırıldı',
+  EXPIRED: 'Süresi doldu',
+};
+
+export const PENALTY_SEVERITY_LABELS: Record<PenaltySeverity, string> = {
+  WARNING: 'Uyarı',
+  MINOR: 'Hafif',
+  MAJOR: 'Ağır',
+  CRITICAL: 'Kritik',
+};
+
+export const QUALITY_FACTOR_LABELS: Record<QualityFactorKey, string> = {
+  REVIEWS: 'Müşteri puanları',
+  COMPLETION: 'Tamamlama oranı',
+  CANCELLATION: 'Usta kaynaklı iptal',
+  DISPUTES: 'Sorun bildirimi',
+  RESPONSE: 'Yanıt hızı',
+  VERIFICATION: 'Doğrulamalar',
+  EXPERIENCE: 'Deneyim',
 };

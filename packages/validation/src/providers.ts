@@ -282,7 +282,9 @@ export const publicProviderProfileSchema = z
     services: z.array(providerServiceItemSchema),
     serviceAreas: z.array(providerServiceAreaGroupSchema),
     verificationBadges: z.array(verificationTypeSchema),
-    score: z.number().nullable(),
+    rating: z.object({ average: z.number(), count: z.number().int() }).nullable(),
+    completedJobCount: z.number().int(),
+    ustaScore: z.number().int().min(0).max(100).nullable(),
     isNewProvider: z.boolean(),
     memberSince: z.iso.datetime(),
   })

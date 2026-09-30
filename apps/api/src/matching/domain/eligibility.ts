@@ -37,12 +37,16 @@ export interface EligibilityInput {
     isAvailableNow: boolean;
     categoryIds: readonly string[];
     districtIds: readonly string[];
+    /** Admin sanctions in force (docs/adr/0016). */
+    jobRestricted: boolean;
+    nowSuspended: boolean;
   };
   now: Date;
 }
 
 export type IneligibilityReason =
   | 'PROVIDER_NOT_ACTIVE'
+  | 'PROVIDER_RESTRICTED'
   | 'REQUEST_NOT_OPEN'
   | 'REQUEST_EXPIRED'
   | 'CUSTOMER_INACTIVE'
@@ -52,12 +56,14 @@ export type IneligibilityReason =
   | 'CATEGORY_CLOSED'
   | 'PROVINCE_CLOSED'
   | 'NOW_NOT_AVAILABLE'
+  | 'NOW_SUSPENDED'
   | 'NOW_CLOSED_IN_PROVINCE';
 
 /** First failing rule, or null when the provider may see the request. */
 export function ineligibilityReason(input: EligibilityInput): IneligibilityReason | null {
   const { request, category, province, district, override, provider } = input;
   if (provider.status !== 'ACTIVE') return 'PROVIDER_NOT_ACTIVE';
+  if (provider.jobRestricted) return 'PROVIDER_RESTRICTED';
   if (!isOpen(request.status)) return 'REQUEST_NOT_OPEN';
   if (request.expiresAt && request.expiresAt <= input.now) return 'REQUEST_EXPIRED';
   if (!request.customerActive) return 'CUSTOMER_INACTIVE';
@@ -71,6 +77,7 @@ export function ineligibilityReason(input: EligibilityInput): IneligibilityReaso
     return category.supportsQuote ? null : 'CATEGORY_CLOSED';
   }
   if (!provider.nowEnabled || !provider.isAvailableNow) return 'NOW_NOT_AVAILABLE';
+  if (provider.nowSuspended) return 'NOW_SUSPENDED';
   const nowOpen = isNowOpen({
     provinceActive: province.active,
     categoryActive: category.active,

@@ -84,7 +84,11 @@ export default async function ServiceRequestDetailPage(props: PageProps<'/servic
           {r.job ? (
             <dl>
               <dt>Durum</dt>
-              <dd>{JOB_STATUS_LABELS[r.job.status]}</dd>
+              <dd>
+                <Link href={`/jobs/${r.job.id}`}>
+                  {JOB_STATUS_LABELS[r.job.status]} · iş detayı
+                </Link>
+              </dd>
               <dt>Usta</dt>
               <dd>{r.job.provider.displayName}</dd>
               <dt>Anlaşılan fiyat</dt>
