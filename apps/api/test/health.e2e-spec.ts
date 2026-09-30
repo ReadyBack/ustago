@@ -40,4 +40,27 @@ describe('Health (e2e, real services)', () => {
     expect(body.checks.database.status).toBe('up');
     expect(body.checks.redis.status).toBe('up');
   });
+
+  it('sends security headers and answers CORS only for configured origins', async () => {
+    const env = app.get<ApiEnv>(API_ENV);
+    const res = await request(app.getHttpServer()).get('/api/v1/health').expect(200);
+    expect(res.headers['x-frame-options']).toBe('DENY');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['referrer-policy']).toBe('no-referrer');
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(res.headers['x-powered-by']).toBeUndefined();
+
+    const allowed = env.API_CORS_ORIGINS[0];
+    expect(allowed).toBeDefined();
+    const ok = await request(app.getHttpServer())
+      .options('/api/v1/health')
+      .set('Origin', allowed ?? '')
+      .set('Access-Control-Request-Method', 'GET');
+    expect(ok.headers['access-control-allow-origin']).toBe(allowed);
+    const denied = await request(app.getHttpServer())
+      .options('/api/v1/health')
+      .set('Origin', 'https://evil.example')
+      .set('Access-Control-Request-Method', 'GET');
+    expect(denied.headers['access-control-allow-origin']).toBeUndefined();
+  });
 });
