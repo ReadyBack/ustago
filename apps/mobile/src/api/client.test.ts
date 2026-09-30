@@ -170,3 +170,25 @@ describe('ApiClient start-up', () => {
     expect(seen).toEqual([undefined, 'Bearer access-1']);
   });
 });
+
+describe('ApiClient headers', () => {
+  it('sends extra headers such as Idempotency-Key and keeps its own', async () => {
+    const seen: Record<string, string>[] = [];
+    const client = new ApiClient(
+      'http://api.test',
+      { getTokens: () => tokens(1), setTokens: async () => undefined, onSessionExpired: () => {} },
+      async (_input, init) => {
+        seen.push((init?.headers ?? {}) as Record<string, string>);
+        return json(200, {});
+      },
+    );
+    await client.post('/jobs/job-1/payments', undefined, {
+      headers: { 'Idempotency-Key': 'key-12345678', Authorization: 'Bearer spoofed' },
+    });
+    expect(seen[0]).toMatchObject({
+      'Idempotency-Key': 'key-12345678',
+      Authorization: 'Bearer access-1',
+      Accept: 'application/json',
+    });
+  });
+});

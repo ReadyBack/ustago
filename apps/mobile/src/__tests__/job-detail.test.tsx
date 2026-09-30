@@ -18,6 +18,10 @@ jest.mock('../api/services', () => ({
   changeOrderApi: {},
   reviewApi: {},
 }));
+// The payment card has its own tests (payment-card.test.tsx); here it stays loading.
+jest.mock('../api/finance', () => ({
+  paymentApi: { summary: jest.fn(() => new Promise(() => undefined)) },
+}));
 
 const get = jest.mocked(jobApi.get);
 

@@ -24,3 +24,6 @@
 | [0015](0015-is-yasam-dongusu-ve-ek-is.md)             | İş yaşam döngüsü, ek iş ve sorun bildirimi   | Kabul edildi |
 | [0016](0016-ustascore-v1-ve-usta-kalite-modeli.md)    | Değerlendirme, UstaScore V1, yaptırımlar     | Kabul edildi |
 | [0017](0017-bildirim-outbox-ve-expo-push.md)          | Bildirimler, outbox ve Expo push             | Kabul edildi |
+| [0018](0018-finansal-defter-mimarisi.md)              | Finansal defter (ledger) mimarisi            | Kabul edildi |
+| [0019](0019-odeme-saglayici-soyutlamasi.md)           | Ödeme sağlayıcı soyutlaması ve webhook       | Kabul edildi |
+| [0020](0020-platform-ucreti-ve-usta-kazanci.md)       | Platform ücreti, kazanç, nakit, iade, payout | Kabul edildi |

@@ -167,6 +167,48 @@ Ekranlar 10 saniyede bir kendini yeniler; zil ikonu okunmamış bildirim sayıs�
 sunucudan dışarı hiçbir şey gönderilmez. Gerçek cihaza push için EAS `projectId` ile derlenmiş bir
 uygulama ve `PUSH_PROVIDER=expo` gerekir (ADR-0017).
 
+## FAZ 5 — FINANCE LOCAL DEMO
+
+**Gerçek para hareketi yoktur.** Yerelde `PAYMENT_PROVIDER=mock` ve `PAYOUT_PROVIDER=mock`
+kullanılır: kart bilgisi istenmez, hiçbir ödeme kuruluşuna ya da bankaya bağlanılmaz. Mobilde
+"TEST ÖDEME ORTAMI — gerçek ücret alınmaz", admin panelinde "TEST ÖDEME SAĞLAYICISI AKTİF —
+Gerçek para hareketi yoktur." yazar. Üretimde mock sağlayıcı ve `/dev/*` uçları açılmaz (API
+başlamaz / 404). Platform ücreti geliştirme politikası `DEV-DEFAULT-1500` (%15) nihai ticari oran
+değildir. Vergi/faturalandırma hukuki-mali doğrulama gerektirir; müşteriye "Ödeme Özeti"
+gösterilir, fatura değildir.
+
+Seed, **Demo Elektrik Ustası**'na (500 000 00 03) hazır finans verisi yazar: 3 tamamlanmış iş
+(₺3.000 uygulamadan + ₺250 admin iadesi, ₺800 nakit, ₺1.200 uygulamadan), TEST banka hesabı ve
+ödenmiş ₺1.000 para çekme. Demo Klima Ustası senaryolar için temiz bırakılır.
+
+- **A — Uygulamadan ödeme:** Faz 4 demosundaki işi (₺2.200) açın. Müşteri iş ekranındaki
+  **Ödeme** kartında "Uygulamadan öde" → **₺2.200 ÖDE** → **Başarılı ödeme (TEST)**. Usta aynı
+  kartta Brüt ₺2.200, Platform ücreti (%15) ₺330, Net kazancınız ₺1.870 görür. "Başarısız ödeme
+  (TEST)" → "Ödeme alınamadı. Lütfen tekrar deneyin." ve yeniden deneme.
+- **A2 — Ek iş farkı:** +₺500 ek iş onaylanınca kart **Kalan ₺500 ÖDE** gösterir; sessiz ek çekim
+  yoktur. Fark ödenince toplam ücret ₺405 (₺2.700'ün %15'i).
+- **B — Nakit:** başka bir işte "Ustaya doğrudan öde". Müşteri **Ödemeyi yaptım**, usta **Ödemeyi
+  aldım** der (tek taraf yetmez). Onaydan sonra platform ücreti ustanın **platform borcu** olur ve
+  sonraki online kazançtan mahsup edilir.
+- **C — İade:** admin → **Finans → Ödemeler** → ödeme → **İade başlat**: tutar, neden, zorunlu iç
+  not, iki aşamalı onay. İade edilebilir tutarı aşan istek reddedilir.
+- **D — Kazançlarım ve para çekme:** usta modunda **Kazançlarım** sekmesi (bekleyen, kullanılabilir,
+  ayrılan, platform borcu). **Para Çek** → TEST IBAN `TR33 0006 1005 1978 6457 8413 26` (yalnız
+  maskeli hâli saklanır) → tutar → talep. Admin **Finans → Para çekme** → Onayla → **TEST: Ödendi
+  işaretle**.
+- **E — Anlaşmazlık:** iş "Sorun bildirildi" olunca kazanç tutulur. Admin sorun bildirimini
+  sonuçlarken finansal karar seçer: tam iade, kısmi iade veya ustaya serbest bırak.
+- **F — Mutabakat:** admin **Finans → Mutabakat** ya da terminalde:
+
+```bash
+pnpm finance:reconcile          # özet; uyumsuzluk varsa çıkış kodu 1
+pnpm finance:reconcile --json   # makine okunur rapor
+```
+
+Seed sonrası beklenen çıktı: 2 ödeme, 1 iade, 2 kazanç, 1 para çekme, 1 nakit kayıt, 9 defter
+kaydı; borç ₺10.390 = alacak ₺10.390, **DENGELİ**, uyumsuzluk 0. Mutabakat hiçbir şeyi otomatik
+düzeltmez. Ayrıntı: ADR-0018, 0019, 0020 ve [docs/api](docs/api/README.md) Faz 5 bölümü.
+
 ## Troubleshooting
 
 | Belirti                                                  | Çözüm                                                                                                                                                             |
@@ -248,6 +290,7 @@ fotoğraf yüklemeleri geliştirmede `apps/api/.data/storage` altında durur (gi
 | `pnpm db:seed`                      | Referans veri + (geliştirmede) demo hesaplar                          |
 | `pnpm db:reset`                     | Lokal veritabanını sıfırlar, migration + seed (Prisma CLI)            |
 | `pnpm db:validate`                  | Prisma şemasını doğrular                                              |
+| `pnpm finance:reconcile`            | Defter ve finans kayıtlarının mutabakatı (salt okunur)                |
 
 ## Kurallar (özet)
 
@@ -266,7 +309,8 @@ Tam liste: PROJECT.md §31.
 - Kararlar: [docs/adr](docs/adr/README.md) (0005 rol modeli, 0006 para, 0007 auth, 0008 domain,
   0009 OTP/SMS, 0010 usta yaşam döngüsü ve NOW, 0011 belge ve depolama, 0012 konum verisi,
   0013 admin oturumu, 0014 talep, teklif, pazarlık ve NOW, 0015 iş yaşam döngüsü ve ek iş,
-  0016 değerlendirme ve UstaScore V1, 0017 bildirim outbox ve Expo push)
+  0016 değerlendirme ve UstaScore V1, 0017 bildirim outbox ve Expo push, 0018 finansal defter,
+  0019 ödeme sağlayıcı soyutlaması, 0020 platform ücreti ve usta kazancı)
 - Türkiye il/ilçe verisinin kaynağı: [docs/reference-data](docs/reference-data/turkey-locations.md)
 
 ## CI

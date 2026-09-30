@@ -24,6 +24,9 @@ export default async function AdminLayout({ children }: LayoutProps<'/'>) {
           <Link href="/reviews">Değerlendirmeler</Link>
           <Link href="/providers">Usta başvuruları</Link>
           <Link href="/verifications">Belge kuyruğu</Link>
+          <Link href="/finance" style={{ fontWeight: 600 }}>
+            Finans
+          </Link>
           {serverEnv.isProduction ? null : <Link href="/dev/status">Geliştirici durumu</Link>}
         </nav>
         <div style={{ display: 'flex', gap: spacing.md, alignItems: 'center' }}>

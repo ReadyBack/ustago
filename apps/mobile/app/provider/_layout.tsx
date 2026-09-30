@@ -46,6 +46,13 @@ export default function ProviderTabs() {
         }}
       />
       <Tabs.Screen
+        name="earnings"
+        options={{
+          title: 'Kazançlarım',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="💰" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profil',

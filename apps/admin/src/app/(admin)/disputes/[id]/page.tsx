@@ -7,6 +7,7 @@ import { DisputeStatusPill, JobStatusPill } from '@/components/job-pills';
 import { apiRequest } from '@/lib/api';
 import { requireAdmin } from '@/lib/auth';
 import {
+  DISPUTE_FINANCIAL_ACTION_LABELS,
   DISPUTE_OUTCOMES,
   DISPUTE_REASON_LABELS,
   DISPUTE_STATUS_LABELS,
@@ -18,6 +19,9 @@ import { resolveDispute } from '../../moderation-actions';
 import { ModerationForm } from '../../moderation-form';
 
 const OPEN = new Set(['OPEN', 'AWAITING_EVIDENCE', 'UNDER_REVIEW']);
+const FINANCIAL_ACTIONS = Object.keys(
+  DISPUTE_FINANCIAL_ACTION_LABELS,
+) as (keyof typeof DISPUTE_FINANCIAL_ACTION_LABELS)[];
 
 export default async function DisputeDetailPage(props: PageProps<'/disputes/[id]'>) {
   const { id: rawId } = await props.params;
@@ -100,6 +104,42 @@ export default async function DisputeDetailPage(props: PageProps<'/disputes/[id]
                 Karar notu (iki tarafa da gösterilir)
                 <textarea name="note" required minLength={3} maxLength={2000} rows={4} />
               </label>
+              <fieldset
+                style={{
+                  display: 'grid',
+                  gap: spacing.xs,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: 6,
+                  padding: spacing.sm,
+                }}
+              >
+                <legend style={{ padding: `0 ${spacing.xs}px` }}>Ödeme</legend>
+                <label>
+                  Finansal işlem
+                  <select name="financialAction" defaultValue="">
+                    <option value="">Seçilmedi (ödeme bekletilmiyorsa)</option>
+                    {FINANCIAL_ACTIONS.map((a) => (
+                      <option key={a} value={a}>
+                        {DISPUTE_FINANCIAL_ACTION_LABELS[a]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Kısmi iade tutarı (TL, yalnızca “Müşteriye kısmi iade” için)
+                  <input
+                    name="refundAmount"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder="ör. 250 veya 1.000,50"
+                    style={{ minHeight: 40, padding: 8 }}
+                  />
+                </label>
+                <p style={{ color: colors.textSecondary, fontSize: 13 }}>
+                  İş uygulamadan ödendiyse para karar verilene kadar bekletilir: müşteriye iade edin
+                  ya da ustaya aktarın. İade geri alınamaz.
+                </p>
+              </fieldset>
               <p style={{ color: colors.textSecondary, fontSize: 13 }}>
                 İş “Sorun bildirildi” durumunda kalır. Ustaya yaptırım gerekiyorsa ustanın kalite
                 kartından ayrıca verilir.

@@ -83,6 +83,67 @@ describe('moderation actions', () => {
     expect(lastCall().url).toMatch(new RegExp(`/api/v1/admin/disputes/${ID}/resolve$`));
   });
 
+  it('sends the dispute financial action, with a partial refund in kuruş', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(200, {})));
+    await resolveDispute(
+      {},
+      form({
+        id: ID,
+        outcome: 'RESOLVED_PARTIAL',
+        note: 'Yarısı yapıldı.',
+        financialAction: 'PARTIAL_CUSTOMER_REFUND',
+        refundAmount: '1.000,50',
+      }),
+    );
+    expect(lastCall().body).toEqual({
+      outcome: 'RESOLVED_PARTIAL',
+      note: 'Yarısı yapıldı.',
+      financialAction: { type: 'PARTIAL_CUSTOMER_REFUND', refundAmountMinor: 100050 },
+    });
+    await resolveDispute(
+      {},
+      form({
+        id: ID,
+        outcome: 'RESOLVED_FOR_PROVIDER',
+        note: 'İş tamam.',
+        financialAction: 'RELEASE_PROVIDER_FUNDS',
+        refundAmount: '',
+      }),
+    );
+    expect(lastCall().body).toEqual({
+      outcome: 'RESOLVED_FOR_PROVIDER',
+      note: 'İş tamam.',
+      financialAction: { type: 'RELEASE_PROVIDER_FUNDS' },
+    });
+  });
+
+  it('refuses a partial refund without a valid amount', async () => {
+    for (const refundAmount of ['', '-5', 'abc']) {
+      const state = await resolveDispute(
+        {},
+        form({
+          id: ID,
+          outcome: 'RESOLVED_PARTIAL',
+          note: 'Yarısı yapıldı.',
+          financialAction: 'PARTIAL_CUSTOMER_REFUND',
+          refundAmount,
+        }),
+      );
+      expect(state.error).toMatch(/tutar/);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('asks for a financial action when the API says money is held', async () => {
+    fetchMock.mockResolvedValueOnce(apiError(422, 'DISPUTE_FINANCIAL_ACTION_REQUIRED'));
+    const state = await resolveDispute(
+      {},
+      form({ id: ID, outcome: 'RESOLVED_FOR_CUSTOMER', note: 'Usta gelmedi.' }),
+    );
+    expect(state.error).toMatch(/bekletilen ödeme var/);
+    expect(lastCall().body).toEqual({ outcome: 'RESOLVED_FOR_CUSTOMER', note: 'Usta gelmedi.' });
+  });
+
   it('hides and restores reviews through their own endpoints', async () => {
     fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(200, {})));
     await moderateReview({}, form({ id: ID, decision: 'hide', reason: 'Kişisel bilgi içeriyor' }));
