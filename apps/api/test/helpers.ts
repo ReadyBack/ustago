@@ -231,6 +231,17 @@ export async function cleanup(ctx: TestContext): Promise<void> {
   await ctx.prisma.disciplinaryAction.deleteMany({
     where: { OR: [{ subjectId: { in: ids } }, { decidedById: { in: ids } }] },
   });
+  // Faz 7 chat: conversations restrict deleting requests and profiles
+  // (messages, participants and reports cascade with them).
+  await ctx.prisma.conversation.deleteMany({
+    where: {
+      OR: [
+        { serviceRequest: requestWhere },
+        { provider: { userId: { in: ids } } },
+        { customer: { userId: { in: ids } } },
+      ],
+    },
+  });
   await purgeFinance(ctx, jobWhere, ids);
   await ctx.prisma.review.deleteMany({ where: { job: jobWhere } });
   await ctx.prisma.dispute.deleteMany({ where: { job: jobWhere } });

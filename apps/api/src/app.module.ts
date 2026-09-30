@@ -7,6 +7,7 @@ import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
 import { ConfigModule } from './config/config.module.js';
+import { ConversationsModule } from './conversations/conversations.module.js';
 import { FinanceModule } from './finance/finance.module.js';
 import { GeoModule } from './geo/geo.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -60,6 +61,7 @@ import { UsersModule } from './users/users.module.js';
     FinanceModule,
     QuotesModule,
     ReviewsModule,
+    ConversationsModule,
     OpsModule,
   ],
 })
