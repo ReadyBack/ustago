@@ -25,6 +25,7 @@ import { recalculateAllScores, seedDemoHistory } from './seed-demo-history.js';
 import { seedDemoTrust } from './seed-demo-trust.js';
 import { seedDevData } from './seed-dev.js';
 import { ensureDevFeePolicy } from './seed-finance.js';
+import { seedCategoryContent } from './seed-category-content.js';
 import { seedReferenceData } from './seed-reference.js';
 
 const rootEnv = resolve(import.meta.dirname, '../../../../.env');
@@ -56,6 +57,11 @@ try {
   const reference = await seedReferenceData(prisma);
   console.warn(
     `Reference data: +${reference.provinces} provinces, +${reference.districts} districts, +${reference.categories} categories, ${reference.coordinates} coordinates filled.`,
+  );
+
+  const content = await seedCategoryContent(prisma);
+  console.warn(
+    `Category content: +${content.aliases} search aliases, +${content.questions} request-form questions.`,
   );
 
   if (!demo) {

@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -18,7 +19,7 @@ import type {
   ProviderServiceItem,
   ProviderVerification,
   ProviderVerificationCaseView,
-  PublicProviderProfile,
+  PublicProviderProfileV2,
   SignedUrl,
   UploadIntentResponse,
 } from '@ustago/types';
@@ -33,7 +34,9 @@ import {
   providerServiceAreaGroupSchema,
   providerServiceItemSchema,
   providerVerificationSchema,
-  publicProviderProfileSchema,
+  providerProfileQuerySchema,
+  type ProviderProfileQuery,
+  publicProviderProfileV2Schema,
   type SetProviderServiceAreasRequest,
   setProviderServiceAreasRequestSchema,
   type SetProviderServicesRequest,
@@ -51,7 +54,13 @@ import {
 import type { Request } from 'express';
 import { z } from 'zod';
 
-import { type AuthUser, CurrentUser, Public, Roles } from '../common/auth/decorators.js';
+import {
+  type AuthUser,
+  CurrentUser,
+  MaybeCurrentUser,
+  OptionalAuth,
+  Roles,
+} from '../common/auth/decorators.js';
 import { clientIp } from '../common/http/client-context.js';
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
@@ -318,17 +327,22 @@ export class ProvidersController {
   }
 
   // Declared after the /me routes so "me" is never taken for an id.
-  @Public()
+  @OptionalAuth()
   @Get(':id')
   @ApiOperation({
-    summary: 'Onaylı ustanın herkese açık profili.',
-    description: 'İletişim bilgisi, belge veya kimlik verisi içermez.',
+    summary: 'Onaylı ustanın herkese açık profili (V2).',
+    description:
+      'Oturum gerekmez; müşteri oturumuyla isFavorite dolar. districtId verilirse yaklaşık ' +
+      'mesafe (ilçe merkezleri arası düz çizgi) döner. Telefon, e-posta, kimlik, belge, IBAN ' +
+      'veya adres içermez.',
   })
-  @ApiZodResponse(200, publicProviderProfileSchema)
+  @ApiZodResponse(200, publicProviderProfileV2Schema)
   @ApiZodResponse(404, apiErrorResponseSchema, 'PROVIDER_NOT_FOUND')
   getPublic(
     @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
-  ): Promise<PublicProviderProfile> {
-    return this.publicProviders.get(id);
+    @Query(new ZodValidationPipe(providerProfileQuerySchema)) query: ProviderProfileQuery,
+    @MaybeCurrentUser() viewer: AuthUser | undefined,
+  ): Promise<PublicProviderProfileV2> {
+    return this.publicProviders.get(id, query, viewer);
   }
 }

@@ -9,6 +9,8 @@ export interface ServiceCategory {
   isActive: boolean;
   supportsNow: boolean;
   supportsQuote: boolean;
+  /** Faz 7: how the request wizard treats photos (admin setting). */
+  requestPhotoPolicy?: 'OPTIONAL' | 'RECOMMENDED' | 'REQUIRED';
 }
 
 export interface ServiceCategoryNode extends ServiceCategory {

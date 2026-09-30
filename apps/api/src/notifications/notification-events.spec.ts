@@ -27,6 +27,7 @@ describe('notification events', () => {
     [NotificationEvent.JOB_CANCELLED, 'JOB'],
     [NotificationEvent.DISPUTE_RESOLVED, 'JOB'],
     [NotificationEvent.REVIEW_RECEIVED, 'JOB'],
+    [NotificationEvent.REVIEW_REPLIED, 'JOB'],
     [NotificationEvent.NOW_NEW_REQUEST, 'JOB'],
     [NotificationEvent.QUOTE_COUNTERED, 'QUOTE'],
     [NotificationEvent.NEW_OPPORTUNITY, 'QUOTE'],

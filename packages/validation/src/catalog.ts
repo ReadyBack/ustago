@@ -18,6 +18,7 @@ export const serviceCategorySchema = z.object({
   isActive: z.boolean(),
   supportsNow: z.boolean(),
   supportsQuote: z.boolean(),
+  requestPhotoPolicy: z.enum(['OPTIONAL', 'RECOMMENDED', 'REQUIRED']).optional(),
 }) satisfies z.ZodType<ServiceCategory>;
 
 export const createCategoryRequestSchema = z

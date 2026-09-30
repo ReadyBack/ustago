@@ -2,7 +2,7 @@ import {
   adminReviewSchema,
   paginatedSchema,
   providerQualitySchema,
-  publicProviderProfileSchema,
+  publicProviderProfileV2Schema,
   reviewSchema,
 } from '@ustago/validation';
 
@@ -43,7 +43,7 @@ describe('Reviews, provider quality and sanctions (e2e)', () => {
   });
 
   const profile = async (providerId: string) =>
-    publicProviderProfileSchema.parse(
+    publicProviderProfileV2Schema.parse(
       (await ctx.http().get(`/api/v1/providers/${providerId}`).expect(200)).body,
     );
 

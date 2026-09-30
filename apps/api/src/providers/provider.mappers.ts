@@ -1,12 +1,9 @@
 import type {
   AdminProviderVerification,
   ProviderProfile,
-  ProviderRating,
   ProviderServiceAreaGroup,
   ProviderServiceItem,
   ProviderVerification,
-  PublicProviderProfile,
-  VerificationType,
 } from '@ustago/types';
 
 import type {
@@ -14,8 +11,6 @@ import type {
   ProviderProfile as ProviderProfileRow,
   ProviderVerification as VerificationRow,
 } from '../generated/prisma/client.js';
-import { publicUstaScore } from '../quality/domain/usta-score.js';
-import { providerPolicy } from './domain/provider-policy.js';
 
 /** Categories and districts of a provider, for every view that lists them. */
 export const catalogInclude = {
@@ -162,56 +157,5 @@ export function toAdminVerification(v: AdminVerificationRow): AdminProviderVerif
         }
       : null,
     hasDocument: v.documentKey !== null,
-  };
-}
-
-export const publicProviderInclude = {
-  ...catalogInclude,
-  verifications: { where: { status: 'APPROVED' }, select: { type: true } },
-  score: { select: { score: true, isNewProvider: true, algorithmVersion: true } },
-  verificationCase: { select: { status: true } },
-} satisfies Prisma.ProviderProfileInclude;
-
-type PublicRow = Prisma.ProviderProfileGetPayload<{ include: typeof publicProviderInclude }>;
-
-/**
- * Customer-facing profile. Built field by field from an allow-list so a new
- * column (phone, documents, admin notes...) can never leak by accident.
- */
-export interface PublicProviderStats {
-  rating: ProviderRating | null;
-  completedJobCount: number;
-}
-
-export function toPublicProvider(p: PublicRow, stats: PublicProviderStats): PublicProviderProfile {
-  const badges = [...new Set(p.verifications.map((v) => v.type))].sort() as VerificationType[];
-  return {
-    id: p.id,
-    displayName: p.displayName,
-    type: p.type,
-    bio: p.bio,
-    yearsOfExperience: p.yearsOfExperience,
-    services: toServiceItems(p.services),
-    serviceAreas: toServiceAreaGroups(p.serviceAreas),
-    verificationBadges: badges,
-    // Faz 6: the central policy decides; never documents or URLs here.
-    isVerified: providerPolicy({
-      applicationStatus: p.status,
-      verificationStatus: p.verificationCase?.status ?? 'NOT_STARTED',
-      accountStatus: p.accountStatus,
-    }).showVerifiedBadge,
-    rating: stats.rating,
-    completedJobCount: stats.completedJobCount,
-    ustaScore: publicUstaScore(
-      p.score
-        ? {
-            score: Number(p.score.score),
-            isNewProvider: p.score.isNewProvider,
-            algorithmVersion: p.score.algorithmVersion,
-          }
-        : null,
-    ),
-    isNewProvider: p.score?.isNewProvider ?? true,
-    memberSince: (p.approvedAt ?? p.createdAt).toISOString(),
   };
 }

@@ -121,5 +121,6 @@ function toCategory(c: CategoryRow): ServiceCategory {
     isActive: c.isActive,
     supportsNow: c.supportsNow,
     supportsQuote: c.supportsQuote,
+    requestPhotoPolicy: c.requestPhotoPolicy,
   };
 }

@@ -240,6 +240,8 @@ export const listProviderReviewsQuerySchema = z.object({
   /** Faz 7: NEWEST keeps the id cursor; HIGHEST / LOWEST use offset pages. */
   sort: z.enum(['NEWEST', 'HIGHEST', 'LOWEST']).default('NEWEST'),
   page: z.coerce.number().int().min(0).max(1000).default(0),
+  /** Faz 7: only reviews with this overall rating (1-5). */
+  rating: z.coerce.number().int().min(1).max(5).optional(),
 });
 
 /** POST /reviews/:id/reply: the provider's one public answer. */
