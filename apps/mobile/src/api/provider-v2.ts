@@ -74,8 +74,8 @@ export const providerV2Api = {
 
   // "Sana Uygun İşler"
   opportunities: (q: OpportunityQuery = {}) =>
-    api.get<Paginated<Opportunity>>(`/opportunities?${opportunityQueryString(q)}`),
-  opportunity: (id: string) => api.get<Opportunity>(`/opportunities/${id}`),
+    api.get<Paginated<Opportunity>>(`/providers/me/opportunities?${opportunityQueryString(q)}`),
+  opportunity: (id: string) => api.get<Opportunity>(`/providers/me/opportunities/${id}`),
   createQuote: (requestId: string, body: CreateQuote) =>
     api.post<Quote>(`/service-requests/${requestId}/quotes`, body),
 

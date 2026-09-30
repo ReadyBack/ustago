@@ -36,8 +36,8 @@ Mevcut `PATCH /providers/me/availability` (NOW "müsaitim") aynen kalır.
 
 | Yöntem | Yol                                   | Sorgu / gövde                                                                                   | Yanıt                                                                                                                         | Sahip |
 | ------ | ------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----- |
-| GET    | `/opportunities`                      | `listOpportunitiesQuerySchema` + `sort=NEW\|NEAREST\|BUDGET`, `maxDistanceKm`, `dispatchedOnly` | `Paginated<Opportunity>` (`distance`, `dispatch`, `isPreferredForMe`, `answers`, `budgetMax`, `scheduleOption`, `photoCount`) | core  |
-| GET    | `/opportunities/:id`                  |                                                                                                 | `Opportunity` (açınca `viewedAt` kaydedilir)                                                                                  | core  |
+| GET    | `/providers/me/opportunities`         | `listOpportunitiesQuerySchema` + `sort=NEW\|NEAREST\|BUDGET`, `maxDistanceKm`, `dispatchedOnly` | `Paginated<Opportunity>` (`distance`, `dispatch`, `isPreferredForMe`, `answers`, `budgetMax`, `scheduleOption`, `photoCount`) | core  |
+| GET    | `/providers/me/opportunities/:id`     |                                                                                                 | `Opportunity` (açınca `viewedAt` kaydedilir)                                                                                  | core  |
 | POST   | `/service-requests/:id/expand-search` | `expandSearchSchema`                                                                            | `ServiceRequest` (müşteri)                                                                                                    | core  |
 
 ## Talep V2 (müşteri)
