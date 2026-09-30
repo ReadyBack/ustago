@@ -28,9 +28,10 @@ import {
 
 const skipDocker = process.argv.includes('--skip-docker');
 
-/** docker-compose.yml names the project "ustago", so its volume is ustago_postgres-data. */
+/** docker-compose.yml names the project "ustago" (COMPOSE_PROJECT_NAME overrides it). */
 function postgresVolumeExists() {
-  return run('docker', ['volume', 'inspect', 'ustago_postgres-data'], { quiet: true }) === 0;
+  const project = process.env.COMPOSE_PROJECT_NAME || 'ustago';
+  return run('docker', ['volume', 'inspect', `${project}_postgres-data`], { quiet: true }) === 0;
 }
 const secret = (bytes = 32) => randomBytes(bytes).toString('base64url');
 
