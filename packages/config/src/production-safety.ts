@@ -58,6 +58,14 @@ export function isStrictEnv(appEnv: AppEnv): boolean {
   return appEnv === 'staging' || appEnv === 'production';
 }
 
+const HTTPS_ORIGIN = /^https:\/\/(\[[^\]]+\]|[^/:[\]]+)(:\d{1,5})?\/?$/i;
+const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+
+function isPublicHttpsOrigin(origin: string): boolean {
+  const host = HTTPS_ORIGIN.exec(origin)?.[1]?.toLowerCase();
+  return host !== undefined && !LOOPBACK_HOSTS.includes(host);
+}
+
 export function productionSafetyIssues(env: SafetyInput): SafetyIssue[] {
   const appEnv = resolveAppEnv(env);
   if (!isStrictEnv(appEnv)) return [];
@@ -101,6 +109,9 @@ export function productionSafetyIssues(env: SafetyInput): SafetyIssue[] {
   }
   if (env.API_CORS_ORIGINS.length === 0 || env.API_CORS_ORIGINS.includes('*')) {
     add('API_CORS_ORIGINS', `must list explicit origins in ${appEnv}`);
+  } else if (env.API_CORS_ORIGINS.some((origin) => !isPublicHttpsOrigin(origin))) {
+    // The development default (http://localhost:3001) must not survive a deploy.
+    add('API_CORS_ORIGINS', `only https origins (no localhost) are allowed in ${appEnv}`);
   }
   if (env.RECONCILIATION_INTERVAL_MINUTES === 0) {
     add('RECONCILIATION_INTERVAL_MINUTES', `finance reconciliation must be scheduled in ${appEnv}`);

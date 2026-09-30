@@ -29,7 +29,10 @@
     "db:seed": "pnpm --filter @ustago/api prisma:seed",
     "db:reset": "pnpm --filter @ustago/api prisma:reset",
     "db:validate": "pnpm --filter @ustago/api prisma:validate",
-    "finance:reconcile": "pnpm --filter @ustago/api finance:reconcile"
+    "finance:reconcile": "pnpm --filter @ustago/api finance:reconcile",
+    "config:check": "pnpm --filter @ustago/api config:check",
+    "security:secrets": "node scripts/ci/secret-scan.mjs",
+    "db:migration-guard": "node scripts/ci/migration-guard.mjs"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

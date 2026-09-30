@@ -11,9 +11,11 @@ import { API_ENV, type ApiEnv } from './config/env.js';
 import { JsonLogger } from './observability/json-logger.js';
 
 // Local development reads the single .env at the repository root. In
-// deployed environments variables come from the platform instead.
+// deployed environments variables come from the platform instead: a
+// production build never reads a stray .env file, so a development value
+// can never fill a production setting (docs/adr/0022).
 const rootEnv = resolve(import.meta.dirname, '../../../.env');
-if (existsSync(rootEnv)) {
+if (process.env['NODE_ENV'] !== 'production' && existsSync(rootEnv)) {
   process.loadEnvFile(rootEnv);
 }
 

@@ -96,6 +96,11 @@ etiketi vardır.
 | `demo-musteri-elif@…`       | 500 000 00 13         | Geçmiş müşteri (Faz 4): 5 yıldız, montaj işi                                               |
 | `admin@ustago.test`         | (e-posta + şifre)     | SUPER_ADMIN, admin paneli                                                                  |
 | `usta@ustago.test`          | (e-posta + şifre)     | İstanbul'da onaylı usta (Faz 2 demo hesabı)                                                |
+| `destek@ustago.test`        | (e-posta + şifre)     | Faz 6: ADMIN + yalnız `ADMIN_SUPPORT` (anlaşmazlık, yorum, ceza, risk)                     |
+| `finans@ustago.test`        | (e-posta + şifre)     | Faz 6: ADMIN + yalnız `ADMIN_FINANCE` (iade, para çekme, komisyon politikası)              |
+| `dogrulama@ustago.test`     | (e-posta + şifre)     | Faz 6: ADMIN + yalnız `ADMIN_VERIFICATION` (usta doğrulama, askıya alma)                   |
+| `usta-revizyon@ustago.test` | (e-posta + şifre)     | Faz 6: doğrulaması "Düzeltme gerekli" (reddedilen kimlik belgesi, gerekçeli)               |
+| `usta-askida@ustago.test`   | (e-posta + şifre)     | Faz 6: hesabı askıda usta (teklif veremez, para çekemez)                                   |
 
 - **OTP kodu**: gerçek SMS gönderilmez (`SMS_PROVIDER=console`). "Kod Gönder"e bastıktan sonra API
   çıktısında şu satırı arayın: `[DEV SMS → +90500*****01] OTP KODU: 123456`. Kod 3 dakika geçerli.
@@ -291,6 +296,9 @@ fotoğraf yüklemeleri geliştirmede `apps/api/.data/storage` altında durur (gi
 | `pnpm db:reset`                     | Lokal veritabanını sıfırlar, migration + seed (Prisma CLI)            |
 | `pnpm db:validate`                  | Prisma şemasını doğrular                                              |
 | `pnpm finance:reconcile`            | Defter ve finans kayıtlarının mutabakatı (salt okunur)                |
+| `pnpm config:check`                 | Ortam değişkenlerini API açılışıyla aynı kurallarla doğrular (Faz 6)  |
+| `pnpm security:secrets`             | Repodaki dosyalarda sır/anahtar taraması                              |
+| `pnpm db:migration-guard`           | Faz 5 sonrası migration'ların yalnız ekleme yaptığını doğrular        |
 
 ## Kurallar (özet)
 
@@ -310,11 +318,20 @@ Tam liste: PROJECT.md §31.
   0009 OTP/SMS, 0010 usta yaşam döngüsü ve NOW, 0011 belge ve depolama, 0012 konum verisi,
   0013 admin oturumu, 0014 talep, teklif, pazarlık ve NOW, 0015 iş yaşam döngüsü ve ek iş,
   0016 değerlendirme ve UstaScore V1, 0017 bildirim outbox ve Expo push, 0018 finansal defter,
-  0019 ödeme sağlayıcı soyutlaması, 0020 platform ücreti ve usta kazancı)
+  0019 ödeme sağlayıcı soyutlaması, 0020 platform ücreti ve usta kazancı, 0021 üretim hazırlığı
+  seviyeleri, 0022 ortam ayrımı ve fail-closed config, 0023 usta doğrulama ve askıya alma,
+  0024 admin yetkileri ve oturum güvenliği, 0025 komisyon politikası ve finans sertleştirme,
+  0026 operasyon ve mutabakat, 0027 hesap silme ve veri dışa aktarma)
+- Runbook'lar: [docs/runbooks](docs/runbooks) (üretim sürüm kontrol listesi, felaket kurtarma,
+  belirsiz para çekme, mutabakat uyumsuzluğu)
+- Bekleyen kararlar (DECISION REQUIRED): [docs/decisions](docs/decisions)
+- Veri sınıflandırma ve saklama (Legal review required): [docs/security](docs/security)
 - Türkiye il/ilçe verisinin kaynağı: [docs/reference-data](docs/reference-data/turkey-locations.md)
 
 ## CI
 
-`.github/workflows/ci.yml`: install → format check → lint → typecheck → test → build → Prisma validate +
+`.github/workflows/ci.yml`: install → format check → sır taraması + ekleme-only migration kontrolü →
+bağımlılık denetimi (kritikte kırmızı) → lint → typecheck → test → build → üretim config kontrolü (mock sağlayıcı/demo seed reddedilmeli, eksiksiz üretim config'i
+kabul edilmeli) → Prisma validate +
 migrate deploy + şema/migration fark kontrolü → seed (iki kez, idempotent) → API e2e
 (GitHub Actions servis konteynerlerinde PostgreSQL + Redis).

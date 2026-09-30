@@ -13,3 +13,7 @@ ignoredBuiltDependencies:
   - '@parcel/watcher'
   - '@scarf/scarf'
   - '@swc/core'
+
+# Transitive fix (Prisma CLI's unused MySQL driver), docs FAZ6 audit.
+overrides:
+  mysql2: ^3.23.1

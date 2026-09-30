@@ -28,7 +28,8 @@ import { ensureDevFeePolicy } from './seed-finance.js';
 import { seedReferenceData } from './seed-reference.js';
 
 const rootEnv = resolve(import.meta.dirname, '../../../../.env');
-if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
+// Never in a production build (docs/adr/0022): see src/main.ts.
+if (process.env['NODE_ENV'] !== 'production' && existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) throw new Error('DATABASE_URL is not set.');
