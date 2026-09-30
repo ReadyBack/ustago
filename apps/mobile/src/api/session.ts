@@ -6,6 +6,10 @@ import { API_URL } from './config';
 
 let current: AuthTokens | null = null;
 const expiredListeners = new Set<() => void>();
+let markRestored: () => void = () => undefined;
+const restored = new Promise<void>((resolve) => {
+  markRestored = resolve;
+});
 
 /** In-memory copy of the tokens; persisted to SecureStore on every change. */
 export const session = {
@@ -15,6 +19,9 @@ export const session = {
     if (tokens) await saveTokens(tokens);
     else await clearTokens();
   },
+  /** Resolves once the tokens saved on the device have been loaded (or found missing). */
+  restored: (): Promise<void> => restored,
+  markRestored: (): void => markRestored(),
   onExpired(listener: () => void): () => void {
     expiredListeners.add(listener);
     return () => expiredListeners.delete(listener);
@@ -25,4 +32,5 @@ export const api = new ApiClient(API_URL, {
   getTokens: session.tokens,
   setTokens: session.setTokens,
   onSessionExpired: () => expiredListeners.forEach((listener) => listener()),
+  ready: session.restored,
 });

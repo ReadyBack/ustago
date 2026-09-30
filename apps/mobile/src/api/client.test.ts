@@ -140,3 +140,33 @@ describe('ApiClient', () => {
     expect(client.reachable('https://cdn.example.com/x')).toBe('https://cdn.example.com/x');
   });
 });
+
+describe('ApiClient start-up', () => {
+  it('holds authenticated requests until the stored session is restored', async () => {
+    let restore: () => void = () => undefined;
+    const restored = new Promise<void>((resolve) => {
+      restore = resolve;
+    });
+    let current: AuthTokens | null = null;
+    const seen: (string | undefined)[] = [];
+    const client = new ApiClient(
+      'http://api.test',
+      {
+        getTokens: () => current,
+        setTokens: async () => undefined,
+        onSessionExpired: () => undefined,
+        ready: () => restored,
+      },
+      async (_input, init) => {
+        seen.push(((init?.headers ?? {}) as Record<string, string>).Authorization);
+        return json(200, {});
+      },
+    );
+    const pending = client.get('/me/service-requests');
+    await client.get('/catalog/categories', { auth: false });
+    current = tokens(1);
+    restore();
+    await pending;
+    expect(seen).toEqual([undefined, 'Bearer access-1']);
+  });
+});

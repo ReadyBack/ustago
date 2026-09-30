@@ -36,6 +36,12 @@ export interface TokenHooks {
   setTokens: (tokens: AuthTokens | null) => Promise<void>;
   /** Called once when a refresh fails: the session is over. */
   onSessionExpired: () => void;
+  /**
+   * Resolves once the stored session has been read at start-up; authenticated
+   * requests wait for it so a screen that mounts early never goes out
+   * without its token.
+   */
+  ready?: () => Promise<void>;
 }
 
 export interface RequestOptions {
@@ -80,6 +86,7 @@ export class ApiClient {
 
   async request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
     const auth = options.auth ?? true;
+    if (auth && this.hooks.ready) await this.hooks.ready();
     const tokens = auth ? this.hooks.getTokens() : null;
     let res = await this.send(method, path, options, tokens?.accessToken);
     if (res.status === 401 && auth && tokens) {

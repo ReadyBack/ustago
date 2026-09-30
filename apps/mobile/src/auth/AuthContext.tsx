@@ -47,10 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const [tokens, savedMode] = await Promise.all([loadTokens(), loadMode()]);
       if (savedMode) setModeState(savedMode);
       if (!tokens) {
+        session.markRestored();
         if (!cancelled) setStatus('signedOut');
         return;
       }
       await session.setTokens(tokens);
+      session.markRestored();
       try {
         const me = await authApi.me();
         if (cancelled) return;

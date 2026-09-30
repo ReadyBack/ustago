@@ -12,10 +12,10 @@ export default function CustomerTabs() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         headerTitleStyle: { fontWeight: '700' },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
         // Room for the emoji icon and the label, above the home indicator.
         tabBarStyle: {
-          height: 62 + insets.bottom,
+          height: 70 + insets.bottom,
           paddingTop: 6,
           paddingBottom: 6 + insets.bottom,
         },
