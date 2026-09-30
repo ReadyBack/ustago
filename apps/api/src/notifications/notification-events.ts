@@ -114,16 +114,16 @@ export function isNewJobAlert(type: string): boolean {
  * Whether an event should also go out as a push for this user. Job, money
  * and account events are transactional and always pushed (someone is at
  * the door); quotes, messages and new-job alerts follow the user's
- * switches. NOW emergency offers are job events and ignore quiet hours.
+ * switches and are held back during quiet hours (the in-app row is still
+ * written). NOW emergency offers are job events and ignore quiet hours.
  * `localMinute` is the current minute of the day in the marketplace zone.
  */
 export function wantsPush(type: string, prefs: PushPreferences, localMinute?: number): boolean {
-  if (type.startsWith('message.')) return prefs.newMessagePush;
-  if (isNewJobAlert(type)) {
-    if (prefs.newJobAlerts !== 'ON') return false;
-    return localMinute === undefined || !inQuietHours(prefs, localMinute);
-  }
-  return categoryOf(type) === 'JOB' || prefs.quoteUpdatesPush;
+  const quiet = localMinute !== undefined && inQuietHours(prefs, localMinute);
+  if (type.startsWith('message.')) return prefs.newMessagePush && !quiet;
+  if (isNewJobAlert(type)) return prefs.newJobAlerts === 'ON' && !quiet;
+  if (categoryOf(type) === 'JOB') return true;
+  return prefs.quoteUpdatesPush && !quiet;
 }
 
 /** Quiet hours may wrap midnight (23:00-07:00). */

@@ -50,4 +50,25 @@ describe('notification events', () => {
       true,
     );
   });
+  it('holds back optional pushes in quiet hours, never job events', () => {
+    const quiet = {
+      quoteUpdatesPush: true,
+      newMessagePush: true,
+      newJobAlerts: 'ON' as const,
+      quietHoursStart: 23 * 60,
+      quietHoursEnd: 7 * 60,
+    };
+    const night = 2 * 60;
+    const day = 12 * 60;
+    for (const type of [
+      NotificationEvent.QUOTE_COUNTERED,
+      NotificationEvent.MESSAGE_NEW,
+      NotificationEvent.NEW_OPPORTUNITY,
+    ]) {
+      expect(wantsPush(type, quiet, night)).toBe(false);
+      expect(wantsPush(type, quiet, day)).toBe(true);
+    }
+    expect(wantsPush(NotificationEvent.JOB_EN_ROUTE, quiet, night)).toBe(true);
+    expect(wantsPush(NotificationEvent.NOW_NEW_REQUEST, quiet, night)).toBe(true);
+  });
 });
