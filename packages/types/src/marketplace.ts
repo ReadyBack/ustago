@@ -1,4 +1,12 @@
 import type { NamedRef } from './address.js';
+import type {
+  ChangeOrder,
+  JobActions,
+  JobActor,
+  JobDispute,
+  JobTimelineEntry,
+  Review,
+} from './lifecycle.js';
 import type { Money } from './money.js';
 
 /** NOW = UstaGO NOW / Acil Usta; QUOTE = Teklif Al (docs/adr/0014). */
@@ -242,10 +250,29 @@ export interface JobParty {
 export interface Job {
   id: string;
   status: JobStatus;
+  /** AGREED_PRICE: locked when the job was created, never changes. */
   agreedPrice: Money;
+  /** Agreed price plus accepted change orders. */
   currentTotal: Money;
   scheduledStartAt: string | null;
   createdAt: string;
+  enRouteAt: string | null;
+  arrivedAt: string | null;
+  startedAt: string | null;
+  completionRequestedAt: string | null;
+  completedAt: string | null;
+  disputedAt: string | null;
+  cancelledAt: string | null;
+  cancellationActor: JobActor | null;
+  cancellationReason: string | null;
+  timeline: JobTimelineEntry[];
+  /** Oldest first. */
+  changeOrders: ChangeOrder[];
+  /** The customer's review, once written (both sides see it). */
+  review: Review | null;
+  /** The latest dispute, if any. */
+  dispute: JobDispute | null;
+  actions: JobActions;
   serviceRequest: { id: string; type: ServiceRequestType; title: string; description: string };
   category: CategoryRef;
   /** Revealed to both parties once they agreed. */
@@ -260,7 +287,9 @@ export interface Job {
 export interface JobListItem {
   id: string;
   status: JobStatus;
+  requestType: ServiceRequestType;
   agreedPrice: Money;
+  currentTotal: Money;
   title: string;
   category: CategoryRef;
   location: ApproximateLocation;
@@ -269,7 +298,7 @@ export interface JobListItem {
   createdAt: string;
 }
 
-/** In-app notification (outbox row; push delivery comes later). */
+/** In-app notification: the source of truth; push is a best-effort copy. */
 export interface AppNotification {
   id: string;
   type: string;

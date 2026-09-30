@@ -15,6 +15,7 @@ import type { ServiceRequestStatus, ServiceRequestType } from '../../generated/p
  *                      MATCHED ─JOB_COMPLETED─▶ COMPLETED
  *
  *   CANCEL: DRAFT | PUBLISHED | MATCHING | QUOTED → CANCELLED
+ *   JOB_CANCELLED: MATCHED → CANCELLED (the agreed job was called off)
  *   EXPIRE: PUBLISHED | MATCHING | QUOTED → EXPIRED
  */
 export type ServiceRequestEvent =
@@ -24,7 +25,8 @@ export type ServiceRequestEvent =
   | 'QUOTE_ACCEPTED'
   | 'CANCEL'
   | 'EXPIRE'
-  | 'JOB_COMPLETED';
+  | 'JOB_COMPLETED'
+  | 'JOB_CANCELLED';
 
 /** Statuses in which providers can still quote and customers can accept. */
 export const OPEN_STATUSES = [
@@ -51,6 +53,7 @@ const TRANSITIONS: Record<ServiceRequestEvent, Rule> = {
   CANCEL: { from: ['DRAFT', ...OPEN_STATUSES], to: () => 'CANCELLED' },
   EXPIRE: { from: OPEN_STATUSES, to: () => 'EXPIRED' },
   JOB_COMPLETED: { from: ['MATCHED'], to: () => 'COMPLETED' },
+  JOB_CANCELLED: { from: ['MATCHED'], to: () => 'CANCELLED' },
 };
 
 /** Target status, or null when the event is not allowed from `from`. */

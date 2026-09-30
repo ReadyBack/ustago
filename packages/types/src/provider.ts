@@ -1,5 +1,6 @@
 import type { NamedRef } from './address.js';
 import type { ProviderStatus, ProviderType } from './auth.js';
+import type { ProviderRating } from './marketplace.js';
 
 export type VerificationType =
   | 'IDENTITY'
@@ -91,7 +92,14 @@ export interface PublicProviderProfile {
   serviceAreas: ProviderServiceAreaGroup[];
   /** Approved verification types, shown as badges. */
   verificationBadges: VerificationType[];
-  score: number | null;
+  /** Average of published customer reviews; null until the first one. */
+  rating: ProviderRating | null;
+  completedJobCount: number;
+  /**
+   * UstaScore V1 (0-100, docs/adr/0016). Null while the provider is new or
+   * has not been scored yet: the app then shows "Yeni Usta".
+   */
+  ustaScore: number | null;
   isNewProvider: boolean;
   memberSince: string;
 }
