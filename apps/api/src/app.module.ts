@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AddressesModule } from './addresses/addresses.module.js';
 import { AnalyticsModule } from './analytics/analytics.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { AdminMarketplaceAnalyticsModule } from './admin-marketplace/admin-marketplace-analytics.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AvailabilityModule } from './availability/availability.module.js';
@@ -60,6 +61,7 @@ import { UsersModule } from './users/users.module.js';
     LocationsModule,
     AddressesModule,
     AdminModule,
+    AdminMarketplaceAnalyticsModule,
     MatchingModule,
     NotificationsModule,
     ServiceRequestsModule,
