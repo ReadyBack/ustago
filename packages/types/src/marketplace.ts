@@ -10,22 +10,10 @@ export type ServiceRequestType = 'NOW' | 'QUOTE';
  * MATCHED = a quote was accepted and a job exists ("Anlaşıldı").
  */
 export type ServiceRequestStatus =
-  | 'DRAFT'
-  | 'PUBLISHED'
-  | 'MATCHING'
-  | 'QUOTED'
-  | 'MATCHED'
-  | 'CANCELLED'
-  | 'EXPIRED'
-  | 'COMPLETED';
+  'DRAFT' | 'PUBLISHED' | 'MATCHING' | 'QUOTED' | 'MATCHED' | 'CANCELLED' | 'EXPIRED' | 'COMPLETED';
 
 export type QuoteStatus =
-  | 'PENDING_CUSTOMER'
-  | 'PENDING_PROVIDER'
-  | 'ACCEPTED'
-  | 'REJECTED'
-  | 'WITHDRAWN'
-  | 'EXPIRED';
+  'PENDING_CUSTOMER' | 'PENDING_PROVIDER' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN' | 'EXPIRED';
 
 export type QuoteRevisionKind = 'OFFER' | 'CUSTOMER_COUNTER' | 'PROVIDER_COUNTER';
 

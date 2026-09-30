@@ -57,10 +57,7 @@ describe('createServiceRequestSchema', () => {
       createServiceRequestSchema.safeParse({ ...base, budgetMinor: null, photoUploadIds: [id, id] })
         .success,
     ).toBe(false);
-    const six = Array.from(
-      { length: 6 },
-      (_, i) => `0192f4c1-0000-7000-8000-00000000001${i}`,
-    );
+    const six = Array.from({ length: 6 }, (_, i) => `0192f4c1-0000-7000-8000-00000000001${i}`);
     expect(
       createServiceRequestSchema.safeParse({ ...base, budgetMinor: null, photoUploadIds: six })
         .success,
@@ -105,9 +102,9 @@ describe('createQuoteSchema', () => {
 describe('counterQuoteSchema', () => {
   it('needs the revision the caller answers', () => {
     expect(counterQuoteSchema.safeParse({ totalMinor: 200000 }).success).toBe(false);
-    expect(counterQuoteSchema.safeParse({ totalMinor: 200000, expectedRevisionNo: 1 }).success).toBe(
-      true,
-    );
+    expect(
+      counterQuoteSchema.safeParse({ totalMinor: 200000, expectedRevisionNo: 1 }).success,
+    ).toBe(true);
   });
 });
 

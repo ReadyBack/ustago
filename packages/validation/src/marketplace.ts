@@ -70,7 +70,10 @@ const requestDescription = z
   .min(10, 'Lütfen işi en az 10 karakterle anlatın.')
   .max(4000);
 
-function windowOrdered(value: { preferredStartAt?: string | null; preferredEndAt?: string | null }) {
+function windowOrdered(value: {
+  preferredStartAt?: string | null;
+  preferredEndAt?: string | null;
+}) {
   if (!value.preferredStartAt || !value.preferredEndAt) return true;
   return new Date(value.preferredEndAt) >= new Date(value.preferredStartAt);
 }
@@ -171,7 +174,13 @@ export const createQuoteSchema = z
     materialMinor: pricePartMinorSchema.nullable().optional(),
     materialsIncluded: z.boolean().nullable().optional(),
     note: optionalNote(2000),
-    estimatedDurationMinutes: z.number().int().min(5).max(60 * 24 * 30).nullable().optional(),
+    estimatedDurationMinutes: z
+      .number()
+      .int()
+      .min(5)
+      .max(60 * 24 * 30)
+      .nullable()
+      .optional(),
     availableFrom: isoDate.nullable().optional(),
     validUntil: isoDate.nullable().optional(),
   })

@@ -89,9 +89,19 @@ export const apiEnvSchema = z
 
     // --- Service requests (docs/adr/0014-talep-teklif-ve-now.md) ---
     /** How long a "Teklif Al" request stays open for quotes. */
-    QUOTE_REQUEST_TTL_HOURS: z.coerce.number().int().min(1).max(24 * 60).default(24 * 14),
+    QUOTE_REQUEST_TTL_HOURS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 60)
+      .default(24 * 14),
     /** How long a NOW request keeps looking for a provider. */
-    NOW_REQUEST_TTL_MINUTES: z.coerce.number().int().min(5).max(24 * 60).default(60),
+    NOW_REQUEST_TTL_MINUTES: z.coerce
+      .number()
+      .int()
+      .min(5)
+      .max(24 * 60)
+      .default(60),
     /** Providers notified per NOW request (one dispatch wave). */
     NOW_DISPATCH_WAVE_SIZE: z.coerce.number().int().min(1).max(200).default(20),
     /** Seconds between sweeps that expire old requests; 0 turns the sweep off (tests). */
