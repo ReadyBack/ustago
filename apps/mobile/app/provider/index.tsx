@@ -65,7 +65,7 @@ function Feed() {
                 </Text>
                 <Small>
                   {p.isAvailableNow
-                    ? 'Bölgenizdeki acil işler size anında düşer.'
+                    ? 'Bölgenizdeki acil işler bu listede en üstte görünür.'
                     : 'Açtığınızda acil (NOW) işleri de görürsünüz.'}
                 </Small>
               </View>
