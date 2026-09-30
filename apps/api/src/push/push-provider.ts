@@ -22,8 +22,7 @@ export type PushTicketResult =
     };
 
 export type PushReceiptResult =
-  | { status: 'ok' }
-  | { status: 'error'; error: string; message: string };
+  { status: 'ok' } | { status: 'error'; error: string; message: string };
 
 export interface PushProvider {
   /** "expo", "console" or "disabled". */

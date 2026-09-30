@@ -8,9 +8,6 @@ export const wrongParty = () =>
 export const invalidTransition = (status: JobStatus) =>
   conflict('JOB_INVALID_TRANSITION', 'İşin mevcut durumunda bu işlem yapılamaz.', { status });
 export const pendingChangeOrder = () =>
-  conflict(
-    'JOB_HAS_PENDING_CHANGE_ORDER',
-    'Önce bekleyen ek iş talebinin sonuçlanması gerekiyor.',
-  );
+  conflict('JOB_HAS_PENDING_CHANGE_ORDER', 'Önce bekleyen ek iş talebinin sonuçlanması gerekiyor.');
 export const changeOrderNotFound = () =>
   notFound('CHANGE_ORDER_NOT_FOUND', 'Ek iş talebi bulunamadı.');

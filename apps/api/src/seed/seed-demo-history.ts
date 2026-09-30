@@ -189,7 +189,10 @@ export async function seedDemoHistory(prisma: PrismaClient, now = new Date()): P
 }
 
 /** Real UstaScore snapshots for every provider (replaces any placeholder). */
-export async function recalculateAllScores(prisma: PrismaClient, now = new Date()): Promise<number> {
+export async function recalculateAllScores(
+  prisma: PrismaClient,
+  now = new Date(),
+): Promise<number> {
   const providers = await prisma.providerProfile.findMany({
     where: { deletedAt: null },
     select: { id: true },

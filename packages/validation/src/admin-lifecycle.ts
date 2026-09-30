@@ -57,7 +57,12 @@ export type ListAdminDisputesQuery = z.infer<typeof listAdminDisputesQuerySchema
 
 export const resolveDisputeSchema = z
   .object({
-    outcome: z.enum(['RESOLVED_FOR_CUSTOMER', 'RESOLVED_FOR_PROVIDER', 'RESOLVED_PARTIAL', 'CLOSED']),
+    outcome: z.enum([
+      'RESOLVED_FOR_CUSTOMER',
+      'RESOLVED_FOR_PROVIDER',
+      'RESOLVED_PARTIAL',
+      'CLOSED',
+    ]),
     /** Internal note; shown to both parties as the resolution text. */
     note: plainTextSchema(3, 2000, 'Karar notu en az 3 karakter olmalı.'),
   })
@@ -185,7 +190,11 @@ export const adminJobDetailSchema = adminJobListItemSchema.extend({
   review: adminReviewSchema.nullable(),
   disputes: z.array(adminDisputeListItemSchema),
   cancellation: z
-    .object({ at: z.iso.datetime(), actor: jobActorSchema.nullable(), reason: z.string().nullable() })
+    .object({
+      at: z.iso.datetime(),
+      actor: jobActorSchema.nullable(),
+      reason: z.string().nullable(),
+    })
     .nullable(),
   audit: z.array(
     z.object({ action: z.string(), entityType: z.string().nullable(), at: z.iso.datetime() }),

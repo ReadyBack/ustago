@@ -189,7 +189,11 @@ export class JobsController {
     'CHANGE_ORDER_NOT_ALLOWED / CHANGE_ORDER_ALREADY_PENDING',
   )
   @ApiZodResponse(400, apiErrorResponseSchema, 'VALIDATION_FAILED (tutar pozitif tam sayı kuruş)')
-  @ApiZodResponse(422, apiErrorResponseSchema, 'CHANGE_ORDER_INVALID_AMOUNT (toplam üst sınırı aşıyor)')
+  @ApiZodResponse(
+    422,
+    apiErrorResponseSchema,
+    'CHANGE_ORDER_INVALID_AMOUNT (toplam üst sınırı aşıyor)',
+  )
   createChangeOrder(
     @CurrentUser() user: AuthUser,
     @Param('id', idPipe) id: string,

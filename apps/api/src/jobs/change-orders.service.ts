@@ -160,7 +160,10 @@ export class ChangeOrdersService {
     answer: ChangeOrderAnswer,
     ipAddress: string | null,
   ): Promise<ChangeOrder> {
-    const ref = await this.prisma.changeOrder.findUnique({ where: { id }, select: { jobId: true } });
+    const ref = await this.prisma.changeOrder.findUnique({
+      where: { id },
+      select: { jobId: true },
+    });
     if (!ref) throw changeOrderNotFound();
     const updated = await this.prisma.$transaction(async (tx) => {
       const locked = await this.lockParty(tx, ref.jobId, user.id);

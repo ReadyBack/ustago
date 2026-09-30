@@ -61,20 +61,18 @@ export const DEV_USERS: readonly DevUser[] = [
       addressLine: 'Demo Sokak No: 1 (DEMO DATA)',
     },
   },
-  ...(['Zeynep', 'Ali', 'Elif'] as const).map(
-    (firstName, i): DevUser => ({
-      email: `demo-musteri-${firstName.toLowerCase()}@ustago.test`,
-      phone: `+90500000001${i + 1}`,
-      firstName,
-      lastName: 'Demo',
-      roles: ['CUSTOMER'],
-      address: {
-        district: i === 1 ? 'cukurova' : 'seyhan',
-        neighborhood: 'DEMO Mahallesi',
-        addressLine: `Demo Caddesi No: ${i + 10} (DEMO DATA)`,
-      },
-    }),
-  ),
+  ...(['Zeynep', 'Ali', 'Elif'] as const).map((firstName, i): DevUser => ({
+    email: `demo-musteri-${firstName.toLowerCase()}@ustago.test`,
+    phone: `+90500000001${i + 1}`,
+    firstName,
+    lastName: 'Demo',
+    roles: ['CUSTOMER'],
+    address: {
+      district: i === 1 ? 'cukurova' : 'seyhan',
+      neighborhood: 'DEMO Mahallesi',
+      addressLine: `Demo Caddesi No: ${i + 10} (DEMO DATA)`,
+    },
+  })),
   {
     email: 'usta-klima@ustago.test',
     phone: '+905000000002',

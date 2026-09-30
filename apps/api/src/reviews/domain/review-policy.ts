@@ -10,8 +10,7 @@ import type { JobStatus, ReviewStatus } from '../../generated/prisma/client.js';
  */
 
 export type ReviewEligibility =
-  | { ok: true }
-  | { ok: false; reason: 'NOT_CUSTOMER' | 'JOB_NOT_COMPLETED' };
+  { ok: true } | { ok: false; reason: 'NOT_CUSTOMER' | 'JOB_NOT_COMPLETED' };
 
 export function reviewEligibility(
   job: { status: JobStatus; customerUserId: string },

@@ -118,8 +118,7 @@ export class JobsService {
         status: job.status,
         hasPendingChangeOrder: job.changeOrders.some((c) => c.status === 'PENDING'),
         hasOpenDispute:
-          dispute !== null &&
-          (OPEN_DISPUTE_STATUSES as readonly string[]).includes(dispute.status),
+          dispute !== null && (OPEN_DISPUTE_STATUSES as readonly string[]).includes(dispute.status),
         review: {
           exists: review !== null,
           editableUntil:

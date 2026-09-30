@@ -42,10 +42,15 @@ export class QualitySweepService implements OnApplicationBootstrap, OnApplicatio
       const expired = await this.quality.expireDuePenalties();
       const refreshed = await this.quality.refreshStale();
       if (expired + refreshed > 0) {
-        this.logger.log(`Quality sweep: ${expired} sanction(s) expired, ${refreshed} score(s) refreshed`);
+        this.logger.log(
+          `Quality sweep: ${expired} sanction(s) expired, ${refreshed} score(s) refreshed`,
+        );
       }
     } catch (error) {
-      this.logger.error('Quality sweep failed', error instanceof Error ? error.stack : String(error));
+      this.logger.error(
+        'Quality sweep failed',
+        error instanceof Error ? error.stack : String(error),
+      );
     }
   }
 }

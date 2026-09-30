@@ -62,7 +62,7 @@ function JobList() {
                 </View>
               </View>
               <View style={styles.rowBetween}>
-                <Text style={styles.price}>{formatMoney(j.agreedPrice)}</Text>
+                <Text style={styles.price}>{formatMoney(j.currentTotal)}</Text>
                 <Badge label={status.label} tone={status.tone} />
               </View>
             </Card>

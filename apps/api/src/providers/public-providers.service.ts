@@ -24,7 +24,11 @@ export class PublicProvidersService {
     if (!provider) throw notFound('PROVIDER_NOT_FOUND', 'Usta bulunamadı.');
     const [reviews, completedJobCount] = await Promise.all([
       this.prisma.review.aggregate({
-        where: { targetId: provider.userId, direction: 'CUSTOMER_TO_PROVIDER', status: 'PUBLISHED' },
+        where: {
+          targetId: provider.userId,
+          direction: 'CUSTOMER_TO_PROVIDER',
+          status: 'PUBLISHED',
+        },
         _avg: { rating: true },
         _count: { _all: true },
       }),

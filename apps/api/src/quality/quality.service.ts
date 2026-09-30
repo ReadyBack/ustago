@@ -241,7 +241,11 @@ export class QualityService {
           metadata: { penaltyId: d.id, type: d.type },
         })),
       });
-      await this.recalculateIn(tx, providers.map((p) => p.id), now);
+      await this.recalculateIn(
+        tx,
+        providers.map((p) => p.id),
+        now,
+      );
       return due.length;
     });
   }

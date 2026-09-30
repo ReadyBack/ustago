@@ -1,5 +1,9 @@
 import type {
+  ChangeOrderStatus,
+  DisputeReason,
+  DisputeStatus,
   JobStatus,
+  JobStep,
   ProviderStatus,
   QuoteRevisionKind,
   QuoteStatus,
@@ -58,7 +62,7 @@ export const JOB_STATUS: Record<JobStatus, Label> = {
   IN_PROGRESS: { label: 'İş sürüyor', tone: 'info' },
   AWAITING_COMPLETION_CONFIRMATION: { label: 'Onay bekliyor', tone: 'warning' },
   COMPLETED: { label: 'Tamamlandı', tone: 'success' },
-  DISPUTED: { label: 'İtiraz var', tone: 'danger' },
+  DISPUTED: { label: 'Sorun bildirildi', tone: 'danger' },
   CANCELLED: { label: 'İptal edildi', tone: 'neutral' },
 };
 
@@ -68,4 +72,42 @@ export const PROVIDER_STATUS: Record<ProviderStatus, Label> = {
   ACTIVE: { label: 'Onaylı usta', tone: 'success' },
   SUSPENDED: { label: 'Askıya alındı', tone: 'danger' },
   REJECTED: { label: 'Başvuru reddedildi', tone: 'danger' },
+};
+
+/** Timeline steps, as both sides read them. */
+export const JOB_STEP: Record<JobStep, string> = {
+  AGREED: 'Anlaşıldı',
+  EN_ROUTE: 'Usta yola çıktı',
+  ARRIVED: 'Usta adrese ulaştı',
+  STARTED: 'İş başladı',
+  COMPLETION_REQUESTED: 'Usta işi tamamladı',
+  COMPLETED: 'İş tamamlandı',
+};
+
+export const CHANGE_ORDER_STATUS: Record<ChangeOrderStatus, Label> = {
+  PENDING: { label: 'Onay bekliyor', tone: 'warning' },
+  ACCEPTED: { label: 'Onaylandı', tone: 'success' },
+  REJECTED: { label: 'Reddedildi', tone: 'neutral' },
+  CANCELLED: { label: 'Geri çekildi', tone: 'neutral' },
+  EXPIRED: { label: 'Sonuçlanmadan kapandı', tone: 'neutral' },
+};
+
+/** The categories a customer can pick in "Sorun Bildir" (payment issues do not exist yet). */
+export const DISPUTE_REASONS: readonly { value: DisputeReason; label: string }[] = [
+  { value: 'NO_SHOW', label: 'Usta gelmedi' },
+  { value: 'POOR_QUALITY', label: 'İş kötü / eksik yapıldı' },
+  { value: 'PRICE_DISAGREEMENT', label: 'Fiyat anlaşmazlığı' },
+  { value: 'DAMAGE', label: 'Hasar verildi' },
+  { value: 'MISCONDUCT', label: 'Uygunsuz davranış' },
+  { value: 'OTHER', label: 'Diğer' },
+];
+
+export const DISPUTE_STATUS: Record<DisputeStatus, Label> = {
+  OPEN: { label: 'İnceleniyor', tone: 'warning' },
+  AWAITING_EVIDENCE: { label: 'Bilgi bekleniyor', tone: 'warning' },
+  UNDER_REVIEW: { label: 'İnceleniyor', tone: 'warning' },
+  RESOLVED_FOR_CUSTOMER: { label: 'Sonuçlandı', tone: 'success' },
+  RESOLVED_FOR_PROVIDER: { label: 'Sonuçlandı', tone: 'success' },
+  RESOLVED_PARTIAL: { label: 'Sonuçlandı', tone: 'success' },
+  CLOSED: { label: 'Kapandı', tone: 'neutral' },
 };

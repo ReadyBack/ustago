@@ -74,7 +74,10 @@ export class PushWorkerService implements OnApplicationBootstrap, OnApplicationS
       }
       await this.checkReceipts();
     } catch (error) {
-      this.logger.error('Push worker run failed', error instanceof Error ? error.stack : String(error));
+      this.logger.error(
+        'Push worker run failed',
+        error instanceof Error ? error.stack : String(error),
+      );
     } finally {
       this.running = false;
     }
@@ -144,7 +147,9 @@ export class PushWorkerService implements OnApplicationBootstrap, OnApplicationS
       return 'skipped';
     }
 
-    const data = isStringRecord(n.data) ? { ...n.data, notificationId: n.id } : { notificationId: n.id };
+    const data = isStringRecord(n.data)
+      ? { ...n.data, notificationId: n.id }
+      : { notificationId: n.id };
     let tickets: PushTicketResult[];
     try {
       tickets = await this.provider.send(
@@ -246,7 +251,9 @@ export class PushWorkerService implements OnApplicationBootstrap, OnApplicationS
       take: RECEIPT_BATCH,
     });
     if (tickets.length === 0) return 0;
-    const receipts = await this.provider.receipts(tickets.flatMap((t) => (t.ticketId ? [t.ticketId] : [])));
+    const receipts = await this.provider.receipts(
+      tickets.flatMap((t) => (t.ticketId ? [t.ticketId] : [])),
+    );
     let checked = 0;
     for (const t of tickets) {
       const receipt = t.ticketId ? receipts.get(t.ticketId) : undefined;

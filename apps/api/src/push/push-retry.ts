@@ -13,13 +13,12 @@ export function backoffSeconds(attempt: number): number {
 
 export type RetryDecision = { retry: true; nextAttemptAt: Date } | { retry: false };
 
-export function retryDecision(
-  attemptsMade: number,
-  maxAttempts: number,
-  now: Date,
-): RetryDecision {
+export function retryDecision(attemptsMade: number, maxAttempts: number, now: Date): RetryDecision {
   if (attemptsMade >= maxAttempts) return { retry: false };
-  return { retry: true, nextAttemptAt: new Date(now.getTime() + backoffSeconds(attemptsMade) * 1000) };
+  return {
+    retry: true,
+    nextAttemptAt: new Date(now.getTime() + backoffSeconds(attemptsMade) * 1000),
+  };
 }
 
 /** How long a claimed delivery is hidden from other workers while it is being sent. */

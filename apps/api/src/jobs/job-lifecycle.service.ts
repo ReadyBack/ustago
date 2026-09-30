@@ -264,15 +264,27 @@ export class JobLifecycleService {
     switch (action) {
       case 'EN_ROUTE':
         return [
-          toCustomer(NotificationEvent.JOB_EN_ROUTE, 'Ustanız yola çıktı.', `${providerName} · ${title}`),
+          toCustomer(
+            NotificationEvent.JOB_EN_ROUTE,
+            'Ustanız yola çıktı.',
+            `${providerName} · ${title}`,
+          ),
         ];
       case 'ARRIVE':
         return [
-          toCustomer(NotificationEvent.JOB_ARRIVED, 'Ustanız adrese ulaştı.', `${providerName} · ${title}`),
+          toCustomer(
+            NotificationEvent.JOB_ARRIVED,
+            'Ustanız adrese ulaştı.',
+            `${providerName} · ${title}`,
+          ),
         ];
       case 'START':
         return [
-          toCustomer(NotificationEvent.JOB_STARTED, 'Ustanız işe başladı.', `${providerName} · ${title}`),
+          toCustomer(
+            NotificationEvent.JOB_STARTED,
+            'Ustanız işe başladı.',
+            `${providerName} · ${title}`,
+          ),
         ];
       case 'REQUEST_COMPLETION':
         return [
@@ -301,8 +313,20 @@ export class JobLifecycleService {
       case 'CANCEL': {
         const reason = extra.cancel?.reason ? ` Neden: ${extra.cancel.reason}` : '';
         return party === 'CUSTOMER'
-          ? [toProvider(NotificationEvent.JOB_CANCELLED, 'Müşteri işi iptal etti.', `${title}.${reason}`)]
-          : [toCustomer(NotificationEvent.JOB_CANCELLED, 'Usta işi iptal etti.', `${title}.${reason}`)];
+          ? [
+              toProvider(
+                NotificationEvent.JOB_CANCELLED,
+                'Müşteri işi iptal etti.',
+                `${title}.${reason}`,
+              ),
+            ]
+          : [
+              toCustomer(
+                NotificationEvent.JOB_CANCELLED,
+                'Usta işi iptal etti.',
+                `${title}.${reason}`,
+              ),
+            ];
       }
     }
   }

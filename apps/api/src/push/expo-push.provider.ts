@@ -130,7 +130,10 @@ export class ExpoPushProvider implements PushProvider {
     if (!res.ok) {
       // 429 and 5xx are temporary; 4xx (bad credentials, bad payload) are not.
       const retryable = res.status === 429 || res.status >= 500;
-      throw new PushTransportError(`Expo push HTTP ${res.status}: ${text.slice(0, 200)}`, retryable);
+      throw new PushTransportError(
+        `Expo push HTTP ${res.status}: ${text.slice(0, 200)}`,
+        retryable,
+      );
     }
     try {
       return JSON.parse(text) as unknown;

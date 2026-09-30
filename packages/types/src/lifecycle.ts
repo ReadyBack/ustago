@@ -18,12 +18,7 @@ export type JobActor = 'CUSTOMER' | 'PROVIDER' | 'ADMIN' | 'SYSTEM';
 
 /** Steps of the timeline both parties see, in order. */
 export type JobStep =
-  | 'AGREED'
-  | 'EN_ROUTE'
-  | 'ARRIVED'
-  | 'STARTED'
-  | 'COMPLETION_REQUESTED'
-  | 'COMPLETED';
+  'AGREED' | 'EN_ROUTE' | 'ARRIVED' | 'STARTED' | 'COMPLETION_REQUESTED' | 'COMPLETED';
 
 /** One timeline step; `at` is the real time it happened, null until then. */
 export interface JobTimelineEntry {

@@ -5,6 +5,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 import { Splash } from '../src/components/Splash';
+import { notificationTarget } from '../src/lib/notification-target';
+import { onPushTapped } from '../src/lib/push';
 import { colors } from '../src/lib/theme';
 
 const PUBLIC_ROUTES = new Set(['', 'login', 'otp']);
@@ -19,6 +21,20 @@ function AuthGate() {
   useEffect(() => {
     if (status === 'signedOut' && !PUBLIC_ROUTES.has(first)) router.replace('/login');
   }, [status, first, router]);
+  return null;
+}
+
+/** A tapped push opens the job, quote or request it is about. */
+function PushTapHandler() {
+  const { status } = useAuth();
+  const router = useRouter();
+  useEffect(() => {
+    if (status !== 'signedIn') return undefined;
+    return onPushTapped((data) => {
+      const target = notificationTarget({ data });
+      if (target) router.push(target);
+    });
+  }, [status, router]);
   return null;
 }
 
@@ -44,6 +60,7 @@ function Navigator() {
   return (
     <>
       <AuthGate />
+      <PushTapHandler />
       <Stack
         screenOptions={{
           headerTintColor: colors.primary,
@@ -65,6 +82,8 @@ function Navigator() {
         <Stack.Screen name="request/[id]" options={{ title: 'Talep' }} />
         <Stack.Screen name="quote/[id]" options={{ title: 'Teklif ve Pazarlık' }} />
         <Stack.Screen name="job/[id]" options={{ title: 'İş' }} />
+        <Stack.Screen name="notifications" options={{ title: 'Bildirimler' }} />
+        <Stack.Screen name="usta/[id]" options={{ title: 'Usta Profili' }} />
         <Stack.Screen name="opportunity/[id]" options={{ title: 'İş Detayı' }} />
         <Stack.Screen name="addresses/index" options={{ title: 'Adreslerim' }} />
         <Stack.Screen name="addresses/edit" options={{ title: 'Adres' }} />

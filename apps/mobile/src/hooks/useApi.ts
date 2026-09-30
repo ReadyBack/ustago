@@ -17,7 +17,7 @@ export interface ApiState<T> {
 /**
  * Loads data for `key` (e.g. "request:<id>"; a new key reloads, an empty
  * key loads nothing), supports pull-to-refresh, and optionally polls while
- * the screen is focused: there are no push notifications in this phase,
+ * the screen is focused: push is only a best-effort nudge,
  * so polling keeps lists fresh. Out-of-order responses are dropped.
  */
 export function useApi<T>(

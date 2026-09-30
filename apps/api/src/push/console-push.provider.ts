@@ -1,6 +1,11 @@
 import { Logger } from '@nestjs/common';
 
-import type { PushMessage, PushProvider, PushReceiptResult, PushTicketResult } from './push-provider.js';
+import type {
+  PushMessage,
+  PushProvider,
+  PushReceiptResult,
+  PushTicketResult,
+} from './push-provider.js';
 
 /**
  * Development only: prints each push to the API log and sends nothing.

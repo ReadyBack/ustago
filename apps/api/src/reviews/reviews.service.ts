@@ -61,7 +61,10 @@ export class ReviewsService {
         );
         if (!eligibility.ok) {
           if (eligibility.reason === 'NOT_CUSTOMER') {
-            throw forbidden('REVIEW_NOT_ALLOWED', 'Yalnızca işin müşterisi değerlendirme yapabilir.');
+            throw forbidden(
+              'REVIEW_NOT_ALLOWED',
+              'Yalnızca işin müşterisi değerlendirme yapabilir.',
+            );
           }
           throw conflict(
             'REVIEW_NOT_ALLOWED',

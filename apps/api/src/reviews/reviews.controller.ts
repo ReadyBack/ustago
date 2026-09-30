@@ -39,7 +39,11 @@ export class ReviewsController {
   @ApiZodResponse(201, reviewSchema)
   @ApiZodResponse(403, apiErrorResponseSchema, 'REVIEW_NOT_ALLOWED (müşteri değil)')
   @ApiZodResponse(404, apiErrorResponseSchema, 'JOB_NOT_FOUND')
-  @ApiZodResponse(409, apiErrorResponseSchema, 'REVIEW_NOT_ALLOWED (iş tamamlanmadı) / REVIEW_ALREADY_EXISTS')
+  @ApiZodResponse(
+    409,
+    apiErrorResponseSchema,
+    'REVIEW_NOT_ALLOWED (iş tamamlanmadı) / REVIEW_ALREADY_EXISTS',
+  )
   @ApiZodResponse(429, apiErrorResponseSchema, 'RATE_LIMITED')
   create(
     @CurrentUser() user: AuthUser,
@@ -53,7 +57,8 @@ export class ReviewsController {
   @Patch('reviews/:id')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Yazar değerlendirmesini ilk 30 gün düzenler; önceki değerler denetim kaydına yazılır.',
+    summary:
+      'Yazar değerlendirmesini ilk 30 gün düzenler; önceki değerler denetim kaydına yazılır.',
   })
   @ApiZodBody(updateReviewSchema)
   @ApiZodResponse(200, reviewSchema)

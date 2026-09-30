@@ -23,13 +23,7 @@ import type { DisputeReason, JobStatus } from '../../generated/prisma/client.js'
 export type JobParty = 'CUSTOMER' | 'PROVIDER';
 
 export type JobAction =
-  | 'EN_ROUTE'
-  | 'ARRIVE'
-  | 'START'
-  | 'REQUEST_COMPLETION'
-  | 'COMPLETE'
-  | 'DISPUTE'
-  | 'CANCEL';
+  'EN_ROUTE' | 'ARRIVE' | 'START' | 'REQUEST_COMPLETION' | 'COMPLETE' | 'DISPUTE' | 'CANCEL';
 
 /** Write-once step timestamps on the job row. */
 export type JobStamp =
@@ -52,7 +46,11 @@ interface Rule {
 export const BEFORE_DEPARTURE = ['CREATED', 'CONFIRMED', 'PROVIDER_PREPARING'] as const;
 /** The provider has not reached the address yet ("Usta gelmedi" is possible). */
 const BEFORE_ARRIVAL = [...BEFORE_DEPARTURE, 'PROVIDER_EN_ROUTE'] as const;
-const AFTER_ARRIVAL = ['PROVIDER_ARRIVED', 'IN_PROGRESS', 'AWAITING_COMPLETION_CONFIRMATION'] as const;
+const AFTER_ARRIVAL = [
+  'PROVIDER_ARRIVED',
+  'IN_PROGRESS',
+  'AWAITING_COMPLETION_CONFIRMATION',
+] as const;
 
 const RULES: Record<JobAction, Rule> = {
   EN_ROUTE: {
@@ -61,7 +59,12 @@ const RULES: Record<JobAction, Rule> = {
     by: ['PROVIDER'],
     stamp: 'enRouteAt',
   },
-  ARRIVE: { from: ['PROVIDER_EN_ROUTE'], to: 'PROVIDER_ARRIVED', by: ['PROVIDER'], stamp: 'arrivedAt' },
+  ARRIVE: {
+    from: ['PROVIDER_EN_ROUTE'],
+    to: 'PROVIDER_ARRIVED',
+    by: ['PROVIDER'],
+    stamp: 'arrivedAt',
+  },
   START: { from: ['PROVIDER_ARRIVED'], to: 'IN_PROGRESS', by: ['PROVIDER'], stamp: 'startedAt' },
   REQUEST_COMPLETION: {
     from: ['IN_PROGRESS'],
