@@ -68,7 +68,9 @@ export class ProviderHomeService {
       profile.status === 'ACTIVE'
         ? this.matching.opportunities(id, { limit: OPPORTUNITY_COUNT_CAP })
         : Promise.resolve({ items: [], nextCursor: null }),
-      this.prisma.job.count({ where: { providerId: id, status: { in: [...ACTIVE_JOB_STATUSES] } } }),
+      this.prisma.job.count({
+        where: { providerId: id, status: { in: [...ACTIVE_JOB_STATUSES] } },
+      }),
       this.prisma.quote.count({
         where: { providerId: id, status: { in: ['PENDING_CUSTOMER', 'PENDING_PROVIDER'] } },
       }),

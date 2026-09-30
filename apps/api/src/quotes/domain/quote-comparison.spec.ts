@@ -12,7 +12,11 @@ const q = (id: string, totalMinor: number, distanceKm: number | null, avg?: numb
 
 describe('comparisonLabels', () => {
   it('labels unique winners only', () => {
-    const labels = comparisonLabels([q('a', 200000, 3, 4.9), q('b', 150000, 8, 4.5), q('c', 180000, 12)]);
+    const labels = comparisonLabels([
+      q('a', 200000, 3, 4.9),
+      q('b', 150000, 8, 4.5),
+      q('c', 180000, 12),
+    ]);
     expect(labels.get('a')).toEqual(['NEAREST', 'HIGHEST_RATED']);
     expect(labels.get('b')).toEqual(['LOWEST_PRICE']);
     expect(labels.get('c')).toEqual([]);

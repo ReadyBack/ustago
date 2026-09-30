@@ -39,7 +39,10 @@ export class OpportunitiesService {
     });
     const ids = page.items.map((i) => i.id);
     const [rows, dispatches] = await Promise.all([
-      this.prisma.serviceRequest.findMany({ where: { id: { in: ids } }, include: opportunityInclude }),
+      this.prisma.serviceRequest.findMany({
+        where: { id: { in: ids } },
+        include: opportunityInclude,
+      }),
       this.prisma.requestDispatch.findMany({
         where: { providerId: provider.id, serviceRequestId: { in: ids } },
         select: { serviceRequestId: true, wave: true, dispatchedAt: true, viewedAt: true },

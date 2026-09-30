@@ -104,8 +104,12 @@ export class CoverageService {
       const profile = await this.store.lockByUserId(tx, userId);
       this.store.assertEditable(profile, 'SERVICE_AREAS');
 
-      const provinceIds = input.regions.flatMap((r) => (r.kind === 'PROVINCE' ? [r.provinceId] : []));
-      const centerIds = input.regions.flatMap((r) => (r.kind === 'RADIUS' ? [r.centerDistrictId] : []));
+      const provinceIds = input.regions.flatMap((r) =>
+        r.kind === 'PROVINCE' ? [r.provinceId] : [],
+      );
+      const centerIds = input.regions.flatMap((r) =>
+        r.kind === 'RADIUS' ? [r.centerDistrictId] : [],
+      );
       const [provinces, centers] = await Promise.all([
         tx.province.findMany({ where: { id: { in: provinceIds } }, select: { id: true } }),
         tx.district.findMany({
@@ -116,7 +120,9 @@ export class CoverageService {
       const knownProvinces = new Set(provinces.map((p) => p.id));
       const missingProvince = provinceIds.find((id) => !knownProvinces.has(id));
       if (missingProvince !== undefined) {
-        throw unprocessable('PROVINCE_NOT_FOUND', 'İl bulunamadı.', { provinceId: missingProvince });
+        throw unprocessable('PROVINCE_NOT_FOUND', 'İl bulunamadı.', {
+          provinceId: missingProvince,
+        });
       }
       const centerById = new Map(centers.map((c) => [c.id, c]));
 

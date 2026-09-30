@@ -1,11 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ApiEnv } from '@ustago/config';
 import type { ProviderAvailability, WeeklyHoursInterval } from '@ustago/types';
-import type {
-  CreateTimeOff,
-  SetWeeklyHours,
-  UpdateAvailabilitySettings,
-} from '@ustago/validation';
+import type { CreateTimeOff, SetWeeklyHours, UpdateAvailabilitySettings } from '@ustago/validation';
 
 import { AuditService } from '../audit/audit.service.js';
 import { notFound, unprocessable } from '../common/http/errors.js';
@@ -45,7 +41,11 @@ export class ProviderAvailabilityService {
     return this.view(profile.id);
   }
 
-  async view(providerId: string, now = new Date(), db: Db = this.prisma): Promise<ProviderAvailability> {
+  async view(
+    providerId: string,
+    now = new Date(),
+    db: Db = this.prisma,
+  ): Promise<ProviderAvailability> {
     const row = await db.providerProfile.findUnique({
       where: { id: providerId },
       select: {
@@ -79,7 +79,9 @@ export class ProviderAvailabilityService {
       receivesNewJobs: result.receivesNewJobs,
       acceptingNewJobs: row.acceptingNewJobs,
       unavailableUntil:
-        row.unavailableUntil && row.unavailableUntil > now ? row.unavailableUntil.toISOString() : null,
+        row.unavailableUntil && row.unavailableUntil > now
+          ? row.unavailableUntil.toISOString()
+          : null,
       nowEnabled: row.nowEnabled,
       isAvailableNow: row.isAvailableNow,
       weeklyHours: row.weeklyHours,
@@ -177,7 +179,10 @@ export class ProviderAvailabilityService {
         where: { providerId: profile.id, cancelledAt: null, endsAt: { gt: now } },
       });
       if (open >= MAX_OPEN_TIME_OFF) {
-        throw unprocessable('TIME_OFF_LIMIT', `En fazla ${MAX_OPEN_TIME_OFF} ileri tarihli izin girilebilir.`);
+        throw unprocessable(
+          'TIME_OFF_LIMIT',
+          `En fazla ${MAX_OPEN_TIME_OFF} ileri tarihli izin girilebilir.`,
+        );
       }
       const created = await tx.providerTimeOff.create({
         data: { providerId: profile.id, startsAt, endsAt, note: input.note ?? null },
@@ -225,5 +230,4 @@ export class ProviderAvailabilityService {
     });
     return this.view(providerId);
   }
-
 }

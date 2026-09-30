@@ -13,21 +13,45 @@ const ranked = [
 
 describe('planWave', () => {
   it('wave 1 takes the best providers inside the first radius, in rank order', () => {
-    const plan = planWave({ wave: 1, ranked, preferredProviderId: null, preferredOnly: false, config });
+    const plan = planWave({
+      wave: 1,
+      ranked,
+      preferredProviderId: null,
+      preferredOnly: false,
+      config,
+    });
     expect(plan.selected.map((s) => s.providerId)).toEqual(['a', 'c']);
     expect(plan.hasMoreWaves).toBe(true);
   });
 
   it('later waves widen the radius; unknown distance only in the unbounded wave', () => {
-    const w2 = planWave({ wave: 2, ranked, preferredProviderId: null, preferredOnly: false, config });
+    const w2 = planWave({
+      wave: 2,
+      ranked,
+      preferredProviderId: null,
+      preferredOnly: false,
+      config,
+    });
     expect(w2.selected.map((s) => s.providerId)).toEqual(['a', 'b', 'c']);
-    const w3 = planWave({ wave: 3, ranked, preferredProviderId: null, preferredOnly: false, config });
+    const w3 = planWave({
+      wave: 3,
+      ranked,
+      preferredProviderId: null,
+      preferredOnly: false,
+      config,
+    });
     expect(w3.selected.map((s) => s.providerId)).toContain('d');
     expect(w3.hasMoreWaves).toBe(false);
   });
 
   it('puts the preferred provider first even outside the radius', () => {
-    const plan = planWave({ wave: 1, ranked, preferredProviderId: 'b', preferredOnly: false, config });
+    const plan = planWave({
+      wave: 1,
+      ranked,
+      preferredProviderId: 'b',
+      preferredOnly: false,
+      config,
+    });
     expect(plan.selected.map((s) => [s.providerId, s.isPreferred])).toEqual([
       ['b', true],
       ['a', false],
@@ -35,10 +59,22 @@ describe('planWave', () => {
   });
 
   it('"sadece bu usta" sends to nobody else and stops', () => {
-    const plan = planWave({ wave: 1, ranked, preferredProviderId: 'e', preferredOnly: true, config });
+    const plan = planWave({
+      wave: 1,
+      ranked,
+      preferredProviderId: 'e',
+      preferredOnly: true,
+      config,
+    });
     expect(plan.selected.map((s) => s.providerId)).toEqual(['e']);
     expect(plan.hasMoreWaves).toBe(false);
-    const missing = planWave({ wave: 1, ranked, preferredProviderId: 'zz', preferredOnly: true, config });
+    const missing = planWave({
+      wave: 1,
+      ranked,
+      preferredProviderId: 'zz',
+      preferredOnly: true,
+      config,
+    });
     expect(missing.selected).toEqual([]);
   });
 

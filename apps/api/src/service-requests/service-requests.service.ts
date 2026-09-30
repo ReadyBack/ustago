@@ -240,10 +240,16 @@ export class ServiceRequestsService {
         select: { providerId: true },
       });
       if (!job) {
-        throw unprocessable('REHIRE_JOB_NOT_FOUND', 'Tekrar çağırmak için tamamlanmış bir işin olmalı.');
+        throw unprocessable(
+          'REHIRE_JOB_NOT_FOUND',
+          'Tekrar çağırmak için tamamlanmış bir işin olmalı.',
+        );
       }
       if (preferredProviderId && preferredProviderId !== job.providerId) {
-        throw unprocessable('REHIRE_PROVIDER_MISMATCH', 'Tekrar çağrılan usta bu işin ustası değil.');
+        throw unprocessable(
+          'REHIRE_PROVIDER_MISMATCH',
+          'Tekrar çağrılan usta bu işin ustası değil.',
+        );
       }
       preferredProviderId = job.providerId;
     }
@@ -557,7 +563,10 @@ function approxPoint(a: {
   district: { latitude: Prisma.Decimal | null; longitude: Prisma.Decimal | null };
 }): { approxLatitude: number; approxLongitude: number } | Record<string, never> {
   if (a.latitude !== null && a.longitude !== null) {
-    return { approxLatitude: coarsen(Number(a.latitude)), approxLongitude: coarsen(Number(a.longitude)) };
+    return {
+      approxLatitude: coarsen(Number(a.latitude)),
+      approxLongitude: coarsen(Number(a.longitude)),
+    };
   }
   if (a.district.latitude !== null && a.district.longitude !== null) {
     return {

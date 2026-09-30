@@ -106,12 +106,10 @@ export function searchCategories(
       a.sortOrder - b.sortOrder ||
       (a.categoryId < b.categoryId ? -1 : 1),
   );
-  return hits
-    .slice(0, limit)
-    .map(({ categoryId, matchKind, matchedText, rank }) => ({
-      categoryId,
-      matchKind,
-      matchedText,
-      rank,
-    }));
+  return hits.slice(0, limit).map(({ categoryId, matchKind, matchedText, rank }) => ({
+    categoryId,
+    matchKind,
+    matchedText,
+    rank,
+  }));
 }

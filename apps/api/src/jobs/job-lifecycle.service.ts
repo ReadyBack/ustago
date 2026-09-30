@@ -212,7 +212,8 @@ export class JobLifecycleService {
         data: { lastActiveAt: now },
       });
     }
-    const event = action === 'START' ? 'job_started' : action === 'COMPLETE' ? 'job_completed' : null;
+    const event =
+      action === 'START' ? 'job_started' : action === 'COMPLETE' ? 'job_completed' : null;
     const line = SYSTEM_LINES[action];
     if (!event && !line) return;
     const request = await tx.serviceRequest.findUniqueOrThrow({

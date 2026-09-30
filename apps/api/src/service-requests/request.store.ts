@@ -118,7 +118,8 @@ export class RequestStore {
     }
     // Faz 7 waitlist (docs/adr/0029): a closed province with the waitlist open
     // still takes quote requests; they are dispatched once it opens.
-    const waitlisted = province !== null && !province.isActive && province.waitlistOpen && type === 'QUOTE';
+    const waitlisted =
+      province !== null && !province.isActive && province.waitlistOpen && type === 'QUOTE';
     if (
       !(province?.isActive || waitlisted) ||
       !district?.isActive ||

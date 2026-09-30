@@ -92,7 +92,10 @@ export class DispatchService implements OnApplicationBootstrap, OnApplicationShu
       metrics.workerRuns.inc({ worker: 'dispatch_sweep', outcome: 'ok' });
     } catch (error) {
       metrics.workerRuns.inc({ worker: 'dispatch_sweep', outcome: 'error' });
-      this.logger.error('Dispatch sweep failed', error instanceof Error ? error.stack : String(error));
+      this.logger.error(
+        'Dispatch sweep failed',
+        error instanceof Error ? error.stack : String(error),
+      );
     }
   }
 
@@ -120,7 +123,12 @@ export class DispatchService implements OnApplicationBootstrap, OnApplicationShu
    * scheduled (a provider may join or become available; waitlist provinces
    * get their first wave once opened).
    */
-  async dispatchIn(tx: Tx, requestId: string, reason: DispatchReason, now = new Date()): Promise<number> {
+  async dispatchIn(
+    tx: Tx,
+    requestId: string,
+    reason: DispatchReason,
+    now = new Date(),
+  ): Promise<number> {
     // Take the request's row lock here too (a no-op when the caller already
     // holds it): two unlocked runs would both rank the same providers and,
     // although the unique key stops a second dispatch row, both would
@@ -192,7 +200,8 @@ export class DispatchService implements OnApplicationBootstrap, OnApplicationShu
         data: plan.selected.map((s) => ({
           serviceRequestId: req.id,
           providerId: s.providerId,
-          expiresAt: req.expiresAt ?? new Date(now.getTime() + this.env.NOW_REQUEST_TTL_MINUTES * 60_000),
+          expiresAt:
+            req.expiresAt ?? new Date(now.getTime() + this.env.NOW_REQUEST_TTL_MINUTES * 60_000),
         })),
         skipDuplicates: true,
       });
@@ -375,8 +384,13 @@ export class DispatchService implements OnApplicationBootstrap, OnApplicationShu
           districtId: true,
         },
       });
-      if (!(OPEN as readonly string[]).includes(req.status) || (req.expiresAt && req.expiresAt <= now)) {
-        throw conflict('INVALID_REQUEST_STATE', 'Bu talep artık açık değil.', { status: req.status });
+      if (
+        !(OPEN as readonly string[]).includes(req.status) ||
+        (req.expiresAt && req.expiresAt <= now)
+      ) {
+        throw conflict('INVALID_REQUEST_STATE', 'Bu talep artık açık değil.', {
+          status: req.status,
+        });
       }
       if (
         req.lastDispatchedAt &&
@@ -389,7 +403,10 @@ export class DispatchService implements OnApplicationBootstrap, OnApplicationShu
         );
       }
       if (req.preferredOnly && includeOtherProviders) {
-        await tx.serviceRequest.update({ where: { id: requestId }, data: { preferredOnly: false } });
+        await tx.serviceRequest.update({
+          where: { id: requestId },
+          data: { preferredOnly: false },
+        });
       }
       const sent = await this.dispatchIn(tx, requestId, 'EXPANDED', now);
       await this.events.recordIn(tx, {
@@ -458,7 +475,8 @@ export class DispatchService implements OnApplicationBootstrap, OnApplicationShu
       nextDispatchAt: req.nextDispatchAt?.toISOString() ?? null,
       canExpand:
         open &&
-        (req.preferredOnly || (cooled && (req.dispatchWave < maxWaves || req.nextDispatchAt !== null))),
+        (req.preferredOnly ||
+          (cooled && (req.dispatchWave < maxWaves || req.nextDispatchAt !== null))),
       noOfferPrompt:
         open &&
         req.type === 'QUOTE' &&
@@ -511,7 +529,12 @@ export class DispatchService implements OnApplicationBootstrap, OnApplicationShu
   }
 
   /** A quote arrived: close the provider's dispatch row (same transaction as the quote). */
-  async markRespondedIn(tx: Tx, providerId: string, requestId: string, now = new Date()): Promise<void> {
+  async markRespondedIn(
+    tx: Tx,
+    providerId: string,
+    requestId: string,
+    now = new Date(),
+  ): Promise<void> {
     await tx.requestDispatch.updateMany({
       where: { serviceRequestId: requestId, providerId, respondedAt: null },
       data: { respondedAt: now, result: 'QUOTED' },

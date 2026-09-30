@@ -43,7 +43,9 @@ export class ProviderOpsController {
   ) {}
 
   @Get('coverage')
-  @ApiOperation({ summary: 'Hizmet kapsamı: ilçeler, il/yarıçap bölgeleri, azami mesafe, hizmet merkezi.' })
+  @ApiOperation({
+    summary: 'Hizmet kapsamı: ilçeler, il/yarıçap bölgeleri, azami mesafe, hizmet merkezi.',
+  })
   @ApiZodResponse(200, providerCoverageSchema)
   getCoverage(@CurrentUser() user: AuthUser): Promise<ProviderCoverage> {
     return this.coverage.getMine(user.id);
@@ -85,7 +87,9 @@ export class ProviderOpsController {
   }
 
   @Patch('availability-settings')
-  @ApiOperation({ summary: '"Yeni iş alma" ve "Bugün müsait değilim". Kapatmak NOW müsaitliğini de kapatır.' })
+  @ApiOperation({
+    summary: '"Yeni iş alma" ve "Bugün müsait değilim". Kapatmak NOW müsaitliğini de kapatır.',
+  })
   @ApiZodBody(updateAvailabilitySettingsSchema)
   @ApiZodResponse(200, providerAvailabilitySchema)
   updateAvailability(

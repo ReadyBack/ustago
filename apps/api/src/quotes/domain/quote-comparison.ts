@@ -47,8 +47,22 @@ export function comparisonLabels(
   const push = (q: ComparableQuote | null, label: QuoteComparisonLabel) => {
     if (q) out.get(q.id)?.push(label);
   };
-  push(uniqueBest(open, (q) => q.totalMinor, (a, b) => a < b), 'LOWEST_PRICE');
-  push(uniqueBest(open, (q) => (q.distanceKm === null ? null : Math.round(q.distanceKm)), (a, b) => a < b), 'NEAREST');
+  push(
+    uniqueBest(
+      open,
+      (q) => q.totalMinor,
+      (a, b) => a < b,
+    ),
+    'LOWEST_PRICE',
+  );
+  push(
+    uniqueBest(
+      open,
+      (q) => (q.distanceKm === null ? null : Math.round(q.distanceKm)),
+      (a, b) => a < b,
+    ),
+    'NEAREST',
+  );
   push(
     uniqueBest(
       open,

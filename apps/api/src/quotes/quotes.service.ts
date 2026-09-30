@@ -788,7 +788,8 @@ export class QuotesService {
       request.approxLatitude !== null && request.approxLongitude !== null
         ? { lat: Number(request.approxLatitude), lng: Number(request.approxLongitude) }
         : at(request.districtId);
-    for (const p of providers) out.set(p.id, this.geo.distanceKm(at(p.serviceCenterDistrictId), point));
+    for (const p of providers)
+      out.set(p.id, this.geo.distanceKm(at(p.serviceCenterDistrictId), point));
     return out;
   }
 
