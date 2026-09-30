@@ -101,6 +101,10 @@ etiketi vardır.
 | `dogrulama@ustago.test`     | (e-posta + şifre)     | Faz 6: ADMIN + yalnız `ADMIN_VERIFICATION` (usta doğrulama, askıya alma)                   |
 | `usta-revizyon@ustago.test` | (e-posta + şifre)     | Faz 6: doğrulaması "Düzeltme gerekli" (reddedilen kimlik belgesi, gerekçeli)               |
 | `usta-askida@ustago.test`   | (e-posta + şifre)     | Faz 6: hesabı askıda usta (teklif veremez, para çekemez)                                   |
+| `usta-ankara-elektrik@…`    | 500 000 00 20         | Faz 7: Ankara elektrikçi, Çankaya merkezli 30 km bölge, hafta içi 09–18                    |
+| `usta-ankara-boya@…`        | 500 000 00 21         | Faz 7: Ankara boya-badana, Keçiören merkezli, gelecek hafta planlı izinli                  |
+| `usta-izmir-klima@…`        | 500 000 00 22         | Faz 7: İzmir klimacı (İzmir bekleme listesinde: iş dağıtılmaz)                             |
+| `usta-istanbul-klima@…`     | 500 000 00 23         | Faz 7: İstanbul klimacı, "Yeni iş alma" kapalı (duraklatılmış)                             |
 
 - **OTP kodu**: gerçek SMS gönderilmez (`SMS_PROVIDER=console`). "Kod Gönder"e bastıktan sonra API
   çıktısında şu satırı arayın: `[DEV SMS → +90500*****01] OTP KODU: 123456`. Kod 3 dakika geçerli.
@@ -108,7 +112,8 @@ etiketi vardır.
 - **Admin / e-posta şifresi**: `.env` içindeki `SEED_DEV_PASSWORD`. `pnpm dev:setup` bunu rastgele
   üretir; görmek için `.env` dosyasını açın. Değiştirirseniz `pnpm dev:seed` demo hesapların şifresini
   yeni değere eşitler.
-- Açık iller: Adana (demo) ve İstanbul. Diğer iller admin tarafından açılana kadar talep kabul etmez.
+- Açık iller: Adana (demo), İstanbul ve Ankara. İzmir **bekleme listesinde** (talep kabul eder, il
+  açılana kadar ustaya dağıtılmaz). Diğer iller admin tarafından açılana kadar talep kabul etmez.
 
 ## 5 DAKİKADA USTAGO DEMO
 
@@ -273,6 +278,55 @@ pnpm security:secrets          # izlenen dosyalarda gizli anahtar taraması
 pnpm db:migration-guard        # Faz 5 sonrası migration'lar yalnız ekleme yapar
 ```
 
+## FAZ 7 — AKILLI PAZAR YERİ LOCAL DEMO
+
+**Yapay zekâ yoktur.** Eşleştirme açıklanabilir bir puandır (MATCH_V1, ADR-0028). Mesafe ilçe
+merkezleri arasında kuş uçuşudur ve her yerde **"Yaklaşık N km"** yazar; yol mesafesi değildir ve
+harita servisi bağlı değildir (ADR-0029). Sohbet gerçek zamanlı değildir, birkaç saniyede bir
+yenilenir (ADR-0030). Fiyat rehberi, popüler kategoriler ve yanıt süresi yalnız yeterli gerçek veri
+varsa görünür; yoksa "yeterli veri yok" yazar.
+
+Faz 6 veritabanınızı yükseltmek için: `git pull`, `pnpm install`, `pnpm dev:setup` (yeni migration'ı
+uygular ve seed'i çalıştırır; seed idempotenttir, var olan veriye dokunmaz) ve `pnpm dev`. Faz 7
+demo verisi: Adana, İstanbul, Ankara, İzmir ustalarına hizmet merkezi, bölge ve çalışma saati;
+Ayşe'nin klima talebi (gerçek dağıtımdan geçer, Demo Klima Ustası'ndan servis kalemli ₺2.200 teklif
+ve kısa bir sohbet) ve Zeynep'in elektrik talebi.
+
+- **A — Müşteri ana sayfa ve arama (mobil, 500 000 00 01):** Ana Sayfa'da aktif işler, teklif
+  gelen talepler, favoriler, tekrar çağır ve yakındaki ustalar. Arama kutusuna `elektirikçi`,
+  `tesisatci`, `KLİMA` yazın: Türkçe karakter ve yazım hatasına rağmen doğru kategori gelir;
+  eş anlamlıları admin **Kategoriler → Kategori → Arama eş anlamlıları**ndan ekleyin.
+- **B — Usta keşfi ve profil V2:** kategori → ustalar listesi (Önerilen / En yakın / En yüksek
+  puan / En çok iş / En hızlı yanıt; "Bugün müsait", "Doğrulanmış", en az puan filtreleri). Profilde yaklaşık
+  mesafe, müsaitlik, yanıt süresi (yeterli veri varsa), puan dağılımı, yorumlar ve ustanın yanıtı,
+  portföy. Telefon, e-posta, adres, TC, IBAN ve belgeler **gösterilmez**. Kalp ile favoriye ekleyin.
+- **C — Talep sihirbazı V2:** Talep oluştur → kategori soruları (ör. Klima: işlem türü, cihaz
+  sayısı), fotoğraf, bütçe aralığı, zaman (Şimdi / Bugün / Yarın / Tarih), adres, özet. Yayınlanınca
+  talep ekranı dağıtım durumunu gösterir ("7 uygun ustaya gönderildi · 3 görüntüledi · 1 teklif", "Arama alanını genişlet").
+- **D — Usta gelen kutusu (500 000 00 02):** **İşler → Sana Uygun İşler**: yaklaşık mesafe,
+  bütçe, soru cevapları; sırala (Yeni / En yakın / Bütçe), "Bana gönderilenler". Teklif formu V2:
+  işçilik, malzeme, servis, diğer kalemleri, otomatik toplam ve "Ne zaman gelebilirsin?".
+- **E — Teklif karşılaştırma:** müşteri talebinde birden çok açık teklif varsa "En düşük fiyat",
+  "En yakın", "En yüksek puan" gibi yalnız **nesnel** etiketler çıkar (en az 2 açık teklif; puan
+  etiketi için en az 3 yorum).
+- **F — Sohbet:** teklif ekranından **Mesaj yaz** (usta: "Müşteriye mesaj yaz"). Mesajlar sekmesinde okunmamış rozeti.
+  Telefon numarası yazılırsa mesaj gider ama işaretlenir; mesaja basılı tutup bildirin; "Engelle" sohbet ekranında.
+  Sohbet resmi fiyatı değiştirmez; fiyat teklif ve ek iş akışından değişir.
+- **G — Usta müsaitliği ve kapsama:** **Profil → Müsaitlik ve çalışma saatleri**: "Yeni iş alıyorum" anahtarı, "Bugün müsait değilim",
+  haftalık saatler, izin ekle. **Profil → Hizmet bölgeleri**: ilçeler, "Tüm il" ya da merkez ilçe +
+  km, azami yol, hizmet merkezi (ilçe; ev adresi değil). Duraklatılmış ya da izindeki ustaya yeni
+  iş gitmez.
+- **H — Admin pazar yeri:** `admin@ustago.test` → **Pazar yeri**: huni, bölgeler (5'ten az talepte
+  oranlar gizli), il lansman durumu (Açık / Bekleme listesi / Kapalı), kategoriler, teklif gelmeyen
+  talepler. **Talepler → talep → Dağıtım**: dalga zaman çizelgesi, her ustanın MATCH_V1 puan
+  dökümü; `?preview=1` ile dağıtmadan sıralama önizlemesi. **Mesaj şikayetleri**: sohbet yalnız
+  şikâyet üzerinden, gerekçe yazılarak açılır ve denetime düşer.
+
+```bash
+pnpm db:seed                      # Faz 7 demo verisi dahil (idempotent)
+cd apps/api && pnpm bench:faz7    # yalnız adı "bench" içeren boş bir veritabanında; bkz. docs/faz7/BENCHMARK.md
+```
+
 ## Troubleshooting
 
 | Belirti                                                  | Çözüm                                                                                                                                                             |
@@ -380,7 +434,10 @@ Tam liste: PROJECT.md §31.
   0019 ödeme sağlayıcı soyutlaması, 0020 platform ücreti ve usta kazancı, 0021 üretim hazırlığı
   seviyeleri, 0022 ortam ayrımı ve fail-closed config, 0023 usta doğrulama ve güven,
   0024 oturum ve kimlik doğrulama güvenliği, 0025 komisyon politikası ve finans sertleştirme,
-  0026 gözlemlenebilirlik ve operasyon uyarıları, 0027 kişisel veri ve veri yaşam döngüsü)
+  0026 gözlemlenebilirlik ve operasyon uyarıları, 0027 kişisel veri ve veri yaşam döngüsü,
+  0028 eşleştirme ve dalga dağıtımı, 0029 konum ve mesafe gizliliği, 0030 talebe bağlı sohbet,
+  0031 usta müsaitliği)
+- Faz 7 API sözleşmesi ve benchmark: [docs/faz7](docs/faz7)
 - Runbook'lar: [docs/runbooks](docs/runbooks) (üretim sürüm kontrol listesi, felaket kurtarma,
   belirsiz para çekme, mutabakat uyumsuzluğu)
 - Bekleyen kararlar (DECISION REQUIRED): [docs/decisions](docs/decisions)
