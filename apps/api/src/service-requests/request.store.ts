@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AuditService } from '../audit/audit.service.js';
 import { conflict, notFound, unprocessable } from '../common/http/errors.js';
-import { formatMoney } from '@ustago/validation';
 import { API_ENV, type ApiEnv } from '../config/env.js';
 import type {
   Prisma,
@@ -10,8 +9,8 @@ import type {
   ServiceRequestStatus,
   ServiceRequestType,
 } from '../generated/prisma/client.js';
-import { MatchingRepository } from '../matching/matching.repository.js';
-import { NotificationsService } from '../notifications/notifications.service.js';
+import { MarketplaceEventsService } from '../analytics/marketplace-events.service.js';
+import { DispatchService } from '../dispatch/dispatch.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { isNowOpen } from '../providers/domain/now-availability.js';
 import { isCategoryLive } from '../providers/provider.mappers.js';
@@ -26,9 +25,6 @@ export const invalidRequestState = (status: ServiceRequestStatus, message?: stri
     status,
   });
 
-/** Where "Teklif Al" and NOW providers are notified; bounded, never nationwide. */
-const QUOTE_NOTIFY_LIMIT = 50;
-
 /**
  * Shared persistence for the service request aggregate: the row lock every
  * request / quote mutation takes first (one lock order, no deadlocks, and
@@ -39,8 +35,8 @@ const QUOTE_NOTIFY_LIMIT = 50;
 export class RequestStore {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly matching: MatchingRepository,
-    private readonly notifications: NotificationsService,
+    private readonly dispatch: DispatchService,
+    private readonly events: MarketplaceEventsService,
     private readonly audit: AuditService,
     @Inject(API_ENV) private readonly env: ApiEnv,
   ) {}
@@ -152,35 +148,26 @@ export class RequestStore {
   }
 
   /**
-   * After a request goes live, in the same transaction: tell the providers
-   * who can take it (outbox rows, docs/adr/0014) and, for NOW, record the
-   * dispatch wave. Notifications never leave before the commit.
+   * After a request goes live, in the same transaction: the first dispatch
+   * wave (docs/adr/0028) writes RequestDispatch rows and outbox
+   * notifications, and for NOW the emergency offers. Nothing leaves before
+   * the commit; later waves come from the dispatch sweep.
    */
   async onPublished(tx: Tx, request: ServiceRequest, actorId: string): Promise<void> {
-    const wave = request.type === 'NOW' ? this.env.NOW_DISPATCH_WAVE_SIZE : QUOTE_NOTIFY_LIMIT;
-    const providers = await this.matching.eligibleProviders(tx, request.id, wave);
-    const category = await tx.serviceCategory.findUniqueOrThrow({
-      where: { id: request.categoryId },
-      select: { name: true },
+    await tx.serviceRequest.update({
+      where: { id: request.id },
+      data: { nextDispatchAt: new Date() },
     });
-    const district = await tx.district.findUniqueOrThrow({
-      where: { id: request.districtId },
-      select: { name: true },
+    const matched = await this.dispatch.dispatchIn(tx, request.id, 'PUBLISHED');
+    await this.events.recordIn(tx, {
+      type: 'request_created',
+      serviceRequestId: request.id,
+      categoryId: request.categoryId,
+      provinceId: request.provinceId,
+      districtId: request.districtId,
+      metadata: { requestType: request.type },
     });
-    const budget =
-      request.budgetMinor === null ? '' : ` · Bütçe ${formatMoney(Number(request.budgetMinor))}`;
-
     if (request.type === 'NOW') {
-      if (providers.length > 0) {
-        await tx.emergencyDispatchOffer.createMany({
-          data: providers.map((p) => ({
-            serviceRequestId: request.id,
-            providerId: p.id,
-            expiresAt: request.expiresAt ?? this.expiryFor('NOW', new Date()),
-          })),
-          skipDuplicates: true,
-        });
-      }
       await this.audit.recordIn(tx, {
         action: 'now.request_created',
         actorId,
@@ -193,19 +180,8 @@ export class RequestStore {
         actorId,
         entityType: 'service_request',
         entityId: request.id,
-        metadata: { matchedProviders: providers.length, wave },
+        metadata: { matchedProviders: matched, wave: 1 },
       });
     }
-
-    await this.notifications.enqueueIn(
-      tx,
-      providers.map((p) => ({
-        userId: p.userId,
-        type: request.type === 'NOW' ? 'now.new_request' : 'service_request.new_opportunity',
-        title: request.type === 'NOW' ? 'Yakınında acil iş var' : 'Yakınında yeni iş var',
-        body: `${category.name} · ${district.name}${budget}`,
-        data: { serviceRequestId: request.id },
-      })),
-    );
   }
 }

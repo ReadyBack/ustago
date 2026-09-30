@@ -11,9 +11,9 @@ import { AuditService } from '../audit/audit.service.js';
 import { notFound, unprocessable } from '../common/http/errors.js';
 import { endOfLocalDay } from '../common/utils/local-time.js';
 import { API_ENV } from '../config/env.js';
-import { Prisma } from '../generated/prisma/client.js';
+import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { type AvailabilityResult, computeAvailability } from '../providers/domain/availability.js';
+import { computeAvailability } from '../providers/domain/availability.js';
 import { ProviderStore } from '../providers/provider.store.js';
 
 type Db = Prisma.TransactionClient | PrismaService;
@@ -38,43 +38,6 @@ export class ProviderAvailabilityService {
 
   get timeZone(): string {
     return this.env.MARKETPLACE_TIME_ZONE;
-  }
-
-  /** Bulk evaluation for ranking and listing (two queries for any number of providers). */
-  async evaluate(
-    providers: readonly { id: string; acceptingNewJobs: boolean; unavailableUntil: Date | null }[],
-    now = new Date(),
-    db: Db = this.prisma,
-  ): Promise<Map<string, AvailabilityResult>> {
-    const ids = providers.map((p) => p.id);
-    const out = new Map<string, AvailabilityResult>();
-    if (ids.length === 0) return out;
-    const [hours, timeOff] = await Promise.all([
-      db.providerWeeklyHours.findMany({
-        where: { providerId: { in: ids } },
-        select: { providerId: true, weekday: true, startMinute: true, endMinute: true },
-      }),
-      db.providerTimeOff.findMany({
-        where: { providerId: { in: ids }, cancelledAt: null, endsAt: { gt: now }, startsAt: { lte: now } },
-        select: { providerId: true, startsAt: true, endsAt: true },
-      }),
-    ]);
-    const hoursBy = groupBy(hours, (h) => h.providerId);
-    const offBy = groupBy(timeOff, (t) => t.providerId);
-    for (const p of providers) {
-      out.set(
-        p.id,
-        computeAvailability({
-          acceptingNewJobs: p.acceptingNewJobs,
-          unavailableUntil: p.unavailableUntil,
-          weeklyHours: hoursBy.get(p.id) ?? [],
-          timeOff: offBy.get(p.id) ?? [],
-          now,
-          timeZone: this.timeZone,
-        }),
-      );
-    }
-    return out;
   }
 
   async getMine(userId: string): Promise<ProviderAvailability> {
@@ -263,21 +226,4 @@ export class ProviderAvailabilityService {
     return this.view(providerId);
   }
 
-  /** Row shape callers pass to `evaluate`. */
-  static readonly select = {
-    id: true,
-    acceptingNewJobs: true,
-    unavailableUntil: true,
-  } satisfies Prisma.ProviderProfileSelect;
-}
-
-function groupBy<T, K>(rows: readonly T[], key: (r: T) => K): Map<K, T[]> {
-  const m = new Map<K, T[]>();
-  for (const r of rows) {
-    const k = key(r);
-    const list = m.get(k);
-    if (list) list.push(r);
-    else m.set(k, [r]);
-  }
-  return m;
 }

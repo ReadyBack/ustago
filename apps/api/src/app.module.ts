@@ -5,6 +5,7 @@ import { AnalyticsModule } from './analytics/analytics.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { AvailabilityModule } from './availability/availability.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { FinanceModule } from './finance/finance.module.js';
@@ -37,6 +38,7 @@ import { UsersModule } from './users/users.module.js';
     RedisModule,
     GeoModule,
     AnalyticsModule,
+    AvailabilityModule,
     AuditModule,
     OpsCoreModule,
     SecurityModule,

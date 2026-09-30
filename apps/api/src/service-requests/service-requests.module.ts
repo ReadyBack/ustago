@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { DispatchModule } from '../dispatch/dispatch.module.js';
 import { MatchingModule } from '../matching/matching.module.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { RequestExpiryService } from './request-expiry.service.js';
@@ -12,7 +13,7 @@ import {
 import { ServiceRequestsService } from './service-requests.service.js';
 
 @Module({
-  imports: [MatchingModule, NotificationsModule],
+  imports: [MatchingModule, NotificationsModule, DispatchModule],
   controllers: [ServiceRequestsController, MyServiceRequestsController],
   providers: [RequestStore, RequestPhotosService, ServiceRequestsService, RequestExpiryService],
   exports: [RequestStore, RequestExpiryService],
