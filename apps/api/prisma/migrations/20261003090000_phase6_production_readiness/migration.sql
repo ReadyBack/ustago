@@ -8,6 +8,9 @@
 -- admin permissions).
 
 
+-- AlterEnum (new value is not used in this migration)
+ALTER TYPE "PayoutStatus" ADD VALUE 'NEEDS_RECONCILIATION';
+
 -- CreateEnum
 CREATE TYPE "DocumentScanStatus" AS ENUM ('NOT_SCANNED', 'SAFE', 'REJECTED', 'QUARANTINED');
 
@@ -42,7 +45,7 @@ CREATE TYPE "AlertStatus" AS ENUM ('OPEN', 'ACKNOWLEDGED', 'RESOLVED');
 CREATE TYPE "ReconciliationRunStatus" AS ENUM ('RUNNING', 'SUCCEEDED', 'FAILED');
 
 -- CreateEnum
-CREATE TYPE "AccountDeletionStatus" AS ENUM ('REQUESTED', 'BLOCKED', 'PROCESSING', 'COMPLETED', 'CANCELLED');
+CREATE TYPE "AccountDeletionStatus" AS ENUM ('REQUESTED', 'BLOCKED_BY_ACTIVE_JOB', 'PROCESSING', 'COMPLETED', 'CANCELLED');
 
 -- CreateEnum
 CREATE TYPE "DataExportStatus" AS ENUM ('REQUESTED', 'PROCESSING', 'READY', 'EXPIRED', 'FAILED');
@@ -353,6 +356,9 @@ CREATE INDEX "operational_alerts_severity_status_idx" ON "operational_alerts"("s
 CREATE UNIQUE INDEX "operational_alerts_open_dedupe_key" ON "operational_alerts"("dedupe_key") WHERE (status <> 'RESOLVED');
 
 -- CreateIndex
+CREATE UNIQUE INDEX "finance_reconciliation_runs_one_running_key" ON "finance_reconciliation_runs"("status") WHERE (status = 'RUNNING'::"ReconciliationRunStatus");
+
+-- CreateIndex
 CREATE INDEX "finance_reconciliation_runs_started_at_idx" ON "finance_reconciliation_runs"("started_at");
 
 -- CreateIndex
@@ -365,7 +371,7 @@ CREATE UNIQUE INDEX "ledger_account_snapshots_account_id_as_of_key" ON "ledger_a
 CREATE INDEX "account_deletion_requests_status_requested_at_idx" ON "account_deletion_requests"("status", "requested_at");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "account_deletion_requests_one_open_key" ON "account_deletion_requests"("user_id") WHERE (status = ANY (ARRAY['REQUESTED'::"AccountDeletionStatus", 'BLOCKED'::"AccountDeletionStatus", 'PROCESSING'::"AccountDeletionStatus"]));
+CREATE UNIQUE INDEX "account_deletion_requests_one_open_key" ON "account_deletion_requests"("user_id") WHERE (status = ANY (ARRAY['REQUESTED'::"AccountDeletionStatus", 'BLOCKED_BY_ACTIVE_JOB'::"AccountDeletionStatus", 'PROCESSING'::"AccountDeletionStatus"]));
 
 -- CreateIndex
 CREATE INDEX "data_export_requests_user_id_requested_at_idx" ON "data_export_requests"("user_id", "requested_at");

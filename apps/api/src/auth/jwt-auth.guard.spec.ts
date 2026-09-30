@@ -17,6 +17,8 @@ function session(overrides: Partial<SessionWithUser> = {}, userOverrides = {}): 
     deviceId: null,
     userAgent: null,
     ipAddress: null,
+    ipHash: null,
+    isAdmin: false,
     expiresAt: new Date(Date.now() + 60_000),
     lastUsedAt: new Date(),
     revokedAt: null,
@@ -28,6 +30,7 @@ function session(overrides: Partial<SessionWithUser> = {}, userOverrides = {}): 
       status: 'ACTIVE',
       deletedAt: null,
       roles: [{ role: 'CUSTOMER' }],
+      adminPermissions: [],
       ...userOverrides,
     },
     ...overrides,
@@ -44,7 +47,7 @@ describe('JwtAuthGuard', () => {
   function setup(isPublic = false) {
     const reflector = new Reflector();
     vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(isPublic);
-    return new JwtAuthGuard(reflector, tokens, sessions);
+    return new JwtAuthGuard(reflector, tokens, sessions, testEnv());
   }
 
   function contextWith(authorization?: string) {
@@ -84,6 +87,7 @@ describe('JwtAuthGuard', () => {
       id: USER_ID,
       sessionId: SESSION_ID,
       roles: ['CUSTOMER', 'PROVIDER'],
+      permissions: [],
     });
   });
 

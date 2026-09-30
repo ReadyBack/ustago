@@ -16,6 +16,9 @@ export class DisabledObjectStorage implements ObjectStorage {
   readPrefix(): never {
     throw new StorageUnavailableError();
   }
+  sha256(): never {
+    throw new StorageUnavailableError();
+  }
   delete(): never {
     throw new StorageUnavailableError();
   }

@@ -18,6 +18,7 @@ import type {
   AdminPayout,
   LedgerTransactionView,
   Paginated,
+  PayoutDestination,
   ReconciliationReport,
 } from '@ustago/types';
 import {
@@ -45,12 +46,18 @@ import {
   type ListAdminPayoutsQuery,
   listAdminPayoutsQuerySchema,
   paginatedSchema,
+  payoutDestinationSchema,
   reconciliationReportSchema,
+  type ResolvePayoutRequest,
+  resolvePayoutRequestSchema,
   uuidSchema,
+  type VerifyPayoutDestinationRequest,
+  verifyPayoutDestinationRequestSchema,
 } from '@ustago/validation';
 import type { Request } from 'express';
 
 import { type AuthUser, CurrentUser, Roles } from '../common/auth/decorators.js';
+import { RequirePermission } from '../common/auth/permissions.js';
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { AdminFinanceService } from './admin-finance.service.js';
@@ -58,9 +65,10 @@ import { CashService } from './cash.service.js';
 import { IDEMPOTENCY_HEADER, idempotencyKeyFrom } from './idempotency.js';
 import { PayoutsService } from './payouts.service.js';
 import { ReconciliationService } from './reconciliation.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const idPipe = new ZodValidationPipe(uuidSchema);
-const ip = (req: Request) => req.ip ?? null;
+const ip = (req: Request) => clientIp(req);
 
 /** Admin "Finans" (ADMIN and SUPER_ADMIN). Test money only in this phase. */
 @ApiTags('admin: finance')
@@ -104,6 +112,7 @@ export class AdminFinanceController {
   }
 
   @Post('finance/payments/:id/refunds')
+  @RequirePermission('ADMIN_FINANCE')
   @HttpCode(HttpStatus.OK)
   @ApiHeader({ name: IDEMPOTENCY_HEADER, required: true })
   @ApiOperation({
@@ -154,6 +163,7 @@ export class AdminFinanceController {
   }
 
   @Post('finance/payouts/:id/approve')
+  @RequirePermission('ADMIN_FINANCE')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Talebi onaylar ve (test) ödeme sağlayıcısına iletir.' })
   @ApiZodResponse(200, adminPayoutSchema)
@@ -167,6 +177,7 @@ export class AdminFinanceController {
   }
 
   @Post('finance/payouts/:id/cancel')
+  @RequirePermission('ADMIN_FINANCE')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Talebi iptal eder; ayrılan tutar çekilebilir bakiyeye döner.' })
   @ApiZodBody(adminPayoutDecisionSchema)
@@ -180,6 +191,41 @@ export class AdminFinanceController {
     return this.payouts.adminCancel(user.id, id, body, ip(req));
   }
 
+  @Post('finance/payouts/:id/resolve')
+  @RequirePermission('ADMIN_FINANCE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Sonucu bilinmeyen (NEEDS_RECONCILIATION) talebi, sağlayıcı ile kontrol edildikten sonra PAID veya FAILED olarak kapatır.',
+  })
+  @ApiZodBody(resolvePayoutRequestSchema)
+  @ApiZodResponse(200, adminPayoutSchema)
+  @ApiZodResponse(409, apiErrorResponseSchema, 'PAYOUT_INVALID_STATE')
+  resolvePayout(
+    @CurrentUser() user: AuthUser,
+    @Param('id', idPipe) id: string,
+    @Body(new ZodValidationPipe(resolvePayoutRequestSchema)) body: ResolvePayoutRequest,
+    @Req() req: Request,
+  ): Promise<AdminPayout> {
+    return this.payouts.resolveUnknown(user.id, id, body, ip(req));
+  }
+
+  @Post('finance/payout-destinations/:id/verify')
+  @RequirePermission('ADMIN_FINANCE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Banka hesabını (TEST) doğrulanmış olarak işaretler.' })
+  @ApiZodBody(verifyPayoutDestinationRequestSchema)
+  @ApiZodResponse(200, payoutDestinationSchema)
+  verifyDestination(
+    @CurrentUser() user: AuthUser,
+    @Param('id', idPipe) id: string,
+    @Body(new ZodValidationPipe(verifyPayoutDestinationRequestSchema))
+    body: VerifyPayoutDestinationRequest,
+    @Req() req: Request,
+  ): Promise<PayoutDestination> {
+    return this.payouts.verifyDestination(user.id, id, body.note, ip(req));
+  }
+
   @Get('finance/cash-settlements')
   @ApiOperation({ summary: 'Nakit ödeme kayıtları (anlaşmazlıklar dahil).' })
   @ApiZodResponse(200, paginatedSchema(adminCashSettlementSchema))
@@ -190,6 +236,7 @@ export class AdminFinanceController {
   }
 
   @Post('finance/cash-settlements/:id/resolve')
+  @RequirePermission('ADMIN_FINANCE')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:

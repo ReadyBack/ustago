@@ -42,7 +42,7 @@ const reasonCodeSchema = z
   .regex(/^[A-Z][A-Z0-9_]{2,59}$/, { message: 'Geçerli bir gerekçe kodu seçin.' });
 
 /** Shown to the provider. */
-const userVisibleReasonSchema = z.string().trim().min(5).max(1000);
+const userVisibleReasonSchema = z.string().trim().min(5).max(500);
 /** Admins only; never returned to the provider. */
 const internalNoteSchema = z.string().trim().max(2000);
 
@@ -79,9 +79,7 @@ export type ListVerificationCasesQuery = z.infer<typeof listVerificationCasesQue
 /** Every admin decision carries the case version it was made against. */
 const expectedVersion = z.number().int().min(0);
 
-export const startVerificationReviewRequestSchema = z
-  .object({ expectedVersion })
-  .strict();
+export const startVerificationReviewRequestSchema = z.object({ expectedVersion }).strict();
 export type StartVerificationReviewRequest = z.infer<typeof startVerificationReviewRequestSchema>;
 
 export const approveVerificationRequestSchema = z

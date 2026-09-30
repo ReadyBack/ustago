@@ -4,18 +4,16 @@ import {
   type ExceptionFilter,
   HttpException,
   HttpStatus,
-  Logger,
 } from '@nestjs/common';
 import type { ApiErrorResponse } from '@ustago/types';
 import type { Request, Response } from 'express';
 
 import { Prisma } from '../../generated/prisma/client.js';
+import { errorReporter } from '../../observability/error-reporter.js';
 
 /** Maps every thrown error to the standard error body (docs/api/README.md). */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(HttpExceptionFilter.name);
-
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const request = ctx.getRequest<Request>();
@@ -23,10 +21,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     const body = this.toBody(exception, request.originalUrl, request.requestId);
     if (body.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
-      this.logger.error(
-        `${request.method} ${request.originalUrl} failed${body.requestId ? ` [${body.requestId}]` : ''}`,
-        exception instanceof Error ? exception.stack : String(exception),
-      );
+      // The client only sees the safe body; the reporter gets the detail,
+      // redacted (observability/error-reporter.ts).
+      const route = (request.route as { path?: unknown } | undefined)?.path;
+      errorReporter().report(exception, {
+        ...(request.requestId ? { requestId: request.requestId } : {}),
+        route: typeof route === 'string' ? `${request.baseUrl}${route}` : 'unmatched',
+        tags: { method: request.method, status: String(body.statusCode) },
+      });
     }
     const retryAfter = retryAfterSeconds(body);
     if (retryAfter !== null) response.setHeader('Retry-After', String(retryAfter));

@@ -18,7 +18,14 @@ export class PublicProvidersService {
 
   async get(id: string): Promise<PublicProviderProfile> {
     const provider = await this.prisma.providerProfile.findFirst({
-      where: { id, status: 'ACTIVE', deletedAt: null, user: { status: 'ACTIVE', deletedAt: null } },
+      // Faz 6: suspended or banned accounts are not shown to customers.
+      where: {
+        id,
+        status: 'ACTIVE',
+        accountStatus: { in: ['ACTIVE', 'LIMITED'] },
+        deletedAt: null,
+        user: { status: 'ACTIVE', deletedAt: null },
+      },
       include: publicProviderInclude,
     });
     if (!provider) throw notFound('PROVIDER_NOT_FOUND', 'Usta bulunamadı.');

@@ -98,6 +98,14 @@ export class UsersRepository {
     });
   }
 
+  /** Holds an admin role: gets a staff session (docs/adr/0024). */
+  async isStaff(id: string): Promise<boolean> {
+    const count = await this.prisma.userRole.count({
+      where: { userId: id, role: { in: ['ADMIN', 'SUPER_ADMIN'] } },
+    });
+    return count > 0;
+  }
+
   async touchLastLogin(id: string): Promise<void> {
     await this.prisma.user.update({ where: { id }, data: { lastLoginAt: new Date() } });
   }

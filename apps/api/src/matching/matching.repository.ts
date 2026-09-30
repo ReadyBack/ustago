@@ -24,8 +24,15 @@ type Db = Prisma.TransactionClient | PrismaService;
  * - admin sanctions in force (docs/adr/0016): JOB_RESTRICTION hides every
  *   new request, NOW_SUSPENSION hides NOW requests.
  */
+/**
+ * Mirrors matching/domain/eligibility.ts and providers/domain/provider-policy.ts.
+ * Faz 6: suspended/banned accounts see nothing; NOW needs a VERIFIED case
+ * and an ACTIVE account; a category's admin-configured document
+ * requirements (also those of its parent) must be approved.
+ */
 const ELIGIBLE = Prisma.sql`
   pr.status = 'ACTIVE' AND pr.deleted_at IS NULL
+  AND pr.account_status IN ('ACTIVE', 'LIMITED')
   AND sr.status IN ('PUBLISHED', 'MATCHING', 'QUOTED')
   AND (sr.expires_at IS NULL OR sr.expires_at > now())
   AND u.status = 'ACTIVE' AND u.deleted_at IS NULL
@@ -37,6 +44,12 @@ const ELIGIBLE = Prisma.sql`
               WHERE ps.provider_id = pr.id AND ps.category_id = sr.category_id)
   AND EXISTS (SELECT 1 FROM provider_service_areas pa
               WHERE pa.provider_id = pr.id AND pa.district_id = sr.district_id)
+  AND NOT EXISTS (SELECT 1 FROM category_provider_requirements r
+                  WHERE r.deactivated_at IS NULL
+                    AND (r.category_id = sr.category_id OR r.category_id = c.parent_id)
+                    AND NOT EXISTS (SELECT 1 FROM provider_verifications v
+                                    WHERE v.provider_id = pr.id AND v.type = r.document_type
+                                      AND v.status = 'APPROVED'))
   AND NOT EXISTS (SELECT 1 FROM disciplinary_actions da
                   WHERE da.subject_id = pr.user_id AND da.subject_role = 'PROVIDER'
                     AND da.status IN ('ACTIVE', 'UNDER_APPEAL')
@@ -47,6 +60,9 @@ const ELIGIBLE = Prisma.sql`
     (sr.type = 'QUOTE' AND c.supports_quote)
     OR (sr.type = 'NOW' AND c.supports_now
         AND pr.now_enabled AND pr.is_available_now
+        AND pr.account_status = 'ACTIVE'
+        AND EXISTS (SELECT 1 FROM provider_verification_cases vc
+                    WHERE vc.provider_id = pr.id AND vc.status = 'VERIFIED')
         AND (ov.province_id IS NULL OR ov.now_enabled))
   )`;
 

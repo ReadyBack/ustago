@@ -36,7 +36,14 @@ export type RefundReason =
   | 'OTHER';
 export type ProviderEarningStatus = 'PENDING' | 'HELD' | 'AVAILABLE' | 'REVERSED';
 export type PayoutStatus =
-  'REQUESTED' | 'APPROVED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED';
+  | 'REQUESTED'
+  | 'APPROVED'
+  | 'PROCESSING'
+  | 'PAID'
+  | 'FAILED'
+  | 'CANCELLED'
+  /** Faz 6: the provider's answer was lost; money stays reserved until checked. */
+  | 'NEEDS_RECONCILIATION';
 export type LedgerAccountType =
   | 'PROVIDER_PENDING'
   | 'PROVIDER_AVAILABLE'

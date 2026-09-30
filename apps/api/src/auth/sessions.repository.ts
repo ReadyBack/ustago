@@ -6,7 +6,13 @@ import { PrismaService } from '../prisma/prisma.service.js';
 const sessionWithUser = {
   include: {
     user: {
-      select: { id: true, status: true, deletedAt: true, roles: { select: { role: true } } },
+      select: {
+        id: true,
+        status: true,
+        deletedAt: true,
+        roles: { select: { role: true } },
+        adminPermissions: { select: { permission: true } },
+      },
     },
   },
 } satisfies Prisma.AuthSessionDefaultArgs;
@@ -16,8 +22,11 @@ export type SessionWithUser = Prisma.AuthSessionGetPayload<typeof sessionWithUse
 export interface NewSession {
   userId: string;
   userAgent: string | null;
+  /** HMAC of the client IP; the raw address is never stored (Faz 6). */
   ipAddress: string | null;
   expiresAt: Date;
+  /** Admin sessions get a shorter lifetime and an idle timeout. */
+  isAdmin?: boolean;
   refreshTokenHash: string;
   refreshTokenExpiresAt: Date;
 }
@@ -32,7 +41,9 @@ export class SessionsRepository {
       data: {
         userId: input.userId,
         userAgent: input.userAgent,
-        ipAddress: input.ipAddress,
+        ipAddress: null,
+        ipHash: input.ipAddress,
+        isAdmin: input.isAdmin ?? false,
         expiresAt: input.expiresAt,
         refreshTokens: {
           create: { tokenHash: input.refreshTokenHash, expiresAt: input.refreshTokenExpiresAt },
@@ -112,6 +123,32 @@ export class SessionsRepository {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date(), pushToken: null },
     });
+  }
+
+  async touch(sessionId: string, at: Date): Promise<void> {
+    await this.prisma.authSession.updateMany({
+      where: { id: sessionId, lastUsedAt: { lt: at } },
+      data: { lastUsedAt: at },
+    });
+  }
+
+  /** Active sessions of a user, newest first ("Aktif Oturumlar"). */
+  listActive(userId: string) {
+    return this.prisma.authSession.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { lastUsedAt: 'desc' },
+      take: 50,
+      include: { device: { select: { platform: true, deviceName: true } } },
+    });
+  }
+
+  /** Revokes one of the user's own sessions; false when it is not theirs. */
+  async revokeOwn(userId: string, sessionId: string, reason: string): Promise<boolean> {
+    const { count } = await this.prisma.authSession.updateMany({
+      where: { id: sessionId, userId, revokedAt: null },
+      data: { revokedAt: new Date(), revokedReason: reason },
+    });
+    return count === 1;
   }
 
   async attachDevice(sessionId: string, deviceId: string): Promise<void> {

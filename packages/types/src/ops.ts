@@ -44,7 +44,9 @@ export interface OperationalAlert {
   severity: AlertSeverity;
   status: AlertStatus;
   title: string;
-  detail: Record<string, unknown> | null;
+  /** Ids, counts and codes only; never personal data or raw payloads. */
+  details: Record<string, unknown>;
+  source: string;
   occurrences: number;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -55,7 +57,8 @@ export interface OperationalAlert {
   resolutionNote: string | null;
 }
 
-export type ReconciliationRunStatus = 'RUNNING' | 'CLEAN' | 'MISMATCH' | 'FAILED';
+/** SUCCEEDED means the run completed; mismatchCount says whether it was clean. */
+export type ReconciliationRunStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED';
 
 export interface ReconciliationRun {
   id: string;
@@ -64,7 +67,8 @@ export interface ReconciliationRun {
   startedAt: string;
   finishedAt: string | null;
   durationMs: number | null;
-  checkedCount: number;
+  counts: Record<string, number> | null;
+  mismatches: { kind: string; entityType: string; entityId: string; message: string }[];
   totals: { debit: Money; credit: Money } | null;
   mismatchCount: number;
   snapshotsChecked: number;
@@ -116,7 +120,16 @@ export interface AdminOperationsStatus {
   };
   pushOutbox: { pending: number; failed: number; oldestPendingAgeSeconds: number | null };
   payouts: { needsReconciliation: number; requested: number };
-  webhooks: { received24h: number; failed24h: number; duplicates24h: number };
+  /**
+   * Stored events of the last 24 h, and (in-process, since this API
+   * instance started) signature rejections and duplicates. No payloads.
+   */
+  webhooks: {
+    received24h: number;
+    ignored24h: number;
+    rejectedSinceStart: number;
+    duplicatesSinceStart: number;
+  };
   latestReconciliation: ReconciliationRun | null;
   openAlerts: { critical: number; warning: number; info: number };
   workers: WorkerStatus[];

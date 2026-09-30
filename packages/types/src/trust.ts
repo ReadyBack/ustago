@@ -4,7 +4,9 @@
  * (docs/adr/0023, docs/adr/0024).
  */
 import type { NamedRef } from './address.js';
+import type { AuditEvent } from './audit.js';
 import type { ProviderStatus } from './auth.js';
+import type { Money } from './money.js';
 import type { ProviderVerification, VerificationType } from './provider.js';
 
 export type ProviderVerificationStatus =
@@ -170,10 +172,7 @@ export interface AdminVerificationCaseDetail {
 }
 
 export type AdminPermission =
-  | 'ADMIN_SUPPORT'
-  | 'ADMIN_VERIFICATION'
-  | 'ADMIN_FINANCE'
-  | 'ADMIN_SUPER';
+  'ADMIN_SUPPORT' | 'ADMIN_VERIFICATION' | 'ADMIN_FINANCE' | 'ADMIN_SUPER';
 
 export interface AdminUserPermissions {
   userId: string;
@@ -225,11 +224,7 @@ export interface RiskSignal {
 }
 
 export type AccountDeletionStatus =
-  | 'REQUESTED'
-  | 'BLOCKED_BY_ACTIVE_JOB'
-  | 'PROCESSING'
-  | 'COMPLETED'
-  | 'CANCELLED';
+  'REQUESTED' | 'BLOCKED_BY_ACTIVE_JOB' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED';
 
 export interface AccountDeletionRequestView {
   id: string;
@@ -238,4 +233,84 @@ export interface AccountDeletionRequestView {
   requestedAt: string;
   scheduledFor: string | null;
   completedAt: string | null;
+}
+
+/** A document a category requires before a provider may quote in it. */
+export interface CategoryRequirement {
+  id: string;
+  categoryId: string;
+  categoryName: string;
+  documentType: VerificationType;
+  note: string | null;
+  createdAt: string;
+}
+
+/**
+ * GET /admin/providers/:id/360: everything support needs about one
+ * provider on one screen. Loaded with a fixed number of queries.
+ */
+export interface AdminProvider360 {
+  providerId: string;
+  userId: string;
+  displayName: string;
+  applicationStatus: ProviderStatus;
+  accountStatus: ProviderAccountStatus;
+  verificationStatus: ProviderVerificationStatus;
+  capabilities: ProviderCapabilities;
+  createdAt: string;
+  contact: { name: string; phone: string | null; email: string | null };
+  suspensions: AdminSuspension[];
+  jobs: {
+    total: number;
+    byStatus: Record<string, number>;
+    recent: { id: string; status: string; currentTotal: Money; createdAt: string }[];
+  };
+  reviews: {
+    published: number;
+    hidden: number;
+    average: number | null;
+    recent: {
+      id: string;
+      rating: number;
+      comment: string | null;
+      status: string;
+      createdAt: string;
+    }[];
+  };
+  quality: {
+    ustaScore: number | null;
+    sampleSize: number;
+    isNewProvider: boolean;
+    computedAt: string | null;
+  };
+  finance: {
+    earningsByStatus: Record<string, Money>;
+    recentPayouts: { id: string; status: string; amount: Money; createdAt: string }[];
+    destination: {
+      maskedIban: string;
+      isTest: boolean;
+      verificationStatus: 'UNVERIFIED' | 'PENDING_VERIFICATION' | 'VERIFIED';
+    } | null;
+  };
+  penalties: {
+    id: string;
+    type: string;
+    status: string;
+    reasonCode: string;
+    startsAt: string;
+    endsAt: string | null;
+  }[];
+  audit: AuditEvent[];
+}
+
+/**
+ * A recorded personal-data export request. Building the archive is not
+ * implemented yet (docs/adr/0027): the request is kept and handled
+ * manually until the export job exists.
+ */
+export interface DataExportRequestView {
+  id: string;
+  status: 'REQUESTED' | 'PROCESSING' | 'READY' | 'EXPIRED' | 'FAILED';
+  requestedAt: string;
+  readyAt: string | null;
 }

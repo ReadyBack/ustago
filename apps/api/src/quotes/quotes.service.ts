@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { Paginated, ProviderQuoteListItem, Quote } from '@ustago/types';
 import {
   type AcceptQuote,
@@ -24,8 +24,12 @@ import {
 import { JobsService } from '../jobs/jobs.service.js';
 import { MatchingRepository } from '../matching/matching.repository.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { API_ENV, type ApiEnv } from '../config/env.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { providerPolicy } from '../providers/domain/provider-policy.js';
 import { ProviderStore } from '../providers/provider.store.js';
+import { RateLimitService } from '../rate-limit/rate-limit.service.js';
+import { RiskSignalsService } from '../security/risk-signals.service.js';
 import {
   sourceStatuses,
   transitionFor,
@@ -60,6 +64,11 @@ const providerNotActive = () =>
   forbidden(
     'PROVIDER_NOT_ACTIVE',
     'Bu özelliği kullanabilmek için usta hesabınızın onaylanması gerekiyor.',
+  );
+const providerSuspended = () =>
+  forbidden(
+    'PROVIDER_SUSPENDED',
+    'Hesabınız askıya alındığı için yeni teklif veremezsiniz. Mevcut işleriniz devam eder.',
   );
 const notYourTurn = () => conflict('NOT_YOUR_TURN', 'Karşı tarafın yanıtı bekleniyor.');
 const quoteClosed = (status: QuoteStatus) =>
@@ -102,7 +111,64 @@ export class QuotesService {
     private readonly cards: ProviderCardsService,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
+    private readonly rateLimit: RateLimitService,
+    private readonly risk: RiskSignalsService,
+    @Inject(API_ENV) private readonly env: ApiEnv,
   ) {}
+
+  private async policyInput(providerId: string) {
+    const p = await this.prisma.providerProfile.findUniqueOrThrow({
+      where: { id: providerId },
+      select: {
+        status: true,
+        accountStatus: true,
+        verificationCase: { select: { status: true } },
+      },
+    });
+    return {
+      applicationStatus: p.status,
+      accountStatus: p.accountStatus,
+      verificationStatus: p.verificationCase?.status ?? 'NOT_STARTED',
+    } as const;
+  }
+
+  /**
+   * Faz 6: per-provider quote limits (QUOTE_RATE_LIMIT_PER_MINUTE / HOUR).
+   * Hitting one records a QUOTE_SPAM risk signal for a human to look at;
+   * nothing is blocked beyond the limit itself.
+   */
+  private async enforceQuoteRate(userId: string, providerId: string): Promise<void> {
+    try {
+      await this.rateLimit.enforceWithCode(
+        'QUOTE_RATE_LIMITED',
+        {
+          bucket: 'quote:provider:min',
+          subject: providerId,
+          limit: this.env.QUOTE_RATE_LIMIT_PER_MINUTE,
+          windowSeconds: 60,
+        },
+        {
+          bucket: 'quote:provider:hour',
+          subject: providerId,
+          limit: this.env.QUOTE_RATE_LIMIT_PER_HOUR,
+          windowSeconds: 3600,
+        },
+      );
+    } catch (error) {
+      await this.risk.record({
+        type: 'QUOTE_SPAM',
+        subjectUserId: userId,
+        evidence: {
+          providerId,
+          perMinute: this.env.QUOTE_RATE_LIMIT_PER_MINUTE,
+          perHour: this.env.QUOTE_RATE_LIMIT_PER_HOUR,
+        },
+        source: 'quotes',
+        dedupeKey: `QUOTE_SPAM:${providerId}`,
+      });
+      throw error;
+    }
+  }
 
   // -------------------------------------------------------------------------
   // Provider: first offer
@@ -116,6 +182,8 @@ export class QuotesService {
   ): Promise<Quote> {
     const profile = await this.providers.findByUserId(user.id);
     if (profile.status !== 'ACTIVE') throw providerNotActive();
+    if (!providerPolicy(await this.policyInput(profile.id)).canQuote) throw providerSuspended();
+    await this.enforceQuoteRate(user.id, profile.id);
     if (input.validUntil && new Date(input.validUntil) <= new Date()) {
       throw unprocessable('INVALID_VALID_UNTIL', 'Geçerlilik tarihi gelecekte olmalı.');
     }
@@ -124,8 +192,14 @@ export class QuotesService {
     try {
       quoteId = await this.prisma.$transaction(async (tx) => {
         const request = await this.requests.lock(tx, requestId);
+        // Faz 6 race safety: suspending takes FOR UPDATE on the provider
+        // row, so a quote either commits before the suspension or sees it.
+        await tx.$queryRaw`SELECT id FROM provider_profiles WHERE id = ${profile.id}::uuid FOR SHARE`;
         const provider = await tx.providerProfile.findUniqueOrThrow({ where: { id: profile.id } });
         if (provider.status !== 'ACTIVE') throw providerNotActive();
+        if (provider.accountStatus !== 'ACTIVE' && provider.accountStatus !== 'LIMITED') {
+          throw providerSuspended();
+        }
         // The same predicate as the opportunity feed: a provider cannot
         // quote on a request they could not see by guessing its id.
         if (!(await this.matching.isEligible(tx, provider.id, requestId))) {

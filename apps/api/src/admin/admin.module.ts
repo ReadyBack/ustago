@@ -12,6 +12,8 @@ import { AdminMarketplaceController } from './admin-marketplace.controller.js';
 import { AdminMarketplaceService } from './admin-marketplace.service.js';
 import { AdminProvidersController } from './admin-providers.controller.js';
 import { AdminProvidersService } from './admin-providers.service.js';
+import { AdminTrustController } from './admin-trust.controller.js';
+import { AdminTrustService } from './admin-trust.service.js';
 
 @Module({
   imports: [ProvidersModule, HealthModule, NotificationsModule, FinanceModule],
@@ -20,7 +22,14 @@ import { AdminProvidersService } from './admin-providers.service.js';
     AdminAuditController,
     AdminMarketplaceController,
     AdminJobsController,
+    AdminTrustController,
   ],
-  providers: [AdminProvidersService, AdminAuditService, AdminMarketplaceService, AdminJobsService],
+  providers: [
+    AdminProvidersService,
+    AdminAuditService,
+    AdminMarketplaceService,
+    AdminJobsService,
+    AdminTrustService,
+  ],
 })
 export class AdminModule {}

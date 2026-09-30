@@ -59,9 +59,10 @@ import { IDEMPOTENCY_HEADER, idempotencyKeyFrom } from './idempotency.js';
 import { PaymentsService } from './payments.service.js';
 import { PayoutsService } from './payouts.service.js';
 import { WalletService } from './wallet.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const idPipe = new ZodValidationPipe(uuidSchema);
-const ip = (req: Request) => req.ip ?? null;
+const ip = (req: Request) => clientIp(req);
 
 const IdempotencyHeader = () =>
   ApiHeader({

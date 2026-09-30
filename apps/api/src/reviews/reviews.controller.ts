@@ -20,6 +20,7 @@ import { type AuthUser, CurrentUser, Public } from '../common/auth/decorators.js
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ReviewsService } from './reviews.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const idPipe = new ZodValidationPipe(uuidSchema);
 
@@ -51,7 +52,7 @@ export class ReviewsController {
     @Body(new ZodValidationPipe(createReviewSchema)) body: CreateReview,
     @Req() req: Request,
   ): Promise<Review> {
-    return this.reviews.create(user, jobId, body, req.ip ?? null);
+    return this.reviews.create(user, jobId, body, clientIp(req));
   }
 
   @Patch('reviews/:id')
@@ -71,7 +72,7 @@ export class ReviewsController {
     @Body(new ZodValidationPipe(updateReviewSchema)) body: UpdateReview,
     @Req() req: Request,
   ): Promise<Review> {
-    return this.reviews.update(user, id, body, req.ip ?? null);
+    return this.reviews.update(user, id, body, clientIp(req));
   }
 
   @Public()

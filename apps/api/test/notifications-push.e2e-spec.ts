@@ -7,6 +7,7 @@ import {
 } from '@ustago/validation';
 
 import { API_ENV, type ApiEnv } from '../src/config/env.js';
+import { HeartbeatService } from '../src/ops/heartbeat.service.js';
 import { ExpoPushProvider } from '../src/push/expo-push.provider.js';
 import { PUSH_PROVIDER, type PushProvider } from '../src/push/push-provider.js';
 import { PushWorkerService } from '../src/push/push-worker.service.js';
@@ -51,7 +52,8 @@ describe('Notifications and push outbox (e2e)', () => {
     await ctx.app.close();
   });
 
-  const worker = (provider: PushProvider) => new PushWorkerService(ctx.prisma, provider, env);
+  const worker = (provider: PushProvider) =>
+    new PushWorkerService(ctx.prisma, provider, env, ctx.app.get(HeartbeatService));
 
   const registerDevice = async (actor: Actor) => {
     const pushToken = `ExponentPushToken[${randomUUID()}]`;

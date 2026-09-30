@@ -49,10 +49,12 @@ import {
 import type { Request } from 'express';
 
 import { type AuthUser, CurrentUser, Roles } from '../common/auth/decorators.js';
+import { RequirePermission } from '../common/auth/permissions.js';
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { QualityService } from '../quality/quality.service.js';
 import { AdminJobsService } from './admin-jobs.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const idPipe = new ZodValidationPipe(uuidSchema);
 
@@ -105,6 +107,7 @@ export class AdminJobsController {
   }
 
   @Post('disputes/:id/resolve')
+  @RequirePermission('ADMIN_SUPPORT')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -121,7 +124,7 @@ export class AdminJobsController {
     @Body(new ZodValidationPipe(resolveDisputeSchema)) body: ResolveDispute,
     @Req() req: Request,
   ): Promise<AdminDisputeDetail> {
-    return this.admin.resolveDispute(user.id, id, body, req.ip ?? null);
+    return this.admin.resolveDispute(user.id, id, body, clientIp(req));
   }
 
   @Get('reviews')
@@ -134,6 +137,7 @@ export class AdminJobsController {
   }
 
   @Post('reviews/:id/hide')
+  @RequirePermission('ADMIN_SUPPORT')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Değerlendirmeyi gizler (silinmez). Puan ortalamasından ve UstaScore’dan çıkar.',
@@ -148,10 +152,11 @@ export class AdminJobsController {
     @Body(new ZodValidationPipe(moderateReviewSchema)) body: ModerateReview,
     @Req() req: Request,
   ): Promise<AdminReview> {
-    return this.admin.hideReview(user.id, id, body, req.ip ?? null);
+    return this.admin.hideReview(user.id, id, body, clientIp(req));
   }
 
   @Post('reviews/:id/restore')
+  @RequirePermission('ADMIN_SUPPORT')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Gizlenen değerlendirmeyi yeniden yayınlar.' })
   @ApiZodBody(moderateReviewSchema)
@@ -164,7 +169,7 @@ export class AdminJobsController {
     @Body(new ZodValidationPipe(moderateReviewSchema)) body: ModerateReview,
     @Req() req: Request,
   ): Promise<AdminReview> {
-    return this.admin.restoreReview(user.id, id, body, req.ip ?? null);
+    return this.admin.restoreReview(user.id, id, body, clientIp(req));
   }
 
   @Get('providers/:id/quality')
@@ -180,6 +185,7 @@ export class AdminJobsController {
   }
 
   @Post('providers/:id/penalties')
+  @RequirePermission('ADMIN_SUPPORT')
   @ApiOperation({
     summary:
       'Admin yaptırımı (uyarı, görünürlük azaltma, ACİL kapatma, iş kısıtlaması). Otomatik ağır ceza ' +
@@ -196,10 +202,11 @@ export class AdminJobsController {
     @Body(new ZodValidationPipe(createPenaltySchema)) body: CreatePenalty,
     @Req() req: Request,
   ): Promise<ProviderPenalty> {
-    return this.quality.createPenalty(user.id, id, body, req.ip ?? null);
+    return this.quality.createPenalty(user.id, id, body, clientIp(req));
   }
 
   @Post('penalties/:id/revoke')
+  @RequirePermission('ADMIN_SUPPORT')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Yaptırımı kaldırır (gerekçe zorunlu, denetim kaydı).' })
   @ApiZodBody(revokePenaltySchema)
@@ -212,6 +219,6 @@ export class AdminJobsController {
     @Body(new ZodValidationPipe(revokePenaltySchema)) body: RevokePenalty,
     @Req() req: Request,
   ): Promise<ProviderPenalty> {
-    return this.quality.revokePenalty(user.id, id, body, req.ip ?? null);
+    return this.quality.revokePenalty(user.id, id, body, clientIp(req));
   }
 }

@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { productionSafetyIssues, resolveAppEnv } from './production-safety.js';
 
-
 const booleanString = z.enum(['true', 'false']).transform((value) => value === 'true');
 
 /**
@@ -209,7 +208,12 @@ export const apiEnvSchema = z
     IP_HASH_SECRET: z.string().min(32, 'must be at least 32 characters').optional(),
     /** Staff sessions: absolute lifetime and inactivity limit. */
     ADMIN_SESSION_MAX_HOURS: z.coerce.number().int().min(1).max(72).default(12),
-    ADMIN_IDLE_TIMEOUT_MINUTES: z.coerce.number().int().min(5).max(24 * 60).default(60),
+    ADMIN_IDLE_TIMEOUT_MINUTES: z.coerce
+      .number()
+      .int()
+      .min(5)
+      .max(24 * 60)
+      .default(60),
     /** New quotes one provider may send (anti-spam, generous for real work). */
     QUOTE_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(10),
     QUOTE_RATE_LIMIT_PER_HOUR: z.coerce.number().int().min(1).max(10000).default(120),
@@ -270,7 +274,10 @@ export const apiEnvSchema = z
         message: 'must be greater than or equal to AUTH_REFRESH_TTL_DAYS',
       });
     }
-    if ((env.APP_ENV === 'staging' || env.APP_ENV === 'production') && env.NODE_ENV !== 'production') {
+    if (
+      (env.APP_ENV === 'staging' || env.APP_ENV === 'production') &&
+      env.NODE_ENV !== 'production'
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['APP_ENV'],

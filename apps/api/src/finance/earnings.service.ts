@@ -163,7 +163,7 @@ export class EarningsService {
           type: NotificationEvent.EARNING_AVAILABLE,
           title: `${formatMoney(Number(amount - settle))} kullanılabilir bakiyenize geçti.`,
           body: 'Kazançlarım ekranından para çekme talebi oluşturabilirsiniz.',
-          data: { jobId: earning.jobId },
+          data: { jobId: earning.jobId, earningId: earning.id },
         },
       ]);
     }

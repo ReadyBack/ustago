@@ -421,7 +421,7 @@ model ProviderProfile {
   statusReason           String?               @map("status_reason") @db.VarChar(1000)
   /// Product access (Faz 6, docs/adr/0023), separate from the application
   /// status above and from verification. Changed only through
-  /// provider_suspensions by ProviderAccountService.
+  /// provider_suspensions by SuspensionsService.
   accountStatus          ProviderAccountStatus @default(ACTIVE) @map("account_status")
   accountStatusChangedAt DateTime?             @map("account_status_changed_at") @db.Timestamptz(3)
   createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -1354,6 +1354,10 @@ enum PayoutStatus {
   PAID
   FAILED
   CANCELLED
+  /// Faz 6: the payout provider's answer was lost (timeout, 5xx). The money
+  /// stays reserved until a finance admin checks with the provider and
+  /// records PAID or FAILED; nothing is retried or released automatically.
+  NEEDS_RECONCILIATION
 }
 
 /// A provider's withdrawal request ("Para Çek"). Requesting reserves the
@@ -2250,6 +2254,8 @@ model FinanceReconciliationRun {
   error                 String?                 @db.VarChar(500)
   alertId               String?                 @map("alert_id") @db.Uuid
 
+  /// At most one RUNNING row: the row itself is the cross-replica lock.
+  @@unique([status], map: "finance_reconciliation_runs_one_running_key", where: raw("status = 'RUNNING'::\"ReconciliationRunStatus\""))
   @@index([startedAt])
   @@map("finance_reconciliation_runs")
 }
@@ -2308,7 +2314,7 @@ model RuntimeFlag {
 
 enum AccountDeletionStatus {
   REQUESTED
-  BLOCKED
+  BLOCKED_BY_ACTIVE_JOB
   PROCESSING
   COMPLETED
   CANCELLED
@@ -2328,7 +2334,7 @@ model AccountDeletionRequest {
 
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
 
-  @@unique([userId], map: "account_deletion_requests_one_open_key", where: raw("status = ANY (ARRAY['REQUESTED'::\"AccountDeletionStatus\", 'BLOCKED'::\"AccountDeletionStatus\", 'PROCESSING'::\"AccountDeletionStatus\"])"))
+  @@unique([userId], map: "account_deletion_requests_one_open_key", where: raw("status = ANY (ARRAY['REQUESTED'::\"AccountDeletionStatus\", 'BLOCKED_BY_ACTIVE_JOB'::\"AccountDeletionStatus\", 'PROCESSING'::\"AccountDeletionStatus\"])"))
   @@index([status, requestedAt])
   @@map("account_deletion_requests")
 }

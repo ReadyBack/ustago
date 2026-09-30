@@ -19,7 +19,7 @@ function guardRequiring(required: Role[] | undefined): RolesGuard {
   return new RolesGuard(reflector);
 }
 
-const user = (roles: Role[]): AuthUser => ({ id: 'u', sessionId: 's', roles });
+const user = (roles: Role[]): AuthUser => ({ id: 'u', sessionId: 's', roles, permissions: [] });
 
 describe('RolesGuard', () => {
   it('allows routes without @Roles', () => {

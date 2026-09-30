@@ -72,3 +72,15 @@ export const verifyPayoutDestinationRequestSchema = z
   .object({ note: z.string().trim().min(5).max(500) })
   .strict();
 export type VerifyPayoutDestinationRequest = z.infer<typeof verifyPayoutDestinationRequestSchema>;
+
+/**
+ * A finance admin records what the payout provider actually did with a
+ * payout whose outcome was unknown (NEEDS_RECONCILIATION).
+ */
+export const resolvePayoutRequestSchema = z
+  .object({
+    outcome: z.enum(['PAID', 'FAILED']),
+    note: z.string().trim().min(5).max(500),
+  })
+  .strict();
+export type ResolvePayoutRequest = z.infer<typeof resolvePayoutRequestSchema>;

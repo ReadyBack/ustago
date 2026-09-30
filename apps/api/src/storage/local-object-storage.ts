@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream, type ReadStream } from 'node:fs';
 import { link, mkdir, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
@@ -100,6 +101,12 @@ export class LocalObjectStorage implements ObjectStorage {
     } finally {
       await handle.close();
     }
+  }
+
+  async sha256(key: string): Promise<string> {
+    const hash = createHash('sha256');
+    await pipeline(createReadStream(this.pathFor(key)), hash);
+    return hash.digest('hex');
   }
 
   async delete(key: string): Promise<void> {

@@ -18,6 +18,7 @@ import { type AuthUser, CurrentUser, Roles } from '../common/auth/decorators.js'
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { UsersService } from './users.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 /** Back-office user management. */
 @ApiTags('users (admin)')
@@ -52,7 +53,7 @@ export class UsersController {
     @Body(new ZodValidationPipe(updateUserStatusRequestSchema)) body: UpdateUserStatusRequest,
     @Req() req: Request,
   ): Promise<CurrentUserDto> {
-    return this.users.updateStatus(actor, id, body, req.ip ?? null);
+    return this.users.updateStatus(actor, id, body, clientIp(req));
   }
 
   @Put(':id/roles/:role')
@@ -65,7 +66,7 @@ export class UsersController {
     @Param('role', new ZodValidationPipe(staffRoleSchema)) role: StaffRole,
     @Req() req: Request,
   ): Promise<CurrentUserDto> {
-    return this.users.grantStaffRole(actor, id, role, req.ip ?? null);
+    return this.users.grantStaffRole(actor, id, role, clientIp(req));
   }
 
   @Delete(':id/roles/:role')
@@ -78,6 +79,6 @@ export class UsersController {
     @Param('role', new ZodValidationPipe(staffRoleSchema)) role: StaffRole,
     @Req() req: Request,
   ): Promise<CurrentUserDto> {
-    return this.users.revokeStaffRole(actor, id, role, req.ip ?? null);
+    return this.users.revokeStaffRole(actor, id, role, clientIp(req));
   }
 }

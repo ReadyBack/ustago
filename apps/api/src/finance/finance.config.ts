@@ -18,6 +18,8 @@ export interface FinanceConfig {
   payoutsEnabled: boolean;
   paymentProvider: 'mock' | 'disabled';
   payoutProvider: 'mock' | 'disabled';
+  /** APP_ENV staging/production: test-only paths are refused (docs/adr/0022). */
+  strictEnv: boolean;
   /** True when test (mock) money is in use: UIs show "TEST ÖDEME". */
   testMode: boolean;
   /** Dev-only endpoints (mock simulate / mark-paid) are mounted. */
@@ -50,6 +52,7 @@ export function financeConfigFrom(env: ApiEnv): FinanceConfig {
     payoutsEnabled: env.PAYOUTS_ENABLED,
     paymentProvider: env.PAYMENT_PROVIDER,
     payoutProvider: env.PAYOUT_PROVIDER,
+    strictEnv: production,
     testMode: env.PAYMENT_PROVIDER === 'mock',
     // Faz 6: an explicit switch as well (ALLOW_DEV_PAYMENT_SIMULATION),
     // off outside development/test and refused there by the env schema.

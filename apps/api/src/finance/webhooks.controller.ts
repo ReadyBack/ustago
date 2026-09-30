@@ -5,6 +5,7 @@ import type { Request } from 'express';
 import { Public } from '../common/auth/decorators.js';
 import { RateLimitService } from '../rate-limit/rate-limit.service.js';
 import { type WebhookResult, WebhooksService } from './webhooks.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 /**
  * Payment provider webhooks. No user token: authenticity comes from the
@@ -26,7 +27,7 @@ export class WebhooksController {
   async receive(@Param('provider') provider: string, @Req() req: Request): Promise<WebhookResult> {
     await this.rateLimit.enforceWithCode('WEBHOOK_RATE_LIMITED', {
       bucket: 'payment-webhook',
-      subject: req.ip ?? 'unknown',
+      subject: clientIp(req) ?? 'unknown',
       limit: 600,
       windowSeconds: 60,
     });

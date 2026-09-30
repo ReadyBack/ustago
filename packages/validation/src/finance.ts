@@ -78,6 +78,7 @@ export const payoutStatusSchema = z.enum([
   'PAID',
   'FAILED',
   'CANCELLED',
+  'NEEDS_RECONCILIATION',
 ]);
 export const ledgerAccountTypeSchema = z.enum([
   'PROVIDER_PENDING',
@@ -605,6 +606,7 @@ export const PAYOUT_STATUS_LABELS: Record<z.infer<typeof payoutStatusSchema>, st
   PAID: 'Ödendi',
   FAILED: 'Başarısız',
   CANCELLED: 'İptal edildi',
+  NEEDS_RECONCILIATION: 'Kontrol ediliyor',
 };
 
 export const EARNING_STATUS_LABELS: Record<z.infer<typeof providerEarningStatusSchema>, string> = {

@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import type { QuoteProviderCard } from '@ustago/types';
 
 import { PrismaService } from '../prisma/prisma.service.js';
+import { providerPolicy } from '../providers/domain/provider-policy.js';
 
 /**
  * Provider summary for quote cards, from real data only: the rating is the
  * average of published customer reviews (null → "Yeni Usta"), never the
- * seeded UstaScore placeholder; "verified" means an admin approved the
- * identity document. No phone or e-mail before agreement.
+ * seeded UstaScore placeholder; "verified" means the Faz 6 account
+ * verification is VERIFIED and the account is in good standing
+ * (providers/domain/provider-policy.ts). No phone or e-mail before agreement.
  */
 @Injectable()
 export class ProviderCardsService {
@@ -18,14 +20,18 @@ export class ProviderCardsService {
     if (ids.length === 0) return new Map();
     const providers = await this.prisma.providerProfile.findMany({
       where: { id: { in: ids } },
-      select: { id: true, userId: true, displayName: true, yearsOfExperience: true },
+      select: {
+        id: true,
+        userId: true,
+        displayName: true,
+        yearsOfExperience: true,
+        status: true,
+        accountStatus: true,
+        verificationCase: { select: { status: true } },
+      },
     });
     const userIds = providers.map((p) => p.userId);
-    const [identity, completed, ratings] = await Promise.all([
-      this.prisma.providerVerification.findMany({
-        where: { providerId: { in: ids }, type: 'IDENTITY', status: 'APPROVED' },
-        select: { providerId: true },
-      }),
+    const [completed, ratings] = await Promise.all([
       this.prisma.job.groupBy({
         by: ['providerId'],
         where: { providerId: { in: ids }, status: 'COMPLETED' },
@@ -42,7 +48,18 @@ export class ProviderCardsService {
         _count: { _all: true },
       }),
     ]);
-    const verified = new Set(identity.map((v) => v.providerId));
+    const verified = new Set(
+      providers
+        .filter(
+          (p) =>
+            providerPolicy({
+              applicationStatus: p.status,
+              verificationStatus: p.verificationCase?.status ?? 'NOT_STARTED',
+              accountStatus: p.accountStatus,
+            }).showVerifiedBadge,
+        )
+        .map((p) => p.id),
+    );
     const completedBy = new Map(completed.map((c) => [c.providerId, c._count._all]));
     const ratingBy = new Map(ratings.map((r) => [r.targetId, r]));
 

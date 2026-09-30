@@ -6,16 +6,21 @@ import {
   type ListWalletQuery,
   maskIban,
   type PayoutDestinationRequest,
+  type ResolvePayoutRequest,
 } from '@ustago/validation';
 
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth/auth-user.js';
-import { unprocessable } from '../common/http/errors.js';
+import { conflict, forbidden, notFound, unprocessable } from '../common/http/errors.js';
 import { Prisma } from '../generated/prisma/client.js';
 import type { Payout as PayoutRow } from '../generated/prisma/client.js';
 import { NotificationEvent } from '../notifications/notification-events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { metrics } from '../observability/metrics.js';
+import { AlertsService } from '../ops/alerts.service.js';
+import { RuntimeFlagsService } from '../ops/runtime-flags.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { payoutRefusal } from '../providers/domain/provider-policy.js';
 import { RateLimitService } from '../rate-limit/rate-limit.service.js';
 import { withdrawable } from './domain/earning.js';
 import { payoutPaid, payoutReleased, payoutReserved } from './domain/ledger.js';
@@ -31,7 +36,11 @@ import {
 } from './finance-errors.js';
 import { toDestination, toPayout } from './finance.mappers.js';
 import { LedgerService } from './ledger.service.js';
-import { PAYOUT_PROVIDER, type PayoutProvider } from './providers/payment-provider.js';
+import {
+  PAYOUT_PROVIDER,
+  type PayoutProvider,
+  PayoutRejectedError,
+} from './providers/payment-provider.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -59,10 +68,38 @@ export class PayoutsService {
     private readonly rateLimit: RateLimitService,
     @Inject(FINANCE_CONFIG) private readonly config: FinanceConfig,
     @Inject(PAYOUT_PROVIDER) private readonly provider: PayoutProvider,
+    private readonly flags: RuntimeFlagsService,
+    private readonly alerts: AlertsService,
   ) {}
 
   private get enabled(): boolean {
     return this.config.payoutsEnabled && this.config.payoutProvider !== 'disabled';
+  }
+
+  /** Env switch, payout provider and the admin kill switch (docs/adr/0025). */
+  private async assertEnabled(): Promise<void> {
+    if (!this.enabled) throw payoutsDisabled();
+    await this.flags.assertEnabled('payouts');
+  }
+
+  /**
+   * Central payout eligibility (docs/adr/0023): account not suspended,
+   * verification case VERIFIED and a verified destination. Runs at request
+   * time and again at approval, inside the transaction that holds the
+   * provider's ledger lock.
+   */
+  private async assertEligible(tx: Tx, providerId: string, destinationVerified: boolean) {
+    const profile = await tx.providerProfile.findUniqueOrThrow({
+      where: { id: providerId },
+      select: { status: true, accountStatus: true, verificationCase: { select: { status: true } } },
+    });
+    const refusal = payoutRefusal({
+      applicationStatus: profile.status,
+      accountStatus: profile.accountStatus,
+      verificationStatus: profile.verificationCase?.status ?? 'NOT_STARTED',
+      destinationVerified,
+    });
+    if (refusal) throw forbidden(refusal.code, refusal.message);
   }
 
   /** The caller's provider profile id; customers and admins get 403. */
@@ -94,6 +131,11 @@ export class PayoutsService {
     ipAddress: string | null,
   ): Promise<PayoutDestination> {
     const providerId = await this.providerIdOf(user.id);
+    if (this.config.strictEnv) {
+      // Only TEST bank destinations exist until a real payout provider is
+      // chosen (docs/decisions/payment-provider-selection.md).
+      throw conflict('PAYOUT_DESTINATION_UNAVAILABLE', 'Banka hesabı ekleme henüz kullanılamıyor.');
+    }
     const created = await this.prisma.$transaction(async (tx) => {
       await tx.payoutDestination.updateMany({
         where: { providerId, deactivatedAt: null },
@@ -107,6 +149,8 @@ export class PayoutsService {
           maskedIban: maskIban(input.iban),
           last4: input.iban.slice(-4),
           isTest: true,
+          // A finance admin verifies every new destination (docs/adr/0023).
+          verificationStatus: 'PENDING_VERIFICATION',
         },
       });
       await this.audit.recordIn(tx, {
@@ -128,7 +172,7 @@ export class PayoutsService {
     idempotencyKey: string,
     ipAddress: string | null,
   ): Promise<Payout> {
-    if (!this.enabled) throw payoutsDisabled();
+    await this.assertEnabled();
     const providerId = await this.providerIdOf(user.id);
     const replay = await this.replayed(providerId, idempotencyKey);
     if (replay) return replay;
@@ -147,6 +191,7 @@ export class PayoutsService {
           where: { providerId, deactivatedAt: null },
         });
         if (!destination) throw destinationRequired();
+        await this.assertEligible(tx, providerId, destination.verificationStatus === 'VERIFIED');
         const balances = await this.ledger.providerBalances(tx, providerId);
         const canWithdraw = withdrawable(balances.available, balances.platformDebt);
         const check = checkPayoutAmount({
@@ -192,6 +237,15 @@ export class PayoutsService {
           ipAddress,
           metadata: { amountMinor: amountMinor, providerId },
         });
+        await this.notifications.enqueueIn(tx, [
+          {
+            userId: user.id,
+            type: NotificationEvent.PAYOUT_REQUESTED,
+            title: `${formatMoney(amountMinor)} para çekme talebiniz alındı.`,
+            body: 'Talebiniz incelendikten sonra işleme alınacak.',
+            data: { payoutId: payout.id },
+          },
+        ]);
         return payout;
       });
       return this.view(created.id);
@@ -250,7 +304,22 @@ export class PayoutsService {
    * is sent). The provider call happens after the approval commits.
    */
   async approve(adminId: string, id: string, ipAddress: string | null): Promise<AdminPayout> {
-    await this.prisma.$transaction((tx) => this.transition(tx, id, 'APPROVE', adminId, ipAddress));
+    await this.assertEnabled();
+    await this.prisma.$transaction(async (tx) => {
+      const target = await tx.payout.findUnique({
+        where: { id },
+        select: { providerId: true, destination: { select: { verificationStatus: true } } },
+      });
+      if (!target) throw payoutNotFound();
+      await this.ledger.lockProvider(tx, target.providerId);
+      // The provider may have been suspended since the request.
+      await this.assertEligible(
+        tx,
+        target.providerId,
+        target.destination.verificationStatus === 'VERIFIED',
+      );
+      await this.transition(tx, id, 'APPROVE', adminId, ipAddress);
+    });
     try {
       const payout = await this.prisma.payout.findUniqueOrThrow({ where: { id } });
       const result = await this.provider.createPayout({
@@ -271,15 +340,98 @@ export class PayoutsService {
         ),
       );
     } catch (error) {
-      this.logger.error(
-        `Payout ${id} could not be handed to the payout provider`,
-        error instanceof Error ? error.stack : String(error),
-      );
-      await this.prisma.$transaction((tx) =>
-        this.transition(tx, id, 'MARK_FAILED', adminId, ipAddress, 'PROVIDER_ERROR'),
-      );
+      if (error instanceof PayoutRejectedError) {
+        // A definite "no": nothing was sent, the money goes back.
+        this.logger.warn(`Payout ${id} rejected by the payout provider: ${error.code}`);
+        await this.prisma.$transaction((tx) =>
+          this.transition(tx, id, 'MARK_FAILED', adminId, ipAddress, error.code),
+        );
+      } else {
+        // Unknown outcome (timeout, 5xx, lost answer): the bank may have
+        // sent the money. Keep it reserved and let a finance admin decide
+        // after checking with the provider; never retry automatically.
+        this.logger.error(
+          `Payout ${id} outcome unknown after the payout provider call`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        await this.prisma.$transaction((tx) =>
+          this.transition(tx, id, 'MARK_UNKNOWN', adminId, ipAddress, 'PROVIDER_OUTCOME_UNKNOWN'),
+        );
+        await this.alerts.raise({
+          type: 'finance.payout_outcome_unknown',
+          severity: 'CRITICAL',
+          title: 'Para çekme sonucu bilinmiyor: sağlayıcı ile kontrol edilmeli',
+          details: { payoutId: id },
+          source: 'payouts',
+          dedupeKey: `finance.payout_outcome_unknown:${id}`,
+        });
+      }
     }
     return this.adminView(id);
+  }
+
+  /**
+   * NEEDS_RECONCILIATION → PAID or FAILED, after a finance admin checked
+   * the outcome with the payout provider. The note is kept on the payout
+   * and in the audit log.
+   */
+  async resolveUnknown(
+    adminId: string,
+    id: string,
+    input: ResolvePayoutRequest,
+    ipAddress: string | null,
+  ): Promise<AdminPayout> {
+    await this.prisma.$transaction(async (tx) => {
+      const current = await tx.payout.findUnique({ where: { id }, select: { status: true } });
+      if (!current) throw payoutNotFound();
+      if (current.status !== 'NEEDS_RECONCILIATION') throw payoutInvalidState(current.status);
+      await this.transition(
+        tx,
+        id,
+        input.outcome === 'PAID' ? 'MARK_PAID' : 'MARK_FAILED',
+        adminId,
+        ipAddress,
+        input.outcome === 'PAID' ? input.note : 'RESOLVED_FAILED',
+      );
+      if (input.outcome === 'FAILED') {
+        await tx.payout.update({ where: { id }, data: { statusNote: input.note } });
+      }
+    });
+    await this.alerts.autoResolve(
+      `finance.payout_outcome_unknown:${id}`,
+      `Yönetici sonucu kaydetti: ${input.outcome}`,
+    );
+    return this.adminView(id);
+  }
+
+  /** A finance admin confirms a (TEST) payout destination. */
+  async verifyDestination(
+    adminId: string,
+    destinationId: string,
+    note: string,
+    ipAddress: string | null,
+  ): Promise<PayoutDestination> {
+    const row = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.payoutDestination.findUnique({ where: { id: destinationId } });
+      if (!current || current.deactivatedAt) {
+        throw notFound('PAYOUT_DESTINATION_NOT_FOUND', 'Banka hesabı bulunamadı.');
+      }
+      if (current.verificationStatus === 'VERIFIED') return current;
+      const updated = await tx.payoutDestination.update({
+        where: { id: destinationId },
+        data: { verificationStatus: 'VERIFIED', verifiedAt: new Date(), verifiedById: adminId },
+      });
+      await this.audit.recordIn(tx, {
+        action: 'payout.destination_verified',
+        actorId: adminId,
+        entityType: 'payout_destination',
+        entityId: destinationId,
+        ipAddress,
+        metadata: { providerId: current.providerId, last4: current.last4, note },
+      });
+      return updated;
+    });
+    return toDestination(row);
   }
 
   async adminCancel(
@@ -383,8 +535,10 @@ export class PayoutsService {
       START_PROCESSING: 'payout.processing',
       MARK_PAID: 'payout.completed',
       MARK_FAILED: 'payout.failed',
+      MARK_UNKNOWN: 'payout.needs_reconciliation',
       CANCEL: 'payout.cancelled',
     };
+    metrics.domainEvents.inc({ event: action[event] });
     await this.audit.recordIn(tx, {
       action: action[event],
       actorId,
@@ -393,6 +547,25 @@ export class PayoutsService {
       ipAddress,
       metadata: { amountMinor: Number(payout.amountMinor), from: payout.status, to },
     });
+    const amountText = formatMoney(Number(payout.amountMinor));
+    const extra: Partial<Record<PayoutEvent, { type: string; title: string; body: string }>> = {
+      APPROVE: {
+        type: NotificationEvent.PAYOUT_APPROVED,
+        title: `${amountText} para çekme talebiniz onaylandı.`,
+        body: 'Ödeme işleme alındı.',
+      },
+      MARK_UNKNOWN: {
+        type: NotificationEvent.PAYOUT_NEEDS_RECONCILIATION,
+        title: `${amountText} para çekme talebiniz kontrol ediliyor.`,
+        body: 'Banka yanıtı bekleniyor. Tutar ayrılmış olarak kalır; sonuç netleşince bildireceğiz.',
+      },
+    };
+    const notice = extra[event];
+    if (notice) {
+      await this.notifications.enqueueIn(tx, [
+        { userId: payout.provider.userId, ...notice, data: { payoutId: id } },
+      ]);
+    }
     if (event === 'MARK_PAID' || event === 'MARK_FAILED') {
       await this.notifications.enqueueIn(tx, [
         {

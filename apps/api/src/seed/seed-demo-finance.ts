@@ -70,7 +70,12 @@ async function authUser(prisma: PrismaClient, email: string): Promise<AuthUser |
     select: { id: true, roles: { select: { role: true } } },
   });
   if (!user) return null;
-  return { id: user.id, sessionId: 'seed', roles: user.roles.map((r) => r.role as Role) };
+  return {
+    id: user.id,
+    sessionId: 'seed',
+    roles: user.roles.map((r) => r.role as Role),
+    permissions: [],
+  };
 }
 
 export interface DemoFinanceResult {

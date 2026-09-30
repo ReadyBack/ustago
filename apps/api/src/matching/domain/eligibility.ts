@@ -1,4 +1,5 @@
 import type {
+  ProviderAccountStatus,
   ProviderStatus,
   ServiceRequestStatus,
   ServiceRequestType,
@@ -40,13 +41,21 @@ export interface EligibilityInput {
     /** Admin sanctions in force (docs/adr/0016). */
     jobRestricted: boolean;
     nowSuspended: boolean;
+    /** Faz 6 account status and verification (providers/domain/provider-policy.ts). */
+    accountStatus: ProviderAccountStatus;
+    verified: boolean;
+    /** Documents this category requires that the provider has not had approved. */
+    missingRequiredDocuments: number;
   };
   now: Date;
 }
 
 export type IneligibilityReason =
   | 'PROVIDER_NOT_ACTIVE'
+  | 'PROVIDER_SUSPENDED'
   | 'PROVIDER_RESTRICTED'
+  | 'CATEGORY_REQUIREMENTS_MISSING'
+  | 'NOW_REQUIRES_VERIFICATION'
   | 'REQUEST_NOT_OPEN'
   | 'REQUEST_EXPIRED'
   | 'CUSTOMER_INACTIVE'
@@ -63,6 +72,9 @@ export type IneligibilityReason =
 export function ineligibilityReason(input: EligibilityInput): IneligibilityReason | null {
   const { request, category, province, district, override, provider } = input;
   if (provider.status !== 'ACTIVE') return 'PROVIDER_NOT_ACTIVE';
+  if (provider.accountStatus !== 'ACTIVE' && provider.accountStatus !== 'LIMITED') {
+    return 'PROVIDER_SUSPENDED';
+  }
   if (provider.jobRestricted) return 'PROVIDER_RESTRICTED';
   if (!isOpen(request.status)) return 'REQUEST_NOT_OPEN';
   if (request.expiresAt && request.expiresAt <= input.now) return 'REQUEST_EXPIRED';
@@ -72,12 +84,16 @@ export function ineligibilityReason(input: EligibilityInput): IneligibilityReaso
   if (!provider.districtIds.includes(request.districtId)) return 'DISTRICT_NOT_SERVED';
   if (!category.active || (override !== null && !override.isActive)) return 'CATEGORY_CLOSED';
   if (!province.active || !district.active) return 'PROVINCE_CLOSED';
+  if (provider.missingRequiredDocuments > 0) return 'CATEGORY_REQUIREMENTS_MISSING';
 
   if (request.type === 'QUOTE') {
     return category.supportsQuote ? null : 'CATEGORY_CLOSED';
   }
   if (!provider.nowEnabled || !provider.isAvailableNow) return 'NOW_NOT_AVAILABLE';
   if (provider.nowSuspended) return 'NOW_SUSPENDED';
+  if (!provider.verified || provider.accountStatus !== 'ACTIVE') {
+    return 'NOW_REQUIRES_VERIFICATION';
+  }
   const nowOpen = isNowOpen({
     provinceActive: province.active,
     categoryActive: category.active,

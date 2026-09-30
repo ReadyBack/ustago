@@ -22,6 +22,7 @@ import {
 import type { Request } from 'express';
 
 import { type AuthUser, CurrentUser, Roles } from '../common/auth/decorators.js';
+import { RequirePermission } from '../common/auth/permissions.js';
 import { notFound } from '../common/http/errors.js';
 import { ApiZodBody, ApiZodResponse } from '../common/http/openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
@@ -31,9 +32,10 @@ import { PayoutsService } from './payouts.service.js';
 import { MockPaymentProvider } from './providers/mock-payment.provider.js';
 import { PAYMENT_PROVIDER, type PaymentProvider } from './providers/payment-provider.js';
 import { WebhooksService } from './webhooks.service.js';
+import { clientIp } from '../common/http/client-context.js';
 
 const idPipe = new ZodValidationPipe(uuidSchema);
-const ip = (req: Request) => req.ip ?? null;
+const ip = (req: Request) => clientIp(req);
 
 /**
  * DEVELOPMENT ONLY (mock providers). Plays the part of the payment
@@ -82,6 +84,7 @@ export class DevFinanceController {
   }
 
   @Post('admin/dev/payouts/:id/mark-paid')
+  @RequirePermission('ADMIN_FINANCE')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -97,6 +100,7 @@ export class DevFinanceController {
   }
 
   @Post('admin/dev/payouts/:id/mark-failed')
+  @RequirePermission('ADMIN_FINANCE')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
