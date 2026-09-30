@@ -18,5 +18,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!login|auth/|_next/static|_next/image|favicon.ico).*)'],
+  // Brand files, icons and the web manifest are public so the login page and
+  // installed app can show them before sign-in.
+  matcher: [
+    '/((?!login|auth/|_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|manifest.webmanifest|brand/).*)',
+  ],
 };

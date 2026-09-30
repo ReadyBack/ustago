@@ -57,7 +57,7 @@ export function summarizeUserAgent(ua: string | null): string | null {
         : /Safari\//.test(ua)
           ? 'Safari'
           : /Expo|okhttp|CFNetwork|Dalvik/i.test(ua)
-            ? 'UstaGO uygulaması'
+            ? 'UstaBulHemen uygulaması'
             : null;
   const os = /iPhone|iPad|iOS/.test(ua)
     ? 'iOS'

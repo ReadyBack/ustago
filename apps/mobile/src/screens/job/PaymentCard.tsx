@@ -354,7 +354,7 @@ function cashLine(cash: CashSettlement | null, customer: boolean): string {
     case 'CONFIRMED':
       return 'İki taraf da ödemeyi onayladı.';
     case 'DISPUTED':
-      return 'Ödeme için sorun bildirildi. UstaGO ekibi inceliyor.';
+      return 'Ödeme için sorun bildirildi. UstaBulHemen ekibi inceliyor.';
     case 'RESOLVED_UNPAID':
       return 'Ödeme yapılmadı olarak kaydedildi.';
   }
@@ -446,7 +446,7 @@ function CashPanel({ summary }: { summary: Summary }) {
               }
               confirm(
                 'Sorun bildirilsin mi?',
-                'Nakit ödeme “Anlaşmazlık” durumuna geçer ve UstaGO ekibi inceler.',
+                'Nakit ödeme “Anlaşmazlık” durumuna geçer ve UstaBulHemen ekibi inceler.',
                 () => void dispute.submit(),
                 { yes: 'Bildir', destructive: true },
               );

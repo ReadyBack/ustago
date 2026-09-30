@@ -297,7 +297,7 @@ function infoLine(j: Job): string | null {
     case 'COMPLETED':
       return 'İş tamamlandı.';
     case 'DISPUTED':
-      return 'Sorun bildirildi. UstaGO ekibi inceliyor.';
+      return 'Sorun bildirildi. UstaBulHemen ekibi inceliyor.';
     case 'CANCELLED':
       return 'İş iptal edildi.';
   }

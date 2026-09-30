@@ -1,5 +1,6 @@
 import { colors, spacing } from '@ustago/ui';
 
+import { BRAND_NAME, BrandIcon } from '@/components/brand';
 import { safeNextPath } from '@/lib/safe-redirect';
 
 import { LoginForm } from './login-form';
@@ -22,8 +23,9 @@ export default async function LoginPage(props: PageProps<'/login'>) {
         className="card"
         style={{ width: '100%', maxWidth: 380, display: 'grid', gap: spacing.lg }}
       >
-        <header>
-          <h1 style={{ color: colors.primary }}>UstaGO Yönetim</h1>
+        <header style={{ display: 'grid', justifyItems: 'center', textAlign: 'center' }}>
+          <BrandIcon kind="app" size={72} />
+          <h1 style={{ color: colors.primary }}>{BRAND_NAME} Yönetim</h1>
           <p style={{ color: colors.textSecondary }}>Yönetici hesabınızla giriş yapın.</p>
         </header>
         <LoginForm next={next} initialError={errorKey ? ERRORS[errorKey] : undefined} />

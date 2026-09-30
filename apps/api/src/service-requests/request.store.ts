@@ -120,7 +120,7 @@ export class RequestStore {
     if (!province?.isActive || !district?.isActive || (override && !override.isActive)) {
       throw unprocessable(
         'SERVICE_NOT_AVAILABLE_IN_AREA',
-        'UstaGO bu bölgede bu hizmeti henüz sunmuyor.',
+        'UstaBulHemen bu bölgede bu hizmeti henüz sunmuyor.',
       );
     }
     if (type === 'QUOTE' && !category.supportsQuote) {

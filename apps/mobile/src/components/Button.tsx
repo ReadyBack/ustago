@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, type ViewStyle } from 'react-native';
+import type { ReactNode } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { colors, radii, spacing, typography } from '../lib/theme';
 
@@ -15,6 +16,8 @@ interface Props {
   accessibilityHint?: string;
   style?: ViewStyle;
   testID?: string;
+  /** Shown before the title, e.g. a brand icon. */
+  icon?: ReactNode;
 }
 
 const VARIANTS: Record<Variant, { bg: string; fg: string; border: string }> = {
@@ -36,6 +39,7 @@ export function Button({
   accessibilityHint,
   style,
   testID,
+  icon,
 }: Props) {
   const v = VARIANTS[variant];
   const inactive = disabled || loading;
@@ -58,6 +62,11 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator color={v.fg} />
+      ) : icon ? (
+        <View style={styles.row}>
+          {icon}
+          <Text style={[styles.text, { color: v.fg }]}>{title}</Text>
+        </View>
       ) : (
         <Text style={[styles.text, { color: v.fg }]}>{title}</Text>
       )}
@@ -74,6 +83,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   text: { fontSize: typography.fontSizeBody, fontWeight: '600', textAlign: 'center' },
   inactive: { opacity: 0.5 },
   pressed: { opacity: 0.85 },

@@ -471,7 +471,7 @@ export class PaymentsService {
         amountMinor: attempt.amountMinor,
         currency: 'TRY',
         idempotencyKey: attempt.id,
-        description: 'UstaGO hizmet bedeli',
+        description: 'UstaBulHemen hizmet bedeli',
       });
       await this.prisma.paymentTransaction.updateMany({
         where: { id: attempt.id, gatewayTransactionId: null },

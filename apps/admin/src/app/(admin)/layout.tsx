@@ -2,6 +2,7 @@ import { colors, spacing } from '@ustago/ui';
 import Link from 'next/link';
 
 import { logout } from '@/app/login/actions';
+import { BRAND_NAME, BrandIcon } from '@/components/brand';
 import { currentAdmin } from '@/lib/auth';
 import { serverEnv } from '@/lib/env';
 
@@ -15,8 +16,18 @@ export default async function AdminLayout({ children }: LayoutProps<'/'>) {
     <div style={{ minHeight: '100vh', display: 'grid', gridTemplateRows: 'auto 1fr' }}>
       <header className="topbar">
         <nav style={{ display: 'flex', gap: spacing.lg, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Link href="/" style={{ fontWeight: 700, color: colors.primary }}>
-            UstaGO Yönetim
+          <Link
+            href="/"
+            style={{
+              fontWeight: 700,
+              color: colors.primary,
+              display: 'flex',
+              alignItems: 'center',
+              gap: spacing.sm,
+            }}
+          >
+            <BrandIcon kind="app" size={32} />
+            {BRAND_NAME} Yönetim
           </Link>
           <Link href="/service-requests">İş talepleri</Link>
           <Link href="/jobs">İşler</Link>

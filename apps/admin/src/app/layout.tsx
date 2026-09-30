@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'UstaGO Admin',
-  description: 'UstaGO yönetim paneli',
+  title: 'UstaBulHemen Yönetim',
+  description: 'UstaBulHemen yönetim paneli',
   robots: { index: false, follow: false },
 };
 

@@ -25,5 +25,5 @@ export class SmsDeliveryError extends Error {
 /** Turkish SMS body. Kept short: one SMS segment, no links. */
 export function otpMessage(code: string, ttlSeconds: number): string {
   const minutes = Math.max(1, Math.round(ttlSeconds / 60));
-  return `UstaGO doğrulama kodunuz: ${code}. Kod ${minutes} dakika geçerlidir. Kodu kimseyle paylaşmayın.`;
+  return `UstaBulHemen doğrulama kodunuz: ${code}. Kod ${minutes} dakika geçerlidir. Kodu kimseyle paylaşmayın.`;
 }

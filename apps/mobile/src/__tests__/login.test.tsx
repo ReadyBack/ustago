@@ -20,8 +20,8 @@ describe('Login screen', () => {
 
   it('shows the brand and keeps the button disabled until 10 digits are typed', async () => {
     await render(<Login />);
-    expect(screen.getAllByRole('header')[0]).toHaveTextContent('UstaGO');
-    expect(screen.getByText('İşini şimdi çözdür.')).toBeTruthy();
+    expect(screen.getAllByRole('header')[0]).toHaveTextContent('UstaBulHemen');
+    expect(screen.getByText('Usta mı lazım? Hemen bul.')).toBeTruthy();
     expect(screen.getByTestId('send-code')).toBeDisabled();
     await fireEvent.changeText(screen.getByTestId('phone-input'), '0500 000 00 01');
     expect(screen.getByTestId('phone-input')).toHaveDisplayValue('500 000 00 01');
