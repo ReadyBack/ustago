@@ -18,4 +18,5 @@ const parsed = serverEnvSchema.parse({
 export const serverEnv = {
   ADMIN_API_URL: parsed.ADMIN_API_URL.replace(/\/+$/, ''),
   cookieSecure: parsed.NODE_ENV === 'production' ? true : parsed.ADMIN_COOKIE_SECURE === 'true',
+  isProduction: parsed.NODE_ENV === 'production',
 };

@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { logout } from '@/app/login/actions';
 import { currentAdmin } from '@/lib/auth';
+import { serverEnv } from '@/lib/env';
 
 export default async function AdminLayout({ children }: LayoutProps<'/'>) {
   // Each page enforces access with requireAdmin(its own path), so an
@@ -17,8 +18,10 @@ export default async function AdminLayout({ children }: LayoutProps<'/'>) {
           <Link href="/" style={{ fontWeight: 700, color: colors.primary }}>
             UstaGO Yönetim
           </Link>
+          <Link href="/service-requests">İş talepleri</Link>
           <Link href="/providers">Usta başvuruları</Link>
           <Link href="/verifications">Belge kuyruğu</Link>
+          {serverEnv.isProduction ? null : <Link href="/dev/status">Geliştirici durumu</Link>}
         </nav>
         <div style={{ display: 'flex', gap: spacing.md, alignItems: 'center' }}>
           <span style={{ color: colors.textSecondary }}>
