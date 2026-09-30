@@ -413,6 +413,8 @@ export interface AdminServiceRequestDetail {
   category: CategoryRef;
   location: ApproximateLocation & { neighborhood: string | null };
   budget: Money | null;
+  budgetMax: Money | null;
+  scheduleOption: ScheduleOption | null;
   preferredStartAt: string | null;
   preferredEndAt: string | null;
   publishedAt: string | null;

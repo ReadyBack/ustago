@@ -832,7 +832,7 @@ function Choice({
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  flex: { flex: 1, minWidth: 0 },
   flex2: { flex: 2 },
   footerRow: { flexDirection: 'row', gap: spacing.sm },
   progressWrap: { gap: spacing.xs },

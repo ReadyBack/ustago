@@ -14,6 +14,7 @@ import { Screen } from '../../src/components/Screen';
 import { EmptyState, ErrorState, FormError, LoadingState } from '../../src/components/States';
 import { Body, Heading, Small } from '../../src/components/Text';
 import { DispatchStatusCard } from '../../src/features/customer/DispatchStatusCard';
+import { SCHEDULE_OPTION } from '../../src/features/provider/labels';
 import {
   isOpenQuote,
   QuoteComparisonTable,
@@ -99,6 +100,9 @@ export default function RequestDetail() {
               : formatBudget(r.budget)
           }
         />
+        {r.scheduleOption ? (
+          <InfoRow label="Ne zaman" value={SCHEDULE_OPTION[r.scheduleOption]} />
+        ) : null}
         {r.preferredStartAt ? (
           <InfoRow
             label="Tercih edilen zaman"
@@ -135,10 +139,13 @@ export default function RequestDetail() {
       ) : null}
 
       <Heading>Gelen Teklifler</Heading>
-      {r.budget ? (
+      {r.budget && !r.job ? (
         <Small>
-          Bütçeniz {formatMoney(r.budget)}. Ustalar farklı fiyat verebilir; karşı teklif
-          yapabilirsiniz.
+          Bütçeniz{' '}
+          {r.budgetMax
+            ? `${formatMoney(r.budget)}–${formatMoney(r.budgetMax)}`
+            : formatMoney(r.budget)}
+          . Ustalar farklı fiyat verebilir; karşı teklif yapabilirsiniz.
         </Small>
       ) : null}
       {quotes.loading ? (
@@ -149,12 +156,14 @@ export default function RequestDetail() {
         <EmptyState
           icon={r.type === 'NOW' ? '🚨' : '⏳'}
           title={
-            r.status === 'CANCELLED' || r.status === 'EXPIRED'
-              ? 'Teklif gelmedi'
-              : 'Teklifler bekleniyor'
+            r.job
+              ? 'Teklif aşaması kapandı'
+              : r.status === 'CANCELLED' || r.status === 'EXPIRED'
+                ? 'Teklif gelmedi'
+                : 'Teklifler bekleniyor'
           }
           body={
-            r.status === 'CANCELLED' || r.status === 'EXPIRED'
+            r.job || r.status === 'CANCELLED' || r.status === 'EXPIRED'
               ? undefined
               : r.type === 'NOW'
                 ? 'Talebiniz bölgenizde şu an müsait ustalara iletildi. Bu ekran kendiliğinden yenilenir.'

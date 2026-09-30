@@ -132,7 +132,7 @@ export async function DispatchSection({ requestId }: { requestId: string }) {
                     {e.providerId ? (
                       <>
                         {' '}
-                        · <Link href={`/providers/${e.providerId}`}>usta</Link>
+                        · <Link href={`/providers/${e.providerId}`}>ilgili usta</Link>
                       </>
                     ) : null}
                     {e.value !== null ? <span className="muted"> · değer: {e.value}</span> : null}

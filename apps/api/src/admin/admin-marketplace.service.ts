@@ -23,6 +23,7 @@ import {
   toCategoryRef,
   toJobSummary,
   toLocation,
+  toScheduleOption,
 } from '../service-requests/service-request.mappers.js';
 
 /**
@@ -148,6 +149,8 @@ export class AdminMarketplaceService {
       category: toCategoryRef(r.category),
       location: { ...toLocation(r), neighborhood: r.address.neighborhood },
       budget: toMoneyOrNull(r.budgetMinor, r.currency),
+      budgetMax: toMoneyOrNull(r.budgetMaxMinor, r.currency),
+      scheduleOption: toScheduleOption(r.scheduleOption),
       preferredStartAt: r.preferredStartAt?.toISOString() ?? null,
       preferredEndAt: r.preferredEndAt?.toISOString() ?? null,
       publishedAt: r.publishedAt?.toISOString() ?? null,

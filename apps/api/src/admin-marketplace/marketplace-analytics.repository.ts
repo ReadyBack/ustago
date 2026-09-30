@@ -255,7 +255,9 @@ export class MarketplaceAnalyticsRepository {
                  coalesce(sum((SELECT count(*) FROM quotes q WHERE q.service_request_id = c.id)), 0)::int
                    AS quotes,
                  count(*) FILTER (WHERE j.status = 'COMPLETED')::int AS completed,
-                 count(*) FILTER (WHERE NOT ${DISPATCHED})::int AS unserved
+                 count(*) FILTER (WHERE NOT ${DISPATCHED} AND j.id IS NULL
+                   AND NOT EXISTS (SELECT 1 FROM quotes q WHERE q.service_request_id = c.id))::int
+                   AS unserved
           FROM service_requests c
           LEFT JOIN jobs j ON j.service_request_id = c.id
           WHERE c.created_at >= ${since(days)} AND c.status <> 'DRAFT'
@@ -293,7 +295,9 @@ export class MarketplaceAnalyticsRepository {
                coalesce(sum((SELECT count(*) FROM quotes q WHERE q.service_request_id = c.id)), 0)::int
                  AS quotes,
                count(*) FILTER (WHERE j.status = 'COMPLETED')::int AS completed,
-               count(*) FILTER (WHERE NOT ${DISPATCHED})::int AS unserved
+               count(*) FILTER (WHERE NOT ${DISPATCHED} AND j.id IS NULL
+                   AND NOT EXISTS (SELECT 1 FROM quotes q WHERE q.service_request_id = c.id))::int
+                   AS unserved
         FROM service_requests c
         LEFT JOIN jobs j ON j.service_request_id = c.id
         WHERE c.province_id = ${provinceId}::smallint

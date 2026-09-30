@@ -634,6 +634,8 @@ export const adminServiceRequestDetailSchema = z.object({
   category: categoryRefSchema,
   location: approximateLocationSchema.extend({ neighborhood: z.string().nullable() }),
   budget: moneySchema.nullable(),
+  budgetMax: moneySchema.nullable(),
+  scheduleOption: scheduleOptionSchema.nullable(),
   preferredStartAt: nullableDate,
   preferredEndAt: nullableDate,
   publishedAt: nullableDate,

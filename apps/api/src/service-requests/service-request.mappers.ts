@@ -145,7 +145,7 @@ export function toAnswers(raw: unknown): CategoryAnswerSnapshot[] {
   );
 }
 
-function toScheduleOption(v: string | null): ScheduleOption | null {
+export function toScheduleOption(v: string | null): ScheduleOption | null {
   return v === 'NOW' || v === 'TODAY' || v === 'TOMORROW' || v === 'DATE' ? v : null;
 }
 

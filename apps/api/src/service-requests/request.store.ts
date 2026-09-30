@@ -169,7 +169,7 @@ export class RequestStore {
       where: { id: request.id },
       data: { nextDispatchAt: new Date() },
     });
-    const matched = await this.dispatch.dispatchIn(tx, request.id, 'PUBLISHED');
+    // Recorded first so the admin timeline reads "oluşturuldu" before "gönderildi".
     await this.events.recordIn(tx, {
       type: 'request_created',
       serviceRequestId: request.id,
@@ -178,6 +178,7 @@ export class RequestStore {
       districtId: request.districtId,
       metadata: { requestType: request.type },
     });
+    const matched = await this.dispatch.dispatchIn(tx, request.id, 'PUBLISHED');
     if (request.type === 'NOW') {
       await this.audit.recordIn(tx, {
         action: 'now.request_created',
