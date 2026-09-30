@@ -331,7 +331,7 @@ export class JobLifecycleService {
           toProvider(
             NotificationEvent.JOB_DISPUTED,
             'Müşteri işle ilgili bir sorun bildirdi.',
-            `${title}. UstaGO ekibi inceleyecek.`,
+            `${title}. UstaBulHemen ekibi inceleyecek.`,
           ),
         ];
       case 'CANCEL': {

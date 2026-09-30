@@ -53,7 +53,7 @@ export default function ProviderPublicProfile() {
           </View>
           <View style={styles.flex}>
             <Heading>{p.displayName}</Heading>
-            <Small>UstaGO üyesi · {formatDate(p.memberSince)}</Small>
+            <Small>UstaBulHemen üyesi · {formatDate(p.memberSince)}</Small>
           </View>
         </View>
         {p.isVerified ? (

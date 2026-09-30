@@ -1,16 +1,14 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '../lib/theme';
+import { BrandHero } from './Brand';
 import { Button } from './Button';
 
 /** Brand splash; with `error` it offers a retry (API unreachable at start). */
 export function Splash({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
   return (
     <View style={styles.container} testID="splash">
-      <Text style={styles.logo} accessibilityRole="header">
-        Usta<Text style={styles.logoAccent}>GO</Text>
-      </Text>
-      <Text style={styles.slogan}>İşini şimdi çözdür.</Text>
+      <BrandHero iconSize={176} nameSize={36} />
       {error ? (
         <View style={styles.offline}>
           <Text style={styles.offlineText}>{error}</Text>
@@ -18,7 +16,7 @@ export function Splash({ error, onRetry }: { error?: string | null; onRetry?: ()
         </View>
       ) : (
         <ActivityIndicator
-          color={colors.textInverse}
+          color={colors.brandOrange}
           style={styles.spinner}
           accessibilityLabel="Yükleniyor"
         />
@@ -30,18 +28,15 @@ export function Splash({ error, onRetry }: { error?: string | null; onRetry?: ()
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.lg,
   },
-  logo: { fontSize: 48, fontWeight: '900', color: colors.textInverse, letterSpacing: -1 },
-  logoAccent: { color: '#FFD166' },
-  slogan: { fontSize: 18, color: colors.textInverse, marginTop: spacing.sm, opacity: 0.95 },
   spinner: { marginTop: spacing.xl },
   offline: {
     marginTop: spacing.xl,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: spacing.md,
     gap: spacing.md,

@@ -54,7 +54,7 @@ export function ReviewSection({ job }: { job: ApiState<Job> }) {
         <Stars value={review.rating} size={22} />
         {review.comment ? <Body>“{review.comment}”</Body> : null}
         {review.status === 'HIDDEN' ? (
-          <Small>Bu değerlendirme UstaGO ekibi tarafından gizlendi.</Small>
+          <Small>Bu değerlendirme UstaBulHemen ekibi tarafından gizlendi.</Small>
         ) : null}
         {j.actions.editReview ? (
           <>

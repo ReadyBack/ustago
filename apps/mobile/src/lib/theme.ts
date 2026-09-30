@@ -9,6 +9,10 @@ export const colors = {
   warningSoft: '#FEF5E6',
   muted: '#9AA3B2',
   overlay: 'rgba(17, 24, 39, 0.4)',
+  /** UstaBulHemen wordmark colors, sampled from the official logo. */
+  brandNavy: '#051B33',
+  brandOrange: '#FA9205',
+  brandSlate: '#5A7080',
 } as const;
 
 export { radii, spacing, typography };

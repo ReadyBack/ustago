@@ -6,6 +6,7 @@ import { StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ApiError } from '../../src/api/client';
 import { addressApi, catalogApi } from '../../src/api/services';
+import { BrandIcon } from '../../src/components/Brand';
 import { Button } from '../../src/components/Button';
 import { Screen } from '../../src/components/Screen';
 import { ErrorState, FormError, LoadingState } from '../../src/components/States';
@@ -139,7 +140,8 @@ function AddressForm({
       }
     >
       <Button
-        title="📍 Mevcut Konumumu Kullan"
+        title="Mevcut Konumumu Kullan"
+        icon={<BrandIcon kind="location" size={28} />}
         variant="secondary"
         onPress={() => void locate.submit()}
         loading={locate.busy}

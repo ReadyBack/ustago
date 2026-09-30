@@ -52,7 +52,7 @@ export function DisputeForm({
     }
     confirm(
       'Sorun bildirilsin mi?',
-      'İş “Sorun bildirildi” durumuna geçer ve UstaGO ekibi inceler.',
+      'İş “Sorun bildirildi” durumuna geçer ve UstaBulHemen ekibi inceler.',
       () => void send.submit(),
       { yes: 'Bildir', destructive: true },
     );
@@ -61,7 +61,7 @@ export function DisputeForm({
   return (
     <Card testID="dispute-form" highlight="emergency">
       <Heading>Sorun bildir</Heading>
-      <Small>Bildiriminiz UstaGO ekibine iletilir; iş bu sırada tamamlanmış sayılmaz.</Small>
+      <Small>Bildiriminiz UstaBulHemen ekibine iletilir; iş bu sırada tamamlanmış sayılmaz.</Small>
       <View style={styles.chips}>
         {reasons.map((r) => (
           <Chip

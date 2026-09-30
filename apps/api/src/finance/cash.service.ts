@@ -160,7 +160,7 @@ export class CashService {
           p,
           other,
           NotificationEvent.CASH_DISPUTED,
-          'Nakit ödeme için anlaşmazlık bildirildi. UstaGO ekibi inceleyecek.',
+          'Nakit ödeme için anlaşmazlık bildirildi. UstaBulHemen ekibi inceleyecek.',
         ),
       ]);
     });

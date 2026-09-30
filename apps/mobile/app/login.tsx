@@ -1,11 +1,12 @@
 import { normalizePhone } from '@ustago/validation';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ApiError } from '../src/api/client';
 import { authApi } from '../src/api/services';
 import { useAuth } from '../src/auth/AuthContext';
+import { BRAND_NAME, BrandHero } from '../src/components/Brand';
 import { Button } from '../src/components/Button';
 import { DevHint } from '../src/components/DevHint';
 import { Screen } from '../src/components/Screen';
@@ -14,7 +15,7 @@ import { TextField } from '../src/components/TextField';
 import { Body, Title } from '../src/components/Text';
 import { useSubmit } from '../src/hooks/useSubmit';
 import { formatPhoneInput, phoneDigits } from '../src/lib/format';
-import { colors, spacing } from '../src/lib/theme';
+import { spacing } from '../src/lib/theme';
 
 export default function Login() {
   const router = useRouter();
@@ -61,10 +62,7 @@ export default function Login() {
   return (
     <Screen edges={['top', 'bottom']}>
       <View style={styles.hero}>
-        <Text style={styles.logo} accessibilityRole="header">
-          Usta<Text style={styles.logoAccent}>GO</Text>
-        </Text>
-        <Text style={styles.slogan}>İşini şimdi çözdür.</Text>
+        <BrandHero iconSize={120} nameSize={30} />
       </View>
       <Title>Giriş yap veya kaydol</Title>
       <Body muted>Cep telefonunuza tek kullanımlık bir doğrulama kodu göndereceğiz.</Body>
@@ -100,22 +98,14 @@ export default function Login() {
         numaraları: 500 000 00 01 (müşteri), 500 000 00 02 (Demo Klima Ustası).
       </DevHint>
       <Body muted style={styles.legal}>
-        Devam ederek UstaGO Kullanım Koşulları ve KVKK Aydınlatma Metni’ni kabul etmiş olursunuz.
+        Devam ederek {BRAND_NAME} Kullanım Koşulları ve KVKK Aydınlatma Metni’ni kabul etmiş
+        olursunuz.
       </Body>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    backgroundColor: colors.primary,
-    borderRadius: 20,
-    paddingVertical: spacing.xl,
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  logo: { fontSize: 40, fontWeight: '900', color: colors.textInverse, letterSpacing: -1 },
-  logoAccent: { color: '#FFD166' },
-  slogan: { fontSize: 16, color: colors.textInverse, marginTop: spacing.xs },
+  hero: { paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.sm },
   legal: { fontSize: 12, textAlign: 'center', marginTop: 'auto' },
 });

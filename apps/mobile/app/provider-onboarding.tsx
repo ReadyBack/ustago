@@ -10,7 +10,7 @@ import type {
   VerificationType,
 } from '@ustago/types';
 import * as DocumentPicker from 'expo-document-picker';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ApiError } from '../src/api/client';
@@ -18,6 +18,7 @@ import { catalogApi, providerApi } from '../src/api/services';
 import { api } from '../src/api/session';
 import { useAuth } from '../src/auth/AuthContext';
 import { Badge } from '../src/components/Badge';
+import { BrandIcon } from '../src/components/Brand';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
@@ -189,10 +190,13 @@ function Application() {
   );
 }
 
-function SectionHeader({ title, done }: { title: string; done: boolean }) {
+function SectionHeader({ title, done, icon }: { title: string; done: boolean; icon?: ReactNode }) {
   return (
     <View style={styles.row}>
-      <Heading>{title}</Heading>
+      <View style={styles.titleRow}>
+        {icon}
+        <Heading>{title}</Heading>
+      </View>
       <Badge label={done ? '✓ Tamam' : 'Eksik'} tone={done ? 'success' : 'warning'} />
     </View>
   );
@@ -368,7 +372,11 @@ function AreasForm({
   });
   return (
     <Card>
-      <SectionHeader title="3. Hizmet bölgesi" done={done} />
+      <SectionHeader
+        title="3. Hizmet bölgesi"
+        done={done}
+        icon={<BrandIcon kind="location" size={32} />}
+      />
       <SelectField
         label="İl"
         placeholder="İl seçin"
@@ -525,6 +533,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   flex: { flex: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
   track: { height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden' },
   fill: { height: 8, backgroundColor: colors.success },
   reason: {
