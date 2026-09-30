@@ -180,6 +180,31 @@ export async function cleanup(ctx: TestContext): Promise<void> {
     select: { id: true },
   });
   const ids = users.map((u) => u.id);
+  // Marketplace rows reference users through restrict-on-delete keys:
+  // jobs → quotes (revisions cascade) → requests (photos, dispatch cascade).
+  const requestWhere = {
+    OR: [
+      { customer: { userId: { in: ids } } },
+      { quotes: { some: { provider: { userId: { in: ids } } } } },
+    ],
+  };
+  await ctx.prisma.job.deleteMany({
+    where: {
+      OR: [
+        { customer: { userId: { in: ids } } },
+        { provider: { userId: { in: ids } } },
+        { serviceRequest: requestWhere },
+      ],
+    },
+  });
+  await ctx.prisma.quote.updateMany({
+    where: { OR: [{ provider: { userId: { in: ids } } }, { serviceRequest: requestWhere }] },
+    data: { acceptedRevisionId: null, acceptedAt: null, status: 'EXPIRED' },
+  });
+  await ctx.prisma.quote.deleteMany({
+    where: { OR: [{ provider: { userId: { in: ids } } }, { serviceRequest: requestWhere }] },
+  });
+  await ctx.prisma.serviceRequest.deleteMany({ where: requestWhere });
   await ctx.prisma.otpChallenge.deleteMany({
     where: { OR: [{ phone: { in: [...phones] } }, { userId: { in: ids } }] },
   });

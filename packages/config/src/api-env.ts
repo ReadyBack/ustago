@@ -86,6 +86,35 @@ export const apiEnvSchema = z
     UPLOAD_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
     /** Lifetime of a signed URL an admin uses to view a document. */
     DOCUMENT_URL_TTL_SECONDS: z.coerce.number().int().min(30).max(900).default(120),
+
+    // --- Service requests (docs/adr/0014-talep-teklif-ve-now.md) ---
+    /** How long a "Teklif Al" request stays open for quotes. */
+    QUOTE_REQUEST_TTL_HOURS: z.coerce.number().int().min(1).max(24 * 60).default(24 * 14),
+    /** How long a NOW request keeps looking for a provider. */
+    NOW_REQUEST_TTL_MINUTES: z.coerce.number().int().min(5).max(24 * 60).default(60),
+    /** Providers notified per NOW request (one dispatch wave). */
+    NOW_DISPATCH_WAVE_SIZE: z.coerce.number().int().min(1).max(200).default(20),
+    /** Seconds between sweeps that expire old requests; 0 turns the sweep off (tests). */
+    REQUEST_EXPIRY_SWEEP_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
+    /** Upper bound for one request photo. */
+    REQUEST_PHOTO_MAX_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1024)
+      .max(20 * 1024 * 1024)
+      .default(10 * 1024 * 1024),
+    /** IANA zone for business "today" in admin statistics (data stays UTC). */
+    MARKETPLACE_TIME_ZONE: z
+      .string()
+      .default('Europe/Istanbul')
+      .refine((tz) => {
+        try {
+          new Intl.DateTimeFormat('en-US', { timeZone: tz });
+          return true;
+        } catch {
+          return false;
+        }
+      }, 'must be an IANA time zone'),
   })
   .superRefine((env, ctx) => {
     if (env.AUTH_SESSION_MAX_DAYS < env.AUTH_REFRESH_TTL_DAYS) {
