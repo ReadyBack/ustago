@@ -15,6 +15,7 @@ import type {
 /** Adana (plate 1) is the local demo market; İstanbul keeps the Faz 1 provider. */
 export const DEMO_PROVINCE_ID = 1;
 const ISTANBUL = 34;
+const ANKARA = 6;
 
 interface DemoProvider {
   displayName: string;
@@ -221,6 +222,59 @@ export const DEV_USERS: readonly DevUser[] = [
       isAvailableNow: false,
     },
   },
+  // Faz 7 demo markets (DEMO DATA): Ankara open, İzmir on the waitlist.
+  ...(
+    [
+      [
+        'usta-ankara-elektrik',
+        'Serkan',
+        'Demo Ankara Elektrik',
+        6,
+        ['elektrik'],
+        ['cankaya', 'yenimahalle'],
+      ],
+      [
+        'usta-ankara-boya',
+        'Murat',
+        'Demo Ankara Boya Badana',
+        6,
+        ['boya-badana'],
+        ['cankaya', 'kecioren'],
+      ],
+      [
+        'usta-izmir-klima',
+        'Deniz',
+        'Demo İzmir Klima',
+        35,
+        ['klima'],
+        ['karsiyaka', 'bornova', 'konak'],
+      ],
+      [
+        'usta-istanbul-klima',
+        'Emre',
+        'Demo İstanbul Klima',
+        34,
+        ['klima', 'beyaz-esya'],
+        ['besiktas', 'sariyer'],
+      ],
+    ] as const
+  ).map(([local, firstName, displayName, provinceId, categories, districts], i): DevUser => ({
+    email: `${local}@ustago.test`,
+    phone: `+9050000000${20 + i}`,
+    firstName,
+    lastName: 'Demo',
+    roles: ['CUSTOMER', 'PROVIDER'],
+    provider: {
+      displayName,
+      bio: DEMO_BIO,
+      provinceId,
+      categories: [...categories],
+      districts: [...districts],
+      status: 'ACTIVE',
+      nowEnabled: false,
+      isAvailableNow: false,
+    },
+  })),
 ];
 
 export interface DevSeedResult {
@@ -251,7 +305,7 @@ export async function seedDevData(
 
   // Dev convenience: open the demo provinces.
   await prisma.province.updateMany({
-    where: { id: { in: [DEMO_PROVINCE_ID, ISTANBUL] } },
+    where: { id: { in: [DEMO_PROVINCE_ID, ISTANBUL, ANKARA] } },
     data: { isActive: true },
   });
   // Air-conditioning breakdowns are urgent in an Adana summer: the demo

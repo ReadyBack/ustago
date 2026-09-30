@@ -22,6 +22,7 @@ import { apiEnvSchema, isStrictEnv, parseEnv } from '@ustago/config';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { seedDemoFinance } from './seed-demo-finance.js';
 import { recalculateAllScores, seedDemoHistory } from './seed-demo-history.js';
+import { seedDemoMarketplace } from './seed-demo-marketplace.js';
 import { seedDemoTrust } from './seed-demo-trust.js';
 import { seedDevData } from './seed-dev.js';
 import { ensureDevFeePolicy } from './seed-finance.js';
@@ -92,6 +93,11 @@ try {
     console.warn(
       `DEMO finance (TEST money only, idempotent — present after this run): ${finance.jobs} jobs, ${finance.payments} online payments, ` +
         `${finance.cash} cash, ${finance.refunds} refund, ${finance.payouts} payout.`,
+    );
+    const market = await withAppContext((app) => seedDemoMarketplace(prisma, app));
+    console.warn(
+      `DEMO marketplace (Faz 7): ${market.providersConfigured} providers configured (centre/regions/hours), ` +
+        `${market.requests} demo requests (${market.dispatched} dispatches), +${market.quotes} quote, +${market.messages} messages.`,
     );
     if (dev.generatedPassword) {
       console.warn(
