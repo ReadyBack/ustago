@@ -40,8 +40,11 @@ function session(overrides: Partial<SessionWithUser> = {}, userOverrides = {}): 
 describe('JwtAuthGuard', () => {
   const tokens = new TokenService(testEnv());
   let found: SessionWithUser | null;
+  const revoke = vi.fn(() => Promise.resolve());
   const sessions = {
     findForAuth: vi.fn(() => Promise.resolve(found)),
+    revoke,
+    touch: vi.fn(() => Promise.resolve()),
   } as unknown as SessionsRepository;
 
   function setup(isPublic = false) {
@@ -109,6 +112,21 @@ describe('JwtAuthGuard', () => {
     await expect(setup().canActivate(contextWith(await bearer()).context)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+
+  it('ends an idle admin session, but not an idle customer session', async () => {
+    const idleFor = (testEnv().ADMIN_IDLE_TIMEOUT_MINUTES + 1) * 60_000;
+    const lastUsedAt = new Date(Date.now() - idleFor);
+    found = session({ isAdmin: true, lastUsedAt });
+    await expect(setup().canActivate(contextWith(await bearer()).context)).rejects.toMatchObject({
+      response: { code: 'SESSION_IDLE_TIMEOUT' },
+    });
+    expect(revoke).toHaveBeenCalledWith(SESSION_ID, 'IDLE_TIMEOUT');
+
+    revoke.mockClear();
+    found = session({ isAdmin: false, lastUsedAt });
+    await expect(setup().canActivate(contextWith(await bearer()).context)).resolves.toBe(true);
+    expect(revoke).not.toHaveBeenCalled();
   });
 
   it('rejects garbage tokens', async () => {

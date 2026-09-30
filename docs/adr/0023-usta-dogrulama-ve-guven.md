@@ -14,8 +14,11 @@ Gerçek bir KYC sağlayıcısı seçilmemiştir
 
 - **Üç bağımsız eksen**, tek bir politika fonksiyonunda (`providerPolicy`) birleşir:
   - Başvuru durumu (Faz 2): `DRAFT → PENDING_REVIEW → ACTIVE / REJECTED`
-  - Doğrulama vakası: `NOT_STARTED → IN_PROGRESS → SUBMITTED → IN_REVIEW → VERIFIED`, ayrıca
-    `NEEDS_REVISION`, `REJECTED`, `EXPIRED`
+  - Doğrulama vakası: `NOT_STARTED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → VERIFIED`, ayrıca
+    `NEEDS_REVISION` (tekrar `SUBMITTED`), `REJECTED` (tekrar `IN_PROGRESS`) ve `SUSPENDED`
+    (`VERIFIED` askıya alınınca; yeniden incelemeyle `UNDER_REVIEW` ya da doğrudan `VERIFIED`).
+    Vaka düzeyinde süre dolumu yoktur. Belgede `EXPIRED` durumu vardır, ama belge süresini
+    otomatik dolduran bir iş Faz 6'da yoktur (bilinen eksik).
   - Hesap durumu: `ACTIVE / LIMITED / SUSPENDED / BANNED`
 - Politika: listelenme ve teklif verme = başvuru onaylı + hesap açık. NOW işler ve para çekme
   ayrıca `VERIFIED` ister. Rozet ("Kimliği/hesabı doğrulanmıştır") yalnız `VERIFIED` + hesap açık.
