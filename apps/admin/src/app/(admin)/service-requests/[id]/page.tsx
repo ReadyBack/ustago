@@ -8,11 +8,14 @@ import { apiRequest } from '@/lib/api';
 import { requireAdmin } from '@/lib/auth';
 import { formatDate, JOB_STATUS_LABELS, REVISION_KIND_LABELS } from '@/lib/labels';
 
+import { DispatchSection, MatchPreviewSection } from './dispatch-section';
+
 export default async function ServiceRequestDetailPage(props: PageProps<'/service-requests/[id]'>) {
   const { id: rawId } = await props.params;
   const id = uuidSchema.safeParse(rawId);
   if (!id.success) notFound();
-  await requireAdmin(`/service-requests/${id.data}`);
+  const preview = (await props.searchParams).preview === '1';
+  await requireAdmin(`/service-requests/${id.data}${preview ? '?preview=1' : ''}`);
 
   const result = await apiRequest(`/admin/service-requests/${id.data}`, {
     schema: adminServiceRequestDetailSchema,
@@ -155,6 +158,11 @@ export default async function ServiceRequestDetailPage(props: PageProps<'/servic
           </div>
         ))}
       </section>
+
+      <DispatchSection requestId={r.id} />
+      <div id="eslestirme">
+        <MatchPreviewSection requestId={r.id} enabled={preview} />
+      </div>
     </div>
   );
 }
