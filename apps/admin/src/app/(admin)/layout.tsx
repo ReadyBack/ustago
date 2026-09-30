@@ -19,6 +19,9 @@ export default async function AdminLayout({ children }: LayoutProps<'/'>) {
             UstaGO Yönetim
           </Link>
           <Link href="/service-requests">İş talepleri</Link>
+          <Link href="/jobs">İşler</Link>
+          <Link href="/disputes">Sorun bildirimleri</Link>
+          <Link href="/reviews">Değerlendirmeler</Link>
           <Link href="/providers">Usta başvuruları</Link>
           <Link href="/verifications">Belge kuyruğu</Link>
           {serverEnv.isProduction ? null : <Link href="/dev/status">Geliştirici durumu</Link>}
