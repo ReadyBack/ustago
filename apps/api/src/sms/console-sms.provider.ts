@@ -19,7 +19,10 @@ export class ConsoleSmsProvider implements SmsProvider {
   }
 
   sendOtp(phone: string, code: string, ttlSeconds: number): Promise<void> {
-    this.logger.warn(`[DEV SMS → ${maskPhone(phone)}] ${otpMessage(code, ttlSeconds)}`);
+    // The bare code comes first so it is easy to spot in a busy terminal.
+    this.logger.warn(
+      `[DEV SMS → ${maskPhone(phone)}] OTP KODU: ${code}  (${otpMessage(code, ttlSeconds)})`,
+    );
     return Promise.resolve();
   }
 }
